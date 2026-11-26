@@ -101,6 +101,7 @@ class EcutGcodeEngine:
         self._rapid_override = 100
         self._spindle_override = 100
         self.check_mode = False
+        self._homing = False
         self._check_snapshot = None
         self._parser = _Parser(position=self._measured_position())
         self._active_parser = None
@@ -938,8 +939,10 @@ class EcutGcodeEngine:
                 raise GcodeError(9, 'Unlock refused: reset and fresh safe inputs required')
             self.api._check_resume_inputs()
             return ['[MSG:Caution: Unlocked]', 'ok']
+        if text in ('$H', '$HX', '$HY', '$HZ'):
+            return self._home_cycle(text[2:])
         if text.startswith('$H'):
-            raise GcodeError(20, 'Homing refused: physical input cycle capture is not verified')
+            raise GcodeError(3, 'Unsupported system command')
         if text == '$SLP':
             raise GcodeError(20, 'Driver disable/sleep command is not verified')
         if text.startswith('$J='):
@@ -982,6 +985,28 @@ class EcutGcodeEngine:
             self._set_setting(int(match[1]), float(match[2]))
             return ['ok']
         raise GcodeError(3, 'Unsupported system command')
+
+    def _home_cycle(self, letter):
+        """$H / $HX / $HY / $HZ: the sensor homing cycle, Z first, then X and Y (configured axes only)."""
+        if not self.api.config.unverified.homing:
+            raise GcodeError(20, 'Homing refused: physical input cycle capture is not verified')
+        if self.check_mode or self.pending_tool_change is not None:
+            raise GcodeError(8, 'Homing requires check mode disabled and no tool change pending')
+        config = self.api.config
+        if letter:
+            axes = ['XYZ'.index(letter)]
+        else:
+            axes = [axis for axis in (2, 0, 1) if config.homing[axis].enabled and config.axes[axis].enabled]
+        if not axes:
+            self.api.home_axes([])
+        self._homing = True
+        try:
+            for axis in axes:
+                self.api.home_axes([axis])
+        finally:
+            self._homing = False
+            self._parser.position = self._measured_position()
+        return ['ok']
 
     def _set_setting(self, key, value):
         if self.check_mode or self.api.state != State.IDLE or self.pending_tool_change is not None:
@@ -1077,6 +1102,8 @@ class EcutGcodeEngine:
         if state is None:
             state = {State.IDLE: 'Idle', State.RUNNING: 'Run', State.PAUSED: 'Hold:0',
                      State.ESTOP: 'Alarm', State.ERROR: 'Alarm', State.DISCONNECTED: 'Alarm'}[self.api.state]
+        if self._homing and state == 'Run':
+            state = 'Home'
         if self.check_mode:
             state = 'Check'
         position, offset = self._measured_position(), self._offset()
@@ -1087,8 +1114,10 @@ class EcutGcodeEngine:
         speed = getattr(self.api, '_spindle_rpm', 0)
         # the accessory field of the sender protocol: S = spindle CW, C = spindle CCW
         accessory = {'SPINDLE_CW': '|A:S', 'SPINDLE_CCW': '|A:C'}.get(getattr(self.api, '_spindle_direction', None), '')
+        pins = self.api.active_pins
+        pins = f'|Pn:{pins}' if pins else ''
         # E-Cut status does not provide measured velocity or spindle RPM.
-        return (f'<{state}|{kind}:{self._coordinates(position)}|FS:0,{speed:g}'
+        return (f'<{state}|{kind}:{self._coordinates(position)}|FS:0,{speed:g}{pins}'
                 f'|WCO:{self._coordinates(offset)}|Ov:{override},{self._rapid_override},{self._spindle_override}'
                 f'{accessory}>')
 
@@ -1122,7 +1151,7 @@ class EcutGcodeEngine:
             self.api.resume()
         elif code == 0x85:
             self._program_epoch += 1
-            self.api.stop()
+            self.api.request_stop()
         elif code in (0x90, 0x91, 0x92, 0x93, 0x94):
             increments = {0x91: .1, 0x92: -.1, 0x93: .01, 0x94: -.01}
             self.api.feed_override = 1 if code == 0x90 else max(.1, min(2,

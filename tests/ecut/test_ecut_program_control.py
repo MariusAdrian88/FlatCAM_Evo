@@ -8,6 +8,7 @@ import pytest
 from appPlugins.Common.ecut import EcutBoardConfig, EcutError, State, SignalPolarity
 from appPlugins.Common.ecut import ecut_controller
 from appPlugins.Common.ecut.ecut_controller import compile_program
+from test_ecut_feed_hold import Clock, StreamBoard
 from test_ecut_spindle import pwm_api, pwm_values
 
 
@@ -259,6 +260,27 @@ def test_manual_pause_clears_physical_coolant_despite_generic_alias(command):
     api.on_state_change(confirm)
     api.run_gcode([command])
     assert api._usb.outputs == (4 if command == 'M0' else 0)
+
+
+def test_last_move_with_slow_fifo_ends_idle(monkeypatch):
+    clock = Clock()
+    monkeypatch.setattr(ecut_controller, 'time', clock.module)
+    api = ecut_controller.EcutAPI()
+
+    class SlowBoard(StreamBoard):
+        def cmd(self, opcode, params=b''):
+            super().cmd(opcode, params)
+            if self.stream_end is not None:  # with the queue run after it: over the plain 2 s drain wait
+                self.busy_until = self.stream_end + 1.8
+
+    board = api._usb = SlowBoard(clock)
+    board.is_open = True
+    api.push_config()
+    states = []
+    api.on_state_change(states.append)
+    api.run_gcode(['G1 X50 F3000', 'M30'])
+    assert api.state == State.IDLE
+    assert State.ERROR not in states
 
 
 def test_unmodified_supplied_file_executes_with_explicit_test_operator(monkeypatch):

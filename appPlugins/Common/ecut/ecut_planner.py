@@ -178,7 +178,8 @@ def check_soft_limit_move(axis, start, target, tolerance, name='axis'):
 
 
 def plan_linear_path(config: EcutBoardConfig, start_steps, moves, *, feed_override=1.0,
-                     junction_deviation_mm=0.01, period_s=0.001, checkpoint=None) -> list[PlannedBlock]:
+                     junction_deviation_mm=0.01, period_s=0.001, checkpoint=None,
+                     corner_speed_caps=None) -> list[PlannedBlock]:
     """Validate the whole path, then maximize feasible speeds at all junctions.
 
     First entry and final exit are stopped. ``None`` preserves the actual count
@@ -269,6 +270,9 @@ def plan_linear_path(config: EcutBoardConfig, start_steps, moves, *, feed_overri
             corner_speed = math.sqrt(turn_acceleration * deviation * half_angle / (1 - half_angle))
             cap = min(cap, corner_speed)
         speeds[i] = cap
+    for i, cap in (corner_speed_caps or {}).items():   # {block index: max exit speed mm/s}
+        if 0 <= i < len(geometry) - 1:
+            speeds[i + 1] = min(speeds[i + 1], cap)
     for i in _with_checkpoint(range(len(geometry) - 1, 0, -1), checkpoint):
         length, deceleration = geometry[i][3], geometry[i][7]
         speeds[i] = min(speeds[i], math.hypot(speeds[i + 1], math.sqrt(deceleration) * math.sqrt(2 * length)))
@@ -329,10 +333,15 @@ class _PathSegments(Sequence):
 
     def _corner_error(self, checkpoint=None):
         """Worst corner chord error as a multiple of that corner's allowed error."""
-        worst = 0.0
+        return max(self._corner_errors(checkpoint), default=0.0)
+
+    def _corner_errors(self, checkpoint=None):
+        """Chord error of each corner (after block i) as a multiple of its allowed error."""
+        ratios = []
         for i in _with_checkpoint(range(len(self.blocks) - 1), checkpoint):
             block, boundary = self.blocks[i], self.ends[i]
             if not self.limits[i]:
+                ratios.append(0.0)
                 continue
             index = min(self.count - 1, int(boundary / self.ends[-1] * self.count))
             before = self._position(index)
@@ -342,11 +351,11 @@ class _PathSegments(Sequence):
             chord_squared = sum(value * value for value in chord)
             fraction = min(1.0, max(0.0, sum(a * b for a, b in zip(chord, offset)) / chord_squared)) if chord_squared else 0.0
             error = math.hypot(*(point - fraction * direction for point, direction in zip(offset, chord)))
-            worst = max(worst, error / self.limits[i])
-        return worst
+            ratios.append(error / self.limits[i])
+        return ratios
 
 
-def iter_path_segments(blocks, *, junction_deviation_mm=0.01, checkpoint=None):
+def iter_path_segments(blocks, *, junction_deviation_mm=0.01, checkpoint=None, scale_timebase=True):
     """Return a lazy sequence sharing one 1 ms timebase across the path.
 
     Block profiles are sampled before their individual millisecond rounding.
@@ -363,12 +372,17 @@ def iter_path_segments(blocks, *, junction_deviation_mm=0.01, checkpoint=None):
     Zero deviation uses each exact-stop block's individual timebase so every
     corner target is visited exactly. This requires a zero-speed corner plan.
     The optional checkpoint runs during construction, never while emitting records.
+
+    With ``scale_timebase=False`` the timebase is never slowed: the result is
+    ``(segments, ratios)``, the chord error of each corner as a multiple of its allowed
+    error (``plan_path_segments`` uses it to slow only the corners that exceed it).
     """
     if not _finite(junction_deviation_mm) or junction_deviation_mm < 0:
         raise EcutError('Junction deviation must be finite and nonnegative')
     blocks = tuple(_with_checkpoint(blocks, checkpoint))
     if not blocks:
-        return _PathSegments((), (), 0, ())
+        empty = _PathSegments((), (), 0, ())
+        return empty if scale_timebase else (empty, [])
     if any(not isinstance(block.segments, _Segments) for block in _with_checkpoint(blocks, checkpoint)):
         raise EcutError('Path requires planner-generated blocks')
     scales = blocks[0].segments.scales
@@ -381,7 +395,8 @@ def iter_path_segments(blocks, *, junction_deviation_mm=0.01, checkpoint=None):
             raise EcutError('Zero deviation sampling requires exact-stop blocks')
         # A zero-width corner cannot be crossed by a chord on a fixed timebase.
         # Quantize stopped runs independently and retain all exact waypoints.
-        return _StoppedPathSegments(blocks)
+        stopped = _StoppedPathSegments(blocks)
+        return stopped if scale_timebase else (stopped, [])
     ends = []
     duration = 0.0
     correction = 0.0
@@ -403,12 +418,38 @@ def iter_path_segments(blocks, *, junction_deviation_mm=0.01, checkpoint=None):
         if checkpoint is not None:
             checkpoint()
         result = _PathSegments(blocks, tuple(ends), count, scales, limits)
-        ratio = result._corner_error(checkpoint=checkpoint)
+        ratios = result._corner_errors(checkpoint=checkpoint)
+        if not scale_timebase:
+            return result, ratios
+        ratio = max(ratios, default=0.0)
         if ratio <= 1:
             return result
         count *= max(2, math.ceil(ratio))
         if count > sys.maxsize:
             raise EcutError('Corner tolerance exceeds the host record-count range')
+
+
+def plan_path_segments(config: EcutBoardConfig, start_steps, moves, *, feed_override=1.0,
+                       junction_deviation_mm=0.01, checkpoint=None, max_rounds=8):
+    """Plan ``moves`` and return the path records, slowing only the corners that need it.
+
+    A corner whose record chord exceeds its tolerance gets a lower exit speed (the chord error is
+    linear in the speed for a fixed 1 ms record) and the path is planned again. If a corner is still
+    above tolerance after ``max_rounds``, the whole timebase is slowed instead, so the tolerance holds.
+    """
+    kwargs = dict(feed_override=feed_override, junction_deviation_mm=junction_deviation_mm, checkpoint=checkpoint)
+    caps = {}
+    for _ in range(max_rounds):
+        blocks = plan_linear_path(config, start_steps, moves, corner_speed_caps=caps, **kwargs)
+        segments, ratios = iter_path_segments(blocks, junction_deviation_mm=junction_deviation_mm,
+                                              checkpoint=checkpoint, scale_timebase=False)
+        over = [(i, ratio) for i, ratio in enumerate(ratios) if ratio > 1]
+        if not over:
+            return segments
+        for i, ratio in over:
+            # The error is not exactly linear when the speed changes within a record: at least halve a repeated corner.
+            caps[i] = blocks[i].exit_speed_mm_s / (ratio if i not in caps else max(ratio, 2.0))
+    return iter_path_segments(blocks, junction_deviation_mm=junction_deviation_mm, checkpoint=checkpoint)
 
 
 @dataclass(frozen=True)

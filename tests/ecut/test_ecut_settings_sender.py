@@ -194,9 +194,11 @@ def test_actual_backend_snapshot_roundtrips_through_all_eight_tabs(sender, tmp_p
     before = engine.get_motion_settings()
     port.get_motion_settings.return_value = before
     dialog = open_panel(tool)
-    assert dialog.tabs.count() == 8
+    assert dialog.tabs.count() == 9
     assert dialog.hardware_tabs is not None
     payload = dialog.values()
+    dialog.hardware_tabs.unverified_fields['mpg'].setChecked(True)
+    assert dialog.values()['hardware']['unverified']['mpg'] is True
     assert payload['hardware'] == before['hardware']
     saved = engine.save_motion_settings(payload)
     assert saved['axes'] == before['axes']

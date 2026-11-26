@@ -72,6 +72,7 @@ class EcutMotionDialog(QtWidgets.QDialog):
     output_requested = QtCore.pyqtSignal(int, bool)
     stop_requested = QtCore.pyqtSignal()
     reference_requested = QtCore.pyqtSignal(list)
+    sensor_home_requested = QtCore.pyqtSignal()
 
     def __init__(self, settings, parent=None):
         super().__init__(parent)
@@ -270,6 +271,12 @@ class EcutMotionDialog(QtWidgets.QDialog):
             button.clicked.connect(lambda checked=False, axis=index: self._request_reference(axis))
             row.addWidget(button)
             self.home_buttons.append(button)
+        sensor_button = FCButton(_('Home (sensor)'))
+        sensor_button.setToolTip(_('Runs the home switch cycle ($H): Z first, then X and Y. '
+                                   'Needs "Homing" under Not verified on hardware.'))
+        sensor_button.clicked.connect(lambda checked=False: self.sensor_home_requested.emit())
+        row.addWidget(sensor_button)
+        self.home_buttons.append(sensor_button)
         self.home_label = FCLabel('')
         home_layout.addWidget(self.home_label)
         layout.addWidget(home_group)

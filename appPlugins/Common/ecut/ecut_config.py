@@ -319,6 +319,22 @@ class MPGConfig:
 
 
 @dataclass
+class UnverifiedConfig:
+    """Switches for features that are not verified on hardware (all off by default)."""
+    homing: bool = False
+    probing: bool = False
+    backlash: bool = False
+    mpg: bool = False
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> UnverifiedConfig:
+        return cls(**{k: bool(v) for k, v in d.items() if k in cls.__dataclass_fields__})
+
+
+@dataclass
 class SafetyConfig:
     """Safety and interlock configuration."""
     estop_input_enabled: bool = False
@@ -414,6 +430,7 @@ class EcutBoardConfig:
     spindle: SpindleConfig = field(default_factory=SpindleConfig)
     mpg: MPGConfig = field(default_factory=MPGConfig)
     safety: SafetyConfig = field(default_factory=SafetyConfig)
+    unverified: UnverifiedConfig = field(default_factory=UnverifiedConfig)
 
 
     # Captures and isolated motion tests establish 1 ms per record on firmware 2.4.8.288.
@@ -449,6 +466,7 @@ class EcutBoardConfig:
             'spindle': self.spindle.to_dict(),
             'mpg': self.mpg.to_dict(),
             'safety': self.safety.to_dict(),
+            'unverified': self.unverified.to_dict(),
             'motion_period_s': self.motion_period_s,
             'junction_deviation_mm': self.junction_deviation_mm,
             'soft_limit_tolerance_mm': self.soft_limit_tolerance_mm,
@@ -492,6 +510,8 @@ class EcutBoardConfig:
             cfg.mpg = MPGConfig.from_dict(d['mpg'])
         if 'safety' in d:
             cfg.safety = SafetyConfig.from_dict(d['safety'])
+        if 'unverified' in d:
+            cfg.unverified = UnverifiedConfig.from_dict(d['unverified'])
 
         return cfg
 

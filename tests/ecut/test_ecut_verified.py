@@ -130,3 +130,33 @@ def test_poll_does_not_wait_for_a_future_status_report():
             return []
     usb._dev = Device()
     assert usb.poll() is None
+
+
+def test_switch_enables_sensor_cycles():
+    from appPlugins.Common.ecut import Cmd
+    from test_ecut_sensors import sensor_api
+    api = sensor_api(unverified=False)
+    api._usb.commands.clear()
+    refused = [(lambda: api.home_axis(2), 'Sensor homing'), (lambda: api.probe(2, -.005), 'Probing'),
+               (lambda: api.probe_grid([(.001, .002)], .001), 'Probing'),
+               (lambda: api.run_gcode(['G91 G1 X.001 F6', 'G38.2 Z-.005 F6']), 'Probing')]
+    for call, name in refused:
+        with pytest.raises(EcutError, match=f'{name} is not verified on hardware.*Not verified'):
+            call()
+    assert api._usb.commands == []
+    api = sensor_api()
+    api._usb.commands.clear()
+    api.home_axis(2)
+    assert any(int(op) == Cmd.HOME for op, _ in api._usb.commands)
+
+
+def test_unverified_switches_round_trip_and_default_off():
+    from appPlugins.Common.ecut import EcutBoardConfig
+    cfg = EcutBoardConfig()
+    assert not any(cfg.unverified.to_dict().values())
+    cfg.unverified.mpg = cfg.unverified.backlash = True
+    again = EcutBoardConfig.from_dict(cfg.to_dict())
+    assert again.unverified.to_dict() == dict(homing=False, probing=False, backlash=True, mpg=True)
+    old = cfg.to_dict()
+    del old['unverified']
+    assert not any(EcutBoardConfig.from_dict(old).unverified.to_dict().values())

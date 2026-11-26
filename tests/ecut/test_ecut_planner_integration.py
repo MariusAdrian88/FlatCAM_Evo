@@ -110,12 +110,10 @@ def test_program_feed_override_applies_to_preplanned_path():
     assert slow.position_steps == normal.position_steps
     assert len(sent_deltas(slow)) > len(sent_deltas(normal))
 
-def test_synthetic_probe_defers_following_motion_until_measured_retract(monkeypatch):
-    from appPlugins.Common.ecut import ecut_controller
+def test_synthetic_probe_defers_following_motion_until_measured_retract():
     from appPlugins.Common.ecut.ecut_controller import compile_program, _ProbeAction, _PlannedPathAction
     from test_ecut_sensors import sensor_api
 
-    monkeypatch.setattr(ecut_controller, '_SENSOR_CYCLE_CAPTURE_VERIFIED', True)
     api = sensor_api()
     program = ['G91 G1 X.001 F6', 'G38.2 Z-.005 F6', 'G1 Z.001 F6']
     prepared = api._plan_program_actions(compile_program(program))

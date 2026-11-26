@@ -332,6 +332,31 @@ def test_invalid_per_move_corner_deviation_is_refused(planner, bad):
         planner.plan_linear_path(config(), (0,) * 6, [first, move(planner, x=10, y=10)])
 
 
+def test_one_corner_does_not_slow_the_path(planner):
+    cfg = config()
+    cfg.axes[0].acceleration_mm_s2 = cfg.axes[1].acceleration_mm_s2 = 1e5
+    cfg.axes[0].max_velocity_mm_s = cfg.axes[1].max_velocity_mm_s = 1e3
+    cfg.axes[0].steps_per_mm = cfg.axes[1].steps_per_mm = 1000    # a step is well below the deviation
+    step = 10.013                                          # not a whole number of records per move
+    straight = [move(planner, x=step * (i + 1), feed=3000) for i in range(100)]
+    corner = [move(planner, x=step * (i + 1), feed=3000) for i in range(50)]
+    corner += [planner.LinearMove((step * 50, step * (i + 1), None, None, None, None), False, 3000)
+               for i in range(50)]
+    base = planner.plan_path_segments(cfg, (0,) * 6, straight)
+    segments = planner.plan_path_segments(cfg, (0,) * 6, corner)
+    assert len(segments) < 1.1 * len(base)
+    positions = [(0, 0)]
+    for segment in segments:
+        positions.append((positions[-1][0] + segment[0], positions[-1][1] + segment[1]))
+    waypoint = (round(step * 50 * 1000), 0)
+    worst = 0
+    for start, end in zip(positions, positions[1:]):
+        if start[0] < waypoint[0] and end[1] > 0:
+            dx, dy = end[0] - start[0], end[1] - start[1]
+            worst = max(worst, abs(dx * (start[1] - waypoint[1]) - (start[0] - waypoint[0]) * dy) / math.hypot(dx, dy) / 1000)
+    assert worst <= 0.01 + 1e-12
+
+
 def test_per_move_corner_deviation_bounds_record_chord_error(planner):
     cfg = config()
     cfg.axes[0].acceleration_mm_s2 = cfg.axes[1].acceleration_mm_s2 = 1e4

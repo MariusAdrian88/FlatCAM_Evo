@@ -43,7 +43,7 @@ from .ecut_config import (
     EcutBoardConfig, AxisDirection, SignalPolarity, SpindleControl, InputSignal, ProbeMode,
 )
 
-from .ecut_planner import LinearMove, plan_linear_path, iter_path_segments, iter_jog_segments
+from .ecut_planner import LinearMove, plan_path_segments, iter_jog_segments
 
 log = logging.getLogger(__name__)
 
@@ -60,15 +60,8 @@ class State(Enum):
 
 
 _HOMING_PROBING_MSG = 'homing/probing completion is not verified'
-# Enable only after physical input mapping and Mach3 Ref/G31 cycle captures
-# establish the operational sequence. Native decompilation and count-only backend
-# experiments do not establish contact, release or hit-coordinate semantics.
-_SENSOR_CYCLE_CAPTURE_VERIFIED = False
-
-
-def _require_sensor_cycle_capture() -> None:
-    if not _SENSOR_CYCLE_CAPTURE_VERIFIED:
-        raise EcutError('Probing/homing refused: a verified Mach3 physical-input cycle capture is required')
+_UNVERIFIED_NAMES = {'homing': 'Sensor homing', 'probing': 'Probing',
+                     'backlash': 'Backlash compensation', 'mpg': 'MPG handwheel'}
 
 
 @dataclass(frozen=True)
@@ -619,6 +612,7 @@ class EcutAPI:
         self._homed_axes = set()
         self._last_probe_result = None
         self._fault_reason = None
+        self._fault_alarm = 1
         self._last_rx: Optional[EcutRxFrame] = None
         self._running = False
         self._feed_override = 1.0
@@ -627,6 +621,11 @@ class EcutAPI:
         self._on_state_change: Optional[Callable[[State], None]] = None
         self._on_rx: Optional[Callable[[EcutRxFrame], None]] = None
         self._planning_checkpoint: Optional[Callable[[], None]] = None
+        # decelerated stop (request_stop): set by the worker only
+        self._streaming = False
+        self._stop_requested = False
+        self._stop_deadline = 0.0
+        self.stop_completed = False
         # host-side queue of the running program (see queue_state); written by the worker only
         self._queue_lock = threading.Lock()
         self._queue = self._empty_queue()
@@ -816,6 +815,8 @@ class EcutAPI:
         self._input_pending.clear()
         self._expansion_inputs = None
         # the counts are kept (checked below): a reference stays valid while its axis scale is the same
+        # a reset during motion stops without deceleration: nothing is kept
+        self._forget_reference_if_moving()
         kept = {axis for axis in self._homed_axes if self._same_axis_scale(axis)}
         self._homed_axes.clear()
         self._last_probe_result = None
@@ -853,6 +854,7 @@ class EcutAPI:
             self._initialized = True
             self._homed_axes.update(kept)
             self._fault_reason = None
+            self._fault_alarm = 1
             self._set_state(State.IDLE)
         except Exception:
             if self._state != State.ESTOP:
@@ -943,6 +945,60 @@ class EcutAPI:
                 self._set_state(State.ERROR)
             raise
 
+    @property
+    def stop_pending(self) -> bool:
+        return self._stop_requested
+
+    def request_stop(self) -> None:
+        """Stop a streamed program along its path: brake at the deceleration limit, then stop.
+
+        The worker finishes the stop (`_finish_requested_stop`) when the board is stationary, so the machine
+        reference stays. At `_stop_deadline` it stops abruptly. Anywhere else this is stop().
+        """
+        self._require_connected()
+        if not (self._streaming and self._running and self._pause_reason is None
+                and self._state in (State.RUNNING, State.PAUSED)):
+            self.stop()
+            return
+        if not self._stop_requested:
+            self.stop_completed = False
+            self._stop_requested = True
+            self._stop_deadline = time.monotonic() + 5.0
+            self._set_state(State.PAUSED)  # _HoldableRecords brakes while PAUSED
+
+    def is_stationary(self, frame: Optional[EcutRxFrame]) -> bool:
+        """Hold complete: the board is configured, idle, its FIFO is empty and it is at the target counts."""
+        return (frame is not None and frame.configured and not frame.motion_busy
+                and frame.fifo_free == 12000 and list(frame.axis_positions) == self._acc.steps)
+
+    def _finish_requested_stop(self) -> None:
+        # nothing moves: _shutdown() does not forget the machine reference (_forget_reference_if_moving)
+        self._stop_requested = False
+        self._running = False
+        try:
+            self._shutdown(Cmd.STOP)
+            frame = self._wait_idle()
+            self._acc.steps = list(frame.axis_positions)
+            if self._state not in (State.ESTOP, State.ERROR):
+                self._set_state(State.IDLE)
+        except Exception:
+            self._initialized = False
+            if self._state != State.ESTOP:
+                self._set_state(State.ERROR)
+            raise
+        self._end_requested_stop()
+
+    def _abort_requested_stop(self) -> None:
+        # the board did not stop in time: abrupt stop, the reference is forgotten
+        self._stop_requested = False
+        self.stop()
+        self._end_requested_stop()
+
+    def _end_requested_stop(self) -> None:
+        self.stop_completed = True
+        if self._planning_checkpoint is not None:
+            self._planning_checkpoint()  # the sender port ends the program here
+
     def estop(self) -> None:
         self._require_connected()
         # state first: nothing may be submitted after this point, even if the USB write fails
@@ -1009,7 +1065,7 @@ class EcutAPI:
         if self._pause_reason == 'M6':
             raise EcutError('Use confirm_tool_change() for the pending tool change')
         self._check_resume_inputs()
-        if self._state != State.PAUSED:
+        if self._state != State.PAUSED or self._stop_requested:
             return
         if self._pause_reason == 'M0':
             self._check_manual_continue()
@@ -1042,7 +1098,15 @@ class EcutAPI:
     def _wait_while_paused(self) -> None:
         """Poll until explicit continue, stop or fault; manual waits require live status."""
         while self._state == State.PAUSED and self._running:
-            if self._pause_reason is not None:
+            if self._stop_requested:
+                # braking is over: finish the stop when the board is stationary, else at the deadline
+                if self.is_stationary(self.poll()):
+                    self._finish_requested_stop()
+                    return
+                if time.monotonic() >= self._stop_deadline:
+                    self._abort_requested_stop()
+                    return
+            elif self._pause_reason is not None:
                 if self._wait_for_rx(timeout=0.5) is None:
                     raise EcutError('No status during manual pause')
             else:
@@ -1080,22 +1144,23 @@ class EcutAPI:
         self._wait_while_paused()
 
     def _dwell(self, seconds: float) -> None:
-        remaining = seconds
-        while remaining > 0 and self._running:
+        deadline = time.monotonic() + seconds
+        paused_before = self._paused_seconds
+        while self._running and not self._stop_requested:
             self._wait_while_paused()
             if not self._running:
                 return
             if self._state in (State.ESTOP, State.ERROR):
                 raise EcutError('Dwell interrupted by stop/fault')
-            start = time.monotonic()
-            paused_before = self._paused_seconds
+            # time spent paused does not count into the dwell
+            remaining = deadline + (self._paused_seconds - paused_before) - time.monotonic()
+            if remaining <= 0:
+                return
             if self._wait_for_rx(timeout=0.5) is None:
                 raise EcutError('No status during dwell')
-            if self._state == State.RUNNING:
-                time.sleep(min(.001, remaining))
-                remaining -= max(0.0, time.monotonic() - start - (self._paused_seconds - paused_before))
-            elif self._state in (State.ESTOP, State.ERROR):
+            if self._state in (State.ESTOP, State.ERROR):
                 raise EcutError('Dwell interrupted by stop/fault')
+            time.sleep(min(.001, remaining))
 
     # ------------------------------------------------------------------
     # Homing API
@@ -1114,7 +1179,7 @@ class EcutAPI:
             raise EcutError('No homing axes configured')
         if any(not 0 <= axis < 6 for axis in axes):
             raise ValueError('Invalid homing axis')
-        _require_sensor_cycle_capture()
+        self._require_sensor_cycle_capture('homing')
         self._require_state(State.IDLE)
         self._require_motion_allowed()
         for axis in axes:
@@ -1170,8 +1235,12 @@ class EcutAPI:
                 target[axis] = round(h.home_offset_mm * self._axis_scale(axis))
                 self._set_board_counts(target, 1 << axis)
                 self._homed_axes.add(axis)
-        except Exception:
+        except Exception as error:
             self._sensor_error()
+            if self._state != State.ESTOP:
+                # a limit or E-stop input keeps its own alarm code; a failed cycle is ALARM:9
+                self._fault_alarm = 9
+                self._fault_reason = 'Homing failed: %s' % error
             raise
         finally:
             self._homing_axis = None
@@ -1201,7 +1270,7 @@ class EcutAPI:
             raise ValueError(f'Invalid axis {axis}')
         if axis >= 3:
             raise EcutError('Probing outside XYZ is not verified')
-        _require_sensor_cycle_capture()
+        self._require_sensor_cycle_capture('probing')
         program_running = self._running and self._state == State.RUNNING
         if not program_running:
             self._require_state(State.IDLE)
@@ -1273,7 +1342,7 @@ class EcutAPI:
             raise EcutError('Invalid probe grid coordinates')
         if not points:
             return []
-        _require_sensor_cycle_capture()
+        self._require_sensor_cycle_capture('probing')
         self._require_state(State.IDLE)
         self._require_motion_allowed()
         sig = self._config.inputs['PROBE']
@@ -1579,7 +1648,7 @@ class EcutAPI:
         modal = _Modal(units_mm=self._config.units_mm)
         actions = compile_program(lines, modal, checkpoint=self._planning_checkpoint)
         if any(isinstance(action, _ProbeAction) for _, action in actions):
-            _require_sensor_cycle_capture()
+            self._require_sensor_cycle_capture('probing')
             sig = self._config.inputs['PROBE']
             if not sig.enabled or sig.port != 1 or self._config.probe.mode != ProbeMode.TOWARD_WORKPIECE:
                 raise EcutError('Probing program requires a configured physical toward-workpiece probe')
@@ -1605,6 +1674,8 @@ class EcutAPI:
         self._running = True
         try:
             for _lineno, action in actions:
+                if self._stop_requested:
+                    self._finish_requested_stop()
                 self._wait_while_paused()
                 if not self._running:
                     break
@@ -1629,6 +1700,9 @@ class EcutAPI:
             if self._state in (State.RUNNING, State.PAUSED):
                 self._set_state(State.IDLE)
             self._running = False
+            if self._stop_requested:  # the run ended before the stop could finish
+                self._stop_requested = False
+                self.stop_completed = True
             self._queue_clear()
 
     @staticmethod
@@ -1737,6 +1811,9 @@ class EcutAPI:
     def _shutdown(self, command: Cmd) -> None:
         """Attempt every independent stop write, retaining the initialized pin polarity."""
         self._forget_reference_if_moving()
+        if self._stop_requested:  # an abrupt stop ends a pending decelerated stop
+            self._stop_requested = False
+            self.stop_completed = True
         self._stop_generation += 1
         self._native_motion_active = False
         self._running = False
@@ -2077,6 +2154,7 @@ class EcutAPI:
                 limits = [name for name in limits if self._config.inputs[name].pin != home.pin]
         if emergency or limits:
             self._fault_reason = 'Emergency input' if emergency else 'Limit input: ' + ', '.join(limits)
+            self._fault_alarm = 10 if emergency else 1
             self.estop()
             return
         if safety.feed_hold_on_door_open and self._input_values.get('DOOR', False):
@@ -2087,6 +2165,21 @@ class EcutAPI:
     @property
     def fault_reason(self) -> Optional[str]:
         return self._fault_reason
+
+    @property
+    def fault_alarm(self) -> int:
+        """Alarm code of the last fault: 10 = E-stop input, 1 = limit input or a cause that is not tracked."""
+        return self._fault_alarm
+
+    @property
+    def active_pins(self) -> str:
+        """Letters of the active inputs for the status report: X Y Z A limits, P probe, E E-stop."""
+        pins = {name[0] for name in self.limits_triggered if name[0] in 'XYZA'}
+        if self._input_values.get('PROBE', False):
+            pins.add('P')
+        if self._input_values.get('ESTOP', False) or (self._state == State.ESTOP and self._fault_alarm == 10):
+            pins.add('E')
+        return ''.join(sorted(pins))
 
     def config_summary(self) -> str:
         return self._config.summary()
@@ -2116,6 +2209,12 @@ class EcutAPI:
         if self._state != expected:
             raise EcutError(f'Expected state {expected.name}, got {self._state.name}')
 
+    def _require_sensor_cycle_capture(self, feature: str) -> None:
+        # The cycles are not verified on hardware: the owner turns each one on in E-Cut hardware > Not verified.
+        if not self._config.unverified.to_dict()[feature]:
+            raise EcutError(f'{_UNVERIFIED_NAMES[feature]} is not verified on hardware. '
+                            'Turn it on in E-Cut hardware > Not verified.')
+
     def _require_motion_allowed(self) -> None:
         if self._state in (State.ESTOP, State.ERROR):
             raise EcutError(f'Motion refused in state {self._state.name}, reset() first')
@@ -2139,31 +2238,47 @@ class EcutAPI:
         self._traj_id = (self._traj_id + 1) & 0xFFFFFF
         records = _HoldableRecords(segments, self._config, lambda: self._state == State.PAUSED)
         packet = 0
-        while True:
-            # Native FUN_100082f0 gates up to two four-record reports on >7000 free.
-            if packet % 2 == 0 and not self._wait_for_stream_space(in_run, records):
-                return
-            if records.stopped:
-                self._wait_while_paused()
+        sent = 0
+        first_record_time = None
+        paused_seconds = 0.0
+        self._streaming = in_run  # request_stop() brakes only while records are streamed
+        try:
+            while True:
+                # Native FUN_100082f0 gates up to two four-record reports on >7000 free.
+                if packet % 2 == 0 and not self._wait_for_stream_space(in_run, records):
+                    return
+                if records.stopped:
+                    paused_from = time.monotonic()
+                    self._wait_while_paused()
+                    paused_seconds += time.monotonic() - paused_from
+                self._require_motion_allowed()
+                if in_run and not self._running:
+                    return  # stop() during the run: do not send the rest of this move
+                chunk = records.take(per_packet)
+                if not chunk:
+                    if records.done:
+                        break
+                    continue  # held: nothing to send until resume
+                if first_record_time is None:
+                    first_record_time = time.monotonic()
+                self._usb.send_motion([encode_motion_record(self._traj_id, tuple(deltas)) for deltas in chunk])
+                sent += len(chunk)
+                for deltas in chunk:
+                    self._acc.advance(deltas)
+                self._queue_progress(records.remaining)
+                packet += 1
+                self.poll()
             self._require_motion_allowed()
             if in_run and not self._running:
-                return  # stop() during the run: do not send the rest of this move
-            chunk = records.take(per_packet)
-            if not chunk:
-                if records.done:
-                    break
-                continue  # held: nothing to send until resume
-            self._usb.send_motion([encode_motion_record(self._traj_id, tuple(deltas)) for deltas in chunk])
-            for deltas in chunk:
-                self._acc.advance(deltas)
-            self._queue_progress(records.remaining)
-            packet += 1
-            self.poll()
-        self._require_motion_allowed()
-        if in_run and not self._running:
-            return
-        self._usb.cmd(Cmd.END_STREAM)
-        self._wait_for_motion(timeout=2.0)
+                return
+            self._usb.cmd(Cmd.END_STREAM)
+            # the board runs 1 record per ms; the records of this stream may still be in its FIFO
+            pending_seconds = 0.0
+            if first_record_time is not None:
+                pending_seconds = max(0.0, sent * 0.001 - (time.monotonic() - first_record_time) + paused_seconds)
+            self._wait_for_motion(timeout=2.0 + pending_seconds)
+        finally:
+            self._streaming = False
 
     def _poll_latest(self) -> Optional[EcutRxFrame]:
         """Read all queued status reports; the newest one tells the real FIFO space."""
@@ -2254,10 +2369,8 @@ class EcutAPI:
                 raise EcutError(f'line {lineno}: target exceeds the board position range') from error
             moves.append(LinearMove(tuple(target), action.rapid, action.feed_mm_min, action.corner_deviation_mm))
             virtual.advance(total)
-        blocks = plan_linear_path(self._config, tuple(start_steps), moves, feed_override=self._feed_override,
-                                  junction_deviation_mm=self._config.junction_deviation_mm,
-                                  checkpoint=self._planning_checkpoint)
-        segments = iter_path_segments(blocks, junction_deviation_mm=self._config.junction_deviation_mm,
+        segments = plan_path_segments(self._config, tuple(start_steps), moves, feed_override=self._feed_override,
+                                      junction_deviation_mm=self._config.junction_deviation_mm,
                                       checkpoint=self._planning_checkpoint)
         return _PlannedPathAction(tuple(start_steps), tuple(virtual.steps), segments, actions[-1][1].feed_mm_min)
 
@@ -2389,7 +2502,8 @@ class EcutAPI:
     def _wait_for_motion(self, timeout: float = 30.0) -> None:
         """Require measured target counts, configured idle state and drained FIFO."""
         end = time.monotonic() + timeout
-        while time.monotonic() < end:
+        # a requested stop has its own deadline: it never ends in the timeout error below
+        while time.monotonic() < (max(end, self._stop_deadline) if self._stop_requested else end):
             if self._state in (State.ESTOP, State.ERROR):
                 raise EcutError('E-stop/error while waiting')
             frame = self.poll()
@@ -2397,9 +2511,16 @@ class EcutAPI:
                 raise EcutError('E-stop/error while waiting')
             if frame and frame.estop_active:
                 raise EcutError('E-stop while waiting')
-            if (frame and frame.configured and not frame.motion_busy
+            if self._stop_requested:
+                if self.is_stationary(frame):
+                    self._finish_requested_stop()
+                    return
+            elif (frame and frame.configured and not frame.motion_busy
                     and frame.outputs == self._expected_outputs and frame.fifo_free == 12000
                     and list(frame.axis_positions) == self._acc.steps):
                 return
             time.sleep(0.001)
+        if self._stop_requested:
+            self._abort_requested_stop()
+            return
         raise EcutError(f'timeout after {timeout} s waiting for measured motion target')

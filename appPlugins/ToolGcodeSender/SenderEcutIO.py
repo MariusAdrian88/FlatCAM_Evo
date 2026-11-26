@@ -52,6 +52,7 @@ class EcutHardwareTabs(QtWidgets.QWidget):
         self.output_fields = {}
         self.axis_fields = []
         self.spindle_fields = {}
+        self.unverified_fields = {}
         self.logical_leds = {}
         self.input_leds = []
         self.output_buttons = []
@@ -67,6 +68,7 @@ class EcutHardwareTabs(QtWidgets.QWidget):
         self._build_outputs(hardware)
         self._build_axes()
         self._build_spindle()
+        self._build_unverified()
         self._build_live()
         self.load_settings(hardware)
 
@@ -260,6 +262,19 @@ class EcutHardwareTabs(QtWidgets.QWidget):
         form.addRow(_('Frequency profile (fixed)'), self.spindle_frequency)
         layout.addStretch()
 
+    def _build_unverified(self):
+        layout, _label = self._page(_('Not verified'), _('Turn on a feature that is not verified on hardware.'))
+        note = FCLabel(_('These features are not verified on hardware. Use them at your own risk.'))
+        note.setStyleSheet('color: red;')
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        for key, text in (('homing', _('Sensor homing')), ('probing', _('Probing')),
+                          ('backlash', _('Backlash compensation')), ('mpg', _('MPG handwheel'))):
+            self.unverified_fields[key] = self._check(('unverified', key))
+            self.unverified_fields[key].setText(text)
+            layout.addWidget(self.unverified_fields[key])
+        layout.addStretch()
+
     def _build_live(self):
         layout, _label = self._page(_('Live I/O'), _(
             'Readback only: raw input 1 = switch closed to Vo12V; physical output On = raw 1, sinking. '
@@ -363,6 +378,9 @@ class EcutHardwareTabs(QtWidgets.QWidget):
                    **hardware.get('spindle', {})}
         for key, widget in self.spindle_fields.items():
             self._set_field(widget, spindle[key])
+        unverified = hardware.get('unverified', {})
+        for key, widget in self.unverified_fields.items():
+            self._set_field(widget, unverified.get(key, False))
         for key, fields in (('input_labels', self.input_label_fields), ('output_labels', self.output_label_fields)):
             labels = hardware.get(key)
             for pin, field in enumerate(fields):

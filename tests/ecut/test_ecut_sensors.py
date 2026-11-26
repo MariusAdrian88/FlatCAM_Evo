@@ -8,13 +8,6 @@ from test_ecut_capabilities import IoBoard
 from test_ecut_verified import report
 
 
-@pytest.fixture(autouse=True)
-def synthetic_sensor_sequences_only(monkeypatch):
-    # These model-only tests do not establish a captured Mach3 sensor cycle.
-    from appPlugins.Common.ecut import ecut_controller
-    monkeypatch.setattr(ecut_controller, '_SENSOR_CYCLE_CAPTURE_VERIFIED', True)
-
-
 class SensorBoard(IoBoard):
     def __init__(self, contact=True):
         super().__init__()
@@ -47,9 +40,10 @@ class SensorBoard(IoBoard):
         return decode_rx_report(data)
 
 
-def sensor_api(contact=True):
+def sensor_api(contact=True, unverified=True):
     api = EcutAPI()
     api._usb = SensorBoard(contact)
+    api.config.unverified.homing = api.config.unverified.probing = unverified
     api.configure_input('PROBE', pin=5, polarity=SignalPolarity.ACTIVE_HIGH, debounce_ms=0)
     api.configure_input('Z_HOME', pin=5, polarity=SignalPolarity.ACTIVE_HIGH, debounce_ms=0)
     api.configure_input('Z_LIMIT_MINUS', pin=5, polarity=SignalPolarity.ACTIVE_HIGH, debounce_ms=0)
@@ -280,20 +274,6 @@ def test_probe_release_at_endpoint_waits_for_configured_debounce():
     assert api.probe(2, -.005)[2] == -.0025
 
 
-def test_public_sensor_operations_refuse_until_mach3_cycle_capture(monkeypatch):
-    from appPlugins.Common.ecut import ecut_controller
-    api = sensor_api()
-    monkeypatch.setattr(ecut_controller, '_SENSOR_CYCLE_CAPTURE_VERIFIED', False)
-    api._usb.commands.clear()
-    calls = [lambda: api.home_axis(2), lambda: api.probe(2, -.005),
-             lambda: api.probe_grid([(.001, .002)], .001),
-             lambda: api.run_gcode(['G91 G1 X.001 F6', 'G38.2 Z-.005 F6'])]
-    for call in calls:
-        with pytest.raises(EcutError, match='Mach3.*capture'):
-            call()
-    assert api._usb.commands == []
-
-
 @pytest.mark.parametrize('operation', ['home', 'probe'])
 @pytest.mark.parametrize('interrupt', ['stop', 'reset'])
 def test_final_sensor_completion_cannot_publish_result_after_stop_or_reset(operation, interrupt):
@@ -444,3 +424,56 @@ def test_shared_home_limit_stays_an_interlock_when_homing_exemption_is_disabled(
     assert api.homed_axes == ()
     assert 'Z_LIMIT_MINUS' in api.fault_reason
     assert not any(int(op) in (Cmd.JOG_ON, Cmd.SET_POSITION) for op, _ in api._usb.commands)
+
+
+def home_switch_api(contact=True, unverified=True):
+    api = sensor_api(contact, unverified)
+    api.config.inputs['PROBE'].enabled = False
+    for axis in (0, 1):
+        api.configure_input('XY'[axis] + '_HOME', pin=5, polarity=SignalPolarity.ACTIVE_HIGH, debounce_ms=0)
+        api.config.axes[axis].enabled = True
+        home = api.config.homing[axis]
+        home.enabled = True
+        home.direction = AxisDirection.REVERSE
+        home.max_travel_mm = home.retract_mm = .005
+    api.push_config()
+    return api
+
+
+def test_home_command_runs_sensor_cycle(monkeypatch):
+    import time
+    from appPlugins.Common.ecut.ecut_gcode_engine import EcutGcodeEngine, GcodeError
+    from appPlugins.Common.ecut.ecut_sender_port import EcutSenderPort
+    api = home_switch_api()
+    engine = EcutGcodeEngine(api)
+    assert engine.execute_line('$H') == ['ok']
+    assert api.state == State.IDLE
+    assert api.homed_axes == (0, 1, 2)
+    # a single axis
+    api._homed_axes.clear()
+    assert engine.execute_line('$HZ') == ['ok']
+    assert api.homed_axes == (2,)
+    # the switch is off: the refusal stays and nothing moves
+    off = home_switch_api(unverified=False)
+    off.config.unverified.probing = True
+    with pytest.raises(GcodeError, match='[Hh]oming refused'):
+        EcutGcodeEngine(off).execute_line('$H')
+    assert off.homed_axes == ()
+    # a switch that never closes: one ALARM:9 line, no axis homed
+    bad = home_switch_api(contact=False)
+    monkeypatch.setattr(bad, 'connect', lambda: True)
+    bad._usb.close = lambda: None
+    port = EcutSenderPort(api=bad, engine=EcutGcodeEngine(bad), timeout=0.03)
+    try:
+        port.write(b'$H\n')
+        lines = []
+        deadline = time.monotonic() + 20
+        while not any(x.startswith(b'ALARM') for x in lines) and time.monotonic() < deadline:
+            lines.extend(port.readlines())
+            time.sleep(0.01)
+        time.sleep(0.2)
+        lines.extend(port.readlines())
+    finally:
+        port.close()
+    assert [x for x in lines if x.startswith(b'ALARM')] == [b'ALARM:9\r\n']
+    assert bad.homed_axes == ()

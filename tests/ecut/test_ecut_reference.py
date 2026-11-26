@@ -1,4 +1,6 @@
 """Manual machine home (reference) and soft limits with a tolerance; no board is needed."""
+from types import SimpleNamespace
+
 import pytest
 
 from appPlugins.Common.ecut import EcutError, State
@@ -121,6 +123,15 @@ def test_stop_during_motion_removes_the_reference():
     api._running = True
     api.stop()
     assert api.homed_axes == ()
+
+
+@pytest.mark.parametrize('busy, homed', [(True, ()), (False, (0, 1))])
+def test_reset_in_motion_forgets_reference(busy, homed):
+    engine, api = limited_engine()
+    api.reference_axes([0, 1])
+    api._last_rx = SimpleNamespace(motion_busy=busy)
+    api.push_config()
+    assert api.homed_axes == homed
 
 
 def test_a_scale_change_removes_the_reference():

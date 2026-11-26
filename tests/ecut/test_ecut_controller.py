@@ -1,6 +1,7 @@
 """E-Cut controller tests. No hardware: the USB layer is a fake, nothing opens a device."""
 
 import struct
+from types import SimpleNamespace
 
 import pytest
 
@@ -291,3 +292,37 @@ def test_set_position_rounds_like_target_conversion():
     api.set_position(0, 0.0009999)  # 1.5998 steps
     assert api.position_steps[0] == 2
     assert api._acc.to_steps([0.0009999, None, None, None, None, None])[0] == 2
+
+
+def dwell_api(monkeypatch, state=State.RUNNING):
+    """Dwell-ready API on a fake clock: every sleep takes 15 ms, status always arrives."""
+    api = make_api()
+    api._running = True
+    api._state = state
+    polls = [0]
+
+    def wait_for_rx(timeout=0.5):
+        polls[0] += 1
+        assert polls[0] < 1000, 'dwell does not end'
+        return object()
+    api._wait_for_rx = wait_for_rx
+    clock = [0.0]
+
+    def sleep(seconds):
+        clock[0] += 0.015
+    monkeypatch.setattr(ecut_controller, 'time', SimpleNamespace(monotonic=lambda: clock[0], sleep=sleep))
+    return api, clock
+
+
+@pytest.mark.parametrize('state', [State.RUNNING, State.IDLE])
+def test_dwell_uses_deadline(monkeypatch, state):
+    api, clock = dwell_api(monkeypatch, state)
+    api._dwell(0.1)
+    assert 0.100 <= clock[0] <= 0.115
+
+
+def test_dwell_ends_when_the_stop_is_requested(monkeypatch):
+    api, clock = dwell_api(monkeypatch)
+    api._stop_requested = True
+    api._dwell(5.0)
+    assert clock[0] < 0.1

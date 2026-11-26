@@ -32,6 +32,7 @@ class _ProgramRequest:
     lines: tuple
     event: threading.Event = field(default_factory=threading.Event)
     error: Exception | None = None
+    cancelled: threading.Event = field(default_factory=threading.Event)
 
 
 @dataclass
@@ -91,6 +92,7 @@ class EcutSenderPort:
         self._open = True
         self._active = False
         self._held = False
+        self._stop_wait = False
         self._servicing = False
         self._pending_tool_change = None
         self._pause_reason = None
@@ -100,6 +102,7 @@ class EcutSenderPort:
         self._utf8_remaining = 0
         self._startup_pending = True
         self._prepare_request = None
+        self._preparing = None  # the request that the worker plans now
         self._jog_request = None
         self._motion_request = None
         self._motion_settings_snapshot = None
@@ -108,6 +111,7 @@ class EcutSenderPort:
         self._prepared_index = 0
         self._prepared_ready = False
         self._program_failed = False
+        self._alarm_announced = False
         self._status_frame = None
         self._status_frame_at = 0.0
         self._startup_error = None
@@ -440,9 +444,10 @@ class EcutSenderPort:
             request = _ProgramRequest(self._epoch, tuple(expected))
             self._prepare_request = request
             self._condition.notify_all()
-        if not request.event.wait(self.PREPARE_TIMEOUT):
+        if not request.event.wait(max(self.PREPARE_TIMEOUT, len(expected) / 5000.0)):
             with self._condition:
                 if not request.event.is_set():
+                    request.cancelled.set()  # the planning checkpoint ends the planner
                     request.error = serial.SerialTimeoutException('E-Cut program preparation timed out')
                     if self._prepare_request is request:
                         self._prepare_request = None
@@ -451,6 +456,7 @@ class EcutSenderPort:
             raise serial.SerialException(str(request.error)) from request.error
 
     def _prepare_on_worker(self, request):
+        self._preparing = request
         try:
             if self._api.state != State.IDLE:
                 raise serial.SerialException('E-Cut board is not idle; cannot prepare a program')
@@ -472,6 +478,7 @@ class EcutSenderPort:
         except Exception as error:
             request.error = error
         finally:
+            self._preparing = None
             with self._condition:
                 if self._prepare_request is request:
                     self._prepare_request = None
@@ -676,6 +683,25 @@ class EcutSenderPort:
                 if callback is not None:
                     callback(tool)
 
+    def _announce_alarm(self):
+        """One ALARM line per change to ESTOP/ERROR. Only the limit and E-stop inputs have their own code;
+        a soft limit, homing or probe fault reports ALARM:1 because the controller does not track that cause."""
+        if self._api.state not in (State.ESTOP, State.ERROR):
+            self._alarm_announced = False
+        elif not self._alarm_announced:
+            with self._condition:
+                self._emit(self._alarm_lines())
+
+    def _alarm_lines(self, *extra):
+        """The ALARM line of a fault, once per fault: after it, _announce_alarm stays quiet."""
+        if self._api.state not in (State.ESTOP, State.ERROR):
+            return ['ALARM:1', *extra]
+        self._alarm_announced = True
+        lines = ['ALARM:%d' % self._api.fault_alarm]
+        if self._api.fault_reason:
+            lines.append('[MSG:E-Cut: %s]' % self._api.fault_reason)
+        return [*lines, *extra]
+
     def _status(self):
         with self._condition:
             busy = (self._active or bool(self._lines) or bool(self._partial)
@@ -686,11 +712,8 @@ class EcutSenderPort:
             state = 'Jog'
         elif self._held or self._api.state == State.PAUSED:
             frame = self._status_frame
-            target = getattr(getattr(self._api, '_acc', None), 'steps', None)
-            stationary = (frame is not None and target is not None
-                          and time.monotonic() - self._status_frame_at <= self.HOLD_STATUS_MAX_AGE
-                          and frame.configured and not frame.motion_busy and frame.fifo_free == 12000
-                          and frame.axis_positions == tuple(target))
+            stationary = (time.monotonic() - self._status_frame_at <= self.HOLD_STATUS_MAX_AGE
+                          and self._api.is_stationary(frame))
             state = 'Hold:0' if stationary else 'Hold:1'
         elif busy and self._api.state in (State.IDLE, State.RUNNING):
             state = 'Run'
@@ -712,6 +735,13 @@ class EcutSenderPort:
         self._servicing = True
         try:
             while True:
+                if self._stop_wait and self._api.stop_completed:
+                    # the decelerated stop is over (0x85): end the program
+                    self._stop_wait = False
+                    self._held = False
+                    raise _Interrupted()
+                if self._preparing is not None and self._preparing.cancelled.is_set():
+                    raise _Interrupted()
                 with self._condition:
                     if self._closing:
                         raise _Interrupted()
@@ -755,6 +785,7 @@ class EcutSenderPort:
                     elif value == 0x18:
                         self._engine.reset()
                         self._held = False
+                        self._stop_wait = False
                         self._startup_pending = True
                         self._snapshot()
                         self._emit([self.BANNER])
@@ -766,12 +797,15 @@ class EcutSenderPort:
                             self._emit(['[MSG:E-Cut real-time command refused (error 20)]'])
                             continue
                         replies = self._engine.realtime(value)
-                        if value == ord('!'):
+                        if value == 0x85 and self._api.stop_pending:
+                            # the streaming loop brakes; the entry check above ends the program
+                            self._stop_wait = True
+                        elif value == ord('!'):
                             self._held = True
                         elif value in (ord('~'), 0x85):
                             self._held = False
                         self._emit(replies)
-                        if value == 0x85:
+                        if value == 0x85 and not self._stop_wait:
                             raise _Interrupted()
                 except Exception as error:
                     # Rejected controls are visible but must not discard a pending M6.
@@ -814,6 +848,7 @@ class EcutSenderPort:
                 try:
                     self._service_controls()
                     self._api.poll()
+                    self._announce_alarm()
                     with self._condition:
                         if self._closing:
                             break
@@ -890,7 +925,7 @@ class EcutSenderPort:
                                 if failure is not None:
                                     # the upload lines are already acknowledged: report an alarm, require reset
                                     self._program_failed = True
-                                    self._emit(['ALARM:1', *failure])
+                                    self._emit(self._alarm_lines(*failure))
                         self._snapshot()
                         continue
                     if self._accept_prepared_line(raw):
@@ -922,7 +957,7 @@ class EcutSenderPort:
             else:
                 with self._condition:
                     self._clear_commands()
-                self._emit(['ALARM:1', '[MSG:E-Cut error: %s]' % error])
+                self._emit(self._alarm_lines('[MSG:E-Cut error: %s]' % error))
         finally:
             self._servicing = True
             if self._api is not None:

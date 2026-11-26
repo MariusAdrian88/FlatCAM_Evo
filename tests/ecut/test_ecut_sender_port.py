@@ -22,6 +22,13 @@ class FakeAPI:
         self.calls = []
         self.callback = None
         self.fail_poll = False
+        self.stop_pending = False
+        self.stop_completed = False
+        self.fault_alarm = 1
+        self.fault_reason = None
+
+    def is_stationary(self, frame):
+        return False
 
     def record(self, name):
         self.calls.append((name, threading.get_ident()))
@@ -70,6 +77,10 @@ class FakeEngine:
 
     def prepare_program(self, lines):
         self.api.record('prepare')
+        if 'SLOW' in lines:
+            # a planner that never ends by itself; it only leaves through the checkpoint
+            while not self.release.wait(0.002):
+                self.api._planning_checkpoint()
         return tuple(lines)
 
     def execute_program(self, job):
@@ -96,6 +107,11 @@ class FakeEngine:
             self.pause_reason = None
         if line == 'FAIL':
             raise EcutUsbError('lost board')
+        if line == 'LIMIT':
+            self.api.state = State.ESTOP
+            self.api.fault_alarm = 10
+            self.api.fault_reason = 'Emergency input'
+            raise EcutError('stopped')
         if line == 'REFUSE':
             raise EcutError('refused by the controller')
         if line == 'M3 S2000':
@@ -399,6 +415,34 @@ def test_real_api_engine_motion_status_and_manual_tool_cycle():
     assert set(board.threads) == {port._worker.ident}
 
 
+def test_limit_input_reports_pin_and_alarm():
+    import struct
+    from appPlugins.Common.ecut import SignalPolarity, decode_rx_report, ecut_crc60
+    from appPlugins.Common.ecut.ecut_sender_port import EcutSenderPort
+    from test_ecut_verified import report
+    api = make_board_api()
+    api.configure_input('X_LIMIT_PLUS', pin=2, polarity=SignalPolarity.ACTIVE_HIGH)
+    port = EcutSenderPort(api=api, timeout=0.2)
+    try:
+        assert b'E-Cut host adapter' in port.readline()
+        data = bytearray(report(tuple(api.position_steps)))
+        struct.pack_into('>H', data, 31, 4)
+        struct.pack_into('>I', data, 61, ecut_crc60(data[1:61]))
+        api._usb.poll = lambda: decode_rx_report(data)
+        wait_for(lambda: api.state == State.ESTOP)
+        port.write(b'?')
+        lines = []
+        wait_for(lambda: lines.extend(port.readlines()) or any(x.startswith(b'<') for x in lines))
+        assert lines.count(b'ALARM:1\r\n') == 1
+        assert any(x.startswith(b'[MSG:E-Cut: Limit input') for x in lines)
+        assert b'|Pn:X|' in next(x for x in lines if x.startswith(b'<'))
+        port.write(b'?')
+        time.sleep(0.2)
+        assert b'ALARM:1\r\n' not in port.readlines()
+    finally:
+        port.close()
+
+
 def test_real_api_reset_unwinds_dwell_without_old_ack():
     from appPlugins.Common.ecut.ecut_sender_port import EcutSenderPort
     api = make_board_api()
@@ -598,6 +642,21 @@ def test_sender_stream_lines_conforms_to_real_ecut_connection(tool_change):
         port.close()
 
 
+def test_fault_during_program_gives_one_alarm_line(connection):
+    port, api, engine = connection
+    wait_for(lambda: not port._startup_pending and not port._active)
+    port.prepare_program(['G21', 'LIMIT'])
+    for line in (b'G21\n', b'LIMIT\n'):
+        port.write(line)
+        assert port.readline() == b'ok\r\n'
+    lines = []
+    wait_for(lambda: lines.extend(port.readlines()) or any(x.startswith(b'[MSG:E-Cut program') for x in lines))
+    time.sleep(0.2)
+    lines.extend(port.readlines())
+    alarms = [x for x in lines if x.startswith(b'ALARM')]
+    assert alarms == [b'ALARM:10\r\n']
+
+
 def test_prepared_upload_acks_acceptance_before_single_execution(connection):
     port, api, engine = connection
     wait_for(lambda: not port._startup_pending and not port._active)
@@ -651,6 +710,16 @@ def test_prepare_rejects_check_mode_and_busy_connection(connection):
     assert engine.entered.wait(1)
     with pytest.raises(serial.SerialException):
         port.prepare_program(['G21'])
+
+
+def test_prepare_timeout_frees_the_worker(connection, monkeypatch):
+    port, api, engine = connection
+    wait_for(lambda: not port._startup_pending and not port._active)
+    monkeypatch.setattr(port, 'PREPARE_TIMEOUT', 0.05)
+    with pytest.raises(serial.SerialException):
+        port.prepare_program(['SLOW'])
+    wait_for(lambda: not port._active)
+    port.prepare_program(['G21'])
 
 
 def test_reset_cancels_incomplete_prepared_upload(connection):
