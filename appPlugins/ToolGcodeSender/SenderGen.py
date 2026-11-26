@@ -478,8 +478,11 @@ def prepare_job(inputs, profile_compute, limits=(GRBL_RX_BUFFER, GRBL_MAX_LINE))
         lines, count, source_index, unsplit = split_arcs(lines, inputs.units, inputs.arc_segment,
                                                          decimals=inputs.decimals)
         if unsplit:
-            prepared.error = _("This arc can not be split (plane, frame or position not known). Line %d.") % (
-                numbers[unsplit[0]] if numbers else unsplit[0] + 1)
+            if any(letter == 'A' for letter, _value in _words(lines[unsplit[0]])):
+                message = _("An arc with an A axis move can not be split. Line %d.")
+            else:
+                message = _("This arc can not be split (plane, frame or position not known). Line %d.")
+            prepared.error = message % (numbers[unsplit[0]] if numbers else unsplit[0] + 1)
             return prepared
         if numbers:
             numbers = [numbers[i] for i in source_index]

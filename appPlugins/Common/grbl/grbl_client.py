@@ -231,7 +231,8 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
     :param clock:        callable() -> seconds (monotonic).
     :param stall_timeout: seconds without progress while lines are in flight -> 'timeout'.
         Only these events are progress: an 'ok' or 'error:N'; a status report with the
-        state Run, Jog, Home, Hold, Door, Tool or Check (also if the position is the same).
+        state Run, Jog, Home, Hold, Door or Tool (also if the position is the same). A Check report is only
+        link liveness.
         An Idle report is not progress.
         A G4 line gets dwell_seconds(line) more seconds, 1 time for that line: with
         poll_status=True when a status report shows Idle while the G4 is the oldest line
@@ -251,8 +252,9 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
         A temporary command/fence error returns 'error' with 'tool_command' and 'last_text', without
         unblocking the caller's busy state before it latches recovery.
     :param step_gate:    a StepGate (single block, needs poll_status=True): a job line is written only when
-        nothing is in flight, an Idle report came after the last acknowledgement and the gate has a token.
-        The wait is no stall.
+        nothing is in flight, the line before is complete and the gate has a token. A line is complete when the
+        `ok` of the internal sync line G4 P0 came (it is no job line: no progress, no on_line; after an
+        M6 line it goes out when the tool change flow has ended). The wait is no stall.
     :param on_step_wait: callable(line index), 1 time per line, when the stream waits for a token.
     :param host_tool_change: True (not in check mode): an M6 line is not written. The stream waits until nothing
         is in flight and an Idle report came after the last acknowledgement (no stall), counts the M6 line and an
@@ -284,7 +286,10 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
     tool_fence_marker = False
     tool_fence_deadline = None
     tool_status_requested = False
-    idle_since_ack = True   # single block: an Idle report came after the last acknowledgement
+    idle_since_ack = True   # an Idle report came after the last acknowledgement
+    sync_needed = False     # single block: the line is acknowledged, its G4 P0 sync line is not written yet
+    sync_inflight = False   # single block: the G4 P0 sync line waits for its acknowledgement
+    sync_index = None
     step_wait_index = None
     poll_pending = False
     poll_sent_at = None     # a lost status reply must not stop polling forever
@@ -314,6 +319,23 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
     while done < total or tool_index is not None or tool_wait or manual_command is not None:
         # write while the next line fits; the Tool state of a manual M6 takes no motion
         while not tool_wait and tool_index is None and manual_command is None and sent < total:
+            if sync_inflight:
+                break   # the `ok` of G4 P0 comes first: no line before it (also when single block is switched off)
+            if sync_needed:
+                # GRBL and grblHAL run the planner dry before a dwell, so the `ok` of G4 P0 proves that the
+                # motion of the last line has ended (an Idle report after `ok` does not)
+                if in_flight:
+                    break
+                try:
+                    status = write(b'G4 P0\n')
+                except (serial.SerialException, OSError):
+                    return result('port_error')
+                if status != 'ok':
+                    return result(status)
+                sync_needed = False
+                sync_inflight = True
+                last_progress = clock()
+                break
             if host_tool_change and not check_mode and _has_m6_word(lines[sent]):
                 if in_flight or not idle_since_ack:
                     break   # a Run report is progress; Idle reports with a lost ok must time out
@@ -336,7 +358,7 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
             # in Check mode the controller does not move and reports Check, never Idle: no gate
             stepping = step_gate is not None and step_gate.enabled and poll_status and not check_mode
             if stepping:
-                if in_flight or not idle_since_ack:
+                if in_flight or sync_inflight:
                     break
                 if not step_gate.ready():
                     last_progress = clock()     # waiting for the operator is no stall
@@ -431,8 +453,8 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
                     return result('alarm')
                 if report.get('mpg') or ',' in report.get('sd', '') or report.get('sd') == 'Pending':
                     return result('error', last_text='External SD/MPG execution owns the controller.')
-                if state in ('Run', 'Jog', 'Home', 'Hold', 'Door', 'Tool', 'Check'):
-                    last_progress = clock()
+                if state in ('Run', 'Jog', 'Home', 'Hold', 'Door', 'Tool'):
+                    last_progress = clock()     # Check is link liveness, not command progress
                 elif state == 'Idle' and poll_status:
                     arm_dwell()
                 if state == 'Idle':
@@ -512,12 +534,25 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
                     if on_tool_command_done is not None:
                         on_tool_command_done(text)
                     continue
+                if sync_inflight and not in_flight:
+                    sync_inflight = False
+                    last_progress = clock()
+                    if lowered.startswith('error:'):
+                        errors.append((sync_index, text))
+                        return result('error')
+                    continue
                 if not in_flight:
                     continue
                 index, size = in_flight.pop(0)
                 used -= size
                 done += 1
                 idle_since_ack = False
+                if step_gate is not None and step_gate.enabled and poll_status and not check_mode:
+                    if sent < total:
+                        # an M6 line too: nothing is written while the tool change flow runs, so its sync
+                        # goes out after the flow ended (and covers a move back from the tool change position)
+                        sync_needed = True
+                        sync_index = index
                 if index == tool_index:
                     tool_acked = True
                     if not poll_status:

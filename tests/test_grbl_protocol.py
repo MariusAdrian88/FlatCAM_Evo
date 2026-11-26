@@ -441,6 +441,15 @@ class TestSplitArcs(unittest.TestCase):
         self.assertEqual(out, lines)
         self.assertEqual(source_index, [0, 1, 2, 3])
 
+    def test_arc_with_a_axis_is_refused_with_its_cause(self):
+        source = 'G21\nG17\nG0 X0 Y0\nG2 X10 Y0 I5 J0 A5\n'
+        inputs = SenderGen._StartInputs(
+            op=None, target=None, source=source, check_mode=False, autolevel=False,
+            arc_mode='split', arc_segment=0.5, units='MM', decimals=4, profile=None, poll_ms=20, seq=0, generation=0)
+        prepared = SenderGen.prepare_job(inputs, None)
+        self.assertIn('A axis', prepared.error)
+        self.assertIn('4', prepared.error)
+
 
 # ---- merged from test_grbl_segment.py ----
 import sys
@@ -945,7 +954,7 @@ class TestStream(unittest.TestCase):
             write = port.write
 
             def timed_write(data):
-                if data != b'?':
+                if data not in (b'?', b'G4 P0\n'):
                     times.append(clock.now)
                 return write(data)
 
@@ -982,6 +991,71 @@ class TestStream(unittest.TestCase):
         res = stream_lines(lines, port.write, port.readline, poll_status=True, poll_interval=0.2, clock=clock,
                            step_gate=StepGate(), check_mode=True)
         self.assertEqual((res['status'], res['done']), ('finished', 3))
+
+    def test_check_reports_are_link_liveness_not_progress(self):
+        def check(now):
+            return '<Check|MPos:0.000,0.000,0.000|FS:0,0>'
+
+        # a lost acknowledgement: regular Check reports must not extend the stall time
+        clock = FakeClock()
+        port = TimedPort(clock, ack_at=None, report=check, step=1.0, limit=100.0)
+        res = run(port, ['G1 X1'], check_mode=True, poll_status=True, poll_interval=0.2, clock=clock,
+                  stall_timeout=30.0)
+        self.assertEqual(res['status'], 'timeout')
+        self.assertLessEqual(clock.now, 40.0)
+
+        # acknowledgements with Check reports still finish
+        clock = FakeClock()
+        port = TimedPort(clock, ack_at=10.0, report=check, step=1.0, limit=100.0)
+        res = run(port, ['G1 X1', 'G1 X2'], check_mode=True, poll_status=True, poll_interval=0.2, clock=clock,
+                  stall_timeout=30.0)
+        self.assertEqual(res['status'], 'finished')
+
+    def test_single_block_waits_for_the_dwell_sync(self):
+        # the controller reports Idle and acknowledges the block before the motion ends; only the
+        # `ok` of the sync line (G4 P0, held by the controller until the motion ends) completes the block.
+        # Single block switched off while the sync waits: the next line still waits for the `ok` of the sync,
+        # so the acknowledgements stay in order.
+        for switch_off in (False, True):
+            with self.subTest(switch_off=switch_off):
+                clock = FakeClock()
+                motion_end = 40.0
+                gate = StepGate()
+                gate.release()
+                written, waits, progress, replies = [], [], [], []
+                pending = []
+
+                def write(data):
+                    if data == b'?':
+                        replies.append(b'<Idle|MPos:0.000,0.000,0.000|FS:0,0>\r\n')
+                        if clock.now >= 5.0:
+                            if switch_off:
+                                gate.enabled = False
+                            else:
+                                gate.release()
+                    else:
+                        written.append((data, clock.now))
+                        pending.append(data)
+                    return 'ok'
+
+                def readline():
+                    clock.now += 1.0
+                    assert clock.now < 500.0, 'the streamer did not finish'
+                    if pending and not (pending[0] == b'G4 P0\n' and clock.now < motion_end):
+                        pending.pop(0)
+                        return b'ok\r\n'
+                    return replies.pop(0) if replies else b''
+
+                res = stream_lines(['G1 X1', 'G1 X2'], write, readline, poll_status=True, poll_interval=0.2,
+                                   clock=clock, step_gate=gate, on_step_wait=lambda i: waits.append((i, clock.now)),
+                                   on_progress=lambda d, t: progress.append((d, t)), stall_timeout=100.0)
+                self.assertEqual(res['status'], 'finished')
+                self.assertEqual([d for d, _ in written], [b'G1 X1\n', b'G4 P0\n', b'G1 X2\n'])
+                self.assertGreaterEqual(written[2][1], motion_end)
+                self.assertEqual(waits, [])     # the token was there when the sync completed: no wait announced
+                self.assertEqual(progress, [(1, 2), (2, 2)])
+                self.assertEqual(res['done'], 2)
+                self.assertFalse(pending)       # every acknowledgement was read before the end
 
     def test_lost_ok_times_out_while_a_host_m6_waits(self):
         for lines in (['G0 X1', 'G0 X2'], ['G0 X1', 'M6', 'G0 X2']):

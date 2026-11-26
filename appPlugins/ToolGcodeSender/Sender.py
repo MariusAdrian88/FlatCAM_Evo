@@ -223,9 +223,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     # a parsed status report (dict) from a worker
     status_report_sig = QtCore.pyqtSignal(object)
     # a request of the web pendant (action, plain args), from the server thread
-    pendant_request_sig = QtCore.pyqtSignal(str, object)
+    pendant_request_sig = QtCore.pyqtSignal(str, object, int)       # action, args, the generation of the server
     # the web pendant server (None: off) and its state for the server thread, kept under the lock
     _pendant = None
+    _pendant_generation = 0     # +1 at each server start and stop: a request of an older server is dropped
     _pendant_data = None
     _pendant_lock = threading.Lock()
     # a port operation (not a monitor operation) was reserved or released, from any thread
@@ -235,7 +236,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     # how the stream worker ended: 'finished', 'stopped', 'check_passed', ... (see _on_stream_ended)
     stream_ended_sig = QtCore.pyqtSignal(str)
     # the result of a $X from the unlock task: True clears the alarm row (GUI slot)
-    unlock_result_sig = QtCore.pyqtSignal(bool)
+    unlock_result_sig = QtCore.pyqtSignal(bool, int, object)     # ok, the safety generation and the port at the $X send
     # the capabilities of the controller are known (worker thread): the GUI slot sets the A axis widgets
     capabilities_applied_sig = QtCore.pyqtSignal()
     # set by a 'port_error' failure (worker thread); the GUI slot closes the port
@@ -6766,18 +6767,23 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if not self._action_ok('unlock'):
             return
 
+        generation = self._grbl_safety_generation
+        port = self.grbl_ser_port
+
         def task(op):
             text, status = self._grbl_transact(op, '$X', timeout=5.0)
             if status != 'ok':
                 self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (
                     _("Unlock failed"), code_text(grbl_reply_error(text), self._grbl_grblhal) or text or status))
-            self.unlock_result_sig.emit(status == 'ok')
+            self.unlock_result_sig.emit(status == 'ok', generation, port)
         self._grbl_start_op('unlock', task)
 
-    def _on_unlock_result(self, ok):
+    def _on_unlock_result(self, ok, generation, port):
         """Slot of unlock_result_sig (GUI thread): a good $X clears the alarm row."""
-        if ok:
-            self.ui.status_strip.set_alarm(None)
+        if (not ok or self.__dict__.get('_kept_across_reset') or generation != self._grbl_safety_generation
+                or port is not self.grbl_ser_port or self.ui is None or _qt_deleted(self.ui.status_strip)):
+            return      # a late result of an older Stop/reset, or of a UI that is gone
+        self.ui.status_strip.set_alarm(None)
 
     def on_save_levelled_gcode(self):
         # always make the job again: the lines of an earlier Start can be old. The design (levelled) lines come
@@ -6871,9 +6877,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             values.update(feed_ov=ov[0], rapid_ov=ov[1], spindle_ov=ov[2])
         self._pendant_set(**values)
 
-    def _on_pendant_request(self, action, args):
+    def _on_pendant_request(self, action, args, generation):
         """GUI thread: a request of the pendant. The rules of the machine situation decide, like for a button."""
         if action not in self.PENDANT_ACTIONS:
+            return
+        if self._pendant is None or generation != self._pendant_generation:
+            self.app.log.debug('Web pendant: %s dropped, its server is stopped.' % action)
             return
         if action in SenderPendant.MOTION_ACTIONS and not self.app.options.get('tools_grbl_pendant_motion', False):
             self.app.log.debug('Web pendant: %s dropped, motion is off.' % action)
@@ -6933,8 +6942,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if not token:
             token = options['tools_grbl_pendant_token'] = SenderPendant.new_token()
         port = int(options.get('tools_grbl_pendant_port', 8080))
+        self._pendant_generation += 1
+        generation = self._pendant_generation
         server = SenderPendant.PendantServer(
-            self._pendant_snapshot, lambda action, args: self.pendant_request_sig.emit(action, args), token,
+            self._pendant_snapshot, lambda action, args: self.pendant_request_sig.emit(action, args, generation),
+            token,
             lambda: bool(self.app.options.get('tools_grbl_pendant_motion', False)),
             lambda: 500.0 if self.units == 'MM' else 20.0,
             host=str(options.get('tools_grbl_pendant_host', '127.0.0.1')), port=port)
@@ -6956,6 +6968,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def _pendant_stop(self):
         """Stop the server (the box is unchecked, the plugin closes or the application ends)."""
         server, self._pendant = self._pendant, None
+        self._pendant_generation += 1       # the requests that wait for the GUI thread are dropped
         if server is not None:
             server.stop()
             self._pendant_show()

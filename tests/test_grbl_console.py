@@ -1372,8 +1372,37 @@ class TestDockedJogPage(unittest.TestCase):
         self.full_mode()
         self.full_mode()
         self.tool.ui.status_strip.set_alarm = MagicMock()
-        self.tool.unlock_result_sig.emit(True)
+        self.tool.unlock_result_sig.emit(True, self.tool._grbl_safety_generation, self.tool.grbl_ser_port)
         self.tool.ui.status_strip.set_alarm.assert_called_once_with(None)
+
+    def test_late_unlock_result_is_dropped_for_an_old_generation_or_a_deleted_strip(self):
+        self.connect(DockJogFake())
+        strip = self.tool.ui.status_strip
+        strip.set_alarm('ALARM:1')
+        old = self.tool._grbl_safety_generation
+        self.tool._grbl_safety_generation += 1      # a Stop or reset came after the $X was sent
+        port = self.tool.grbl_ser_port
+        self.tool.unlock_result_sig.emit(True, old, port)
+        self.assertFalse(strip.alarm_frame.isHidden())
+        new_port = object()     # a disconnect and a reconnect: a new port, the same safety generation
+        self.tool.grbl_ser_port = new_port
+        try:
+            self.tool.unlock_result_sig.emit(True, self.tool._grbl_safety_generation, port)
+            self.assertFalse(strip.alarm_frame.isHidden())
+            self.tool.unlock_result_sig.emit(True, self.tool._grbl_safety_generation, new_port)
+            self.assertTrue(strip.alarm_frame.isHidden())
+        finally:
+            self.tool.grbl_ser_port = port
+        strip.set_alarm('ALARM:1')
+        dead =QtWidgets.QLabel()       # stands for the deleted strip (the real one is needed by the teardown)
+        dead.set_alarm = lambda text: dead.text()
+        dead.deleteLater()
+        QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)
+        self.tool.ui.status_strip = dead
+        try:
+            self.tool.unlock_result_sig.emit(True, self.tool._grbl_safety_generation, port)    # no RuntimeError
+        finally:
+            self.tool.ui.status_strip = strip
 
     def test_kept_sender_delivers_no_status_to_the_deleted_dock_widgets(self):
         self.full_mode()
@@ -1397,7 +1426,9 @@ class TestDockedJogPage(unittest.TestCase):
         self.tool._set_estop_enabled(True)
         # Stop and E-Stop (the pendant, the status bar button) still reach the controller
         port = self.tool.grbl_ser_port
-        self.tool._on_pendant_request('stop', {})
+        self.tool._pendant = MagicMock()
+        self.tool._on_pendant_request('stop', {}, self.tool._pendant_generation)
+        self.tool._pendant = None
         self.assertIn(b'!', port.written)
         del port.written[:]
         self.tool.on_emergency_stop()
@@ -2314,7 +2345,8 @@ class TestActionRules(unittest.TestCase):
                     tool.ui.jog_fr_entry.get_value.return_value = 100.0
                     self.situation(tool, situation)
                     allowed = tool.action_allowed(names.get(action, action)) is None
-                    tool._on_pendant_request(action, args)
+                    tool._pendant = MagicMock()
+                    tool._on_pendant_request(action, args, tool._pendant_generation)
                     self.assertEqual(bool(fake.written), allowed)
         # named cases
         for situation, action, args, motion, expected in (
@@ -2330,10 +2362,25 @@ class TestActionRules(unittest.TestCase):
                 tool.app.app_units = tool.units = 'MM'
                 tool.ui.jog_fr_entry.get_value.return_value = 100.0
                 self.situation(tool, situation)
-                tool._on_pendant_request(action, args)
+                tool._pendant = MagicMock()
+                tool._on_pendant_request(action, args, tool._pendant_generation)
                 self.assertEqual(bool(fake.written), expected)
                 if situation == 'needs_home' and action == 'home':
                     self.assertIn('$H', fake.commands())
+
+    def test_pendant_request_queued_before_switch_off_writes_nothing(self):
+        tool, fake = self.make()
+        tool.app.options['tools_grbl_pendant_motion'] = True
+        tool.app.app_units = tool.units = 'MM'
+        tool.ui.jog_fr_entry.get_value.return_value = 100.0
+        self.situation(tool, 'idle')
+        tool._pendant = MagicMock()
+        generation = tool._pendant_generation
+        tool._grbl_start_op = MagicMock()
+        tool._pendant_stop()        # the operator clears the box while the request waits for the GUI thread
+        tool._on_pendant_request('jog', {'direction': 'xplus', 'step': 1.0}, generation)
+        self.assertEqual(fake.written, [])
+        tool._grbl_start_op.assert_not_called()
 
 
 class TestIOPage(unittest.TestCase):
@@ -2781,9 +2828,33 @@ class TestIOTab(unittest.TestCase):
         self.assertIs(self.shown(self.page, 'Spindle CW'), False)     # ok is "accepted", not "On"
         io.on_output_requested('Spindle CW', True)
         self.assertEqual(fake.commands(), ['M3 S1000', 'M3 S1000'])   # the 2nd click sends nothing
-        self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Ov:100,100,100|A:>')    # M3 S0: the report has no S
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Ov:100,100,100|A:S>')   # the matching readback clears it
         self.assertIsNone(io.pending)
-        self.assertEqual([self.shown(self.page, n) for n in ('Spindle CW', 'Spindle CCW')], [False, False])
+        self.assertEqual([self.shown(self.page, n) for n in ('Spindle CW', 'Spindle CCW')], [True, False])
+
+    def test_opposite_spindle_readback_keeps_the_request_pending_until_the_timeout(self):
+        tool, fake, io = self.make()
+        io.evaluate()
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Ov:100,100,100>')
+        io.on_output_requested('Spindle CW', True)
+        self.assertIsNotNone(io.pending)
+        self.clock[0] = 1.0
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Ov:100,100,100|A:>')    # the spindle is still off
+        self.assertIsNotNone(io.pending)
+        self.clock[0] = 13.0
+        io.tick()
+        self.assertIsNone(io.pending)
+        self.assertIn('Spindle change not confirmed', self.page.message.text())
+
+    def test_coolant_click_after_the_freshness_deadline_writes_nothing(self):
+        tool, fake, io = self.make()
+        io.evaluate()
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Ov:100,100,100|A:F>')
+        self.clock[0] = 3.0         # the status feed stopped; no tick refreshed the UI yet
+        io.on_output_requested('Flood', False)
+        self.assertEqual(fake.written, [])
+        self.assertIsNone(io.pending)
+        self.assertIn('no fresh status', self.page.message.text())
 
     def test_error_20_marks_the_output_not_supported(self):
         tool, fake, io = self.make(ident=self.IDENT + ['[FIRMWARE:grblHAL]', '[AUX IO:0,1,0,0]'], hal=True)

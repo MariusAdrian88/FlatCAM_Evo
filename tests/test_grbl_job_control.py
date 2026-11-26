@@ -1111,6 +1111,9 @@ class TestGrblHalController(unittest.TestCase):
         written = fake.written
         self.assertLess(written.index(b'M6\n'), written.index(b'\xa3'))
         self.assertLess(written.index(b'~'), written.index(b'G1 X1.000 Y1.000\n'))
+        # the M6 line is synced too: the G4 P0 goes out after the tool change ended, before the next job line
+        between = written[written.index(b'~'):written.index(b'G1 X1.000 Y1.000\n')]
+        self.assertIn(b'G4 P0\n', between)
         self.assertEqual(len(releases), 3)
 
     def test_line_limits_reach_the_stream(self):
@@ -1529,6 +1532,11 @@ class TestJobEstimate(unittest.TestCase):
         self.assertAlmostEqual(line_seconds(['G4 P2'], 3000, 'MM')[0], 2.0)
         self.assertAlmostEqual(line_seconds(['G20', 'G1 X1 F10'], 3000, 'MM')[1], 6.0)
         self.assertAlmostEqual(line_seconds(['G21', 'G2 X20 I10 F600'], 3000, 'MM')[1], 3.14159, delta=0.01)
+        # inverse time: 60 / F seconds for each feed block, rapids keep the rapid rate, G94 returns
+        seconds = line_seconds(['G21', 'G93 G1 X10 F2', 'G0 X20', 'G94 G1 X30 F600'], 3000, 'MM')
+        self.assertAlmostEqual(seconds[1], 30.0)
+        self.assertAlmostEqual(seconds[2], 0.2)
+        self.assertAlmostEqual(seconds[3], 1.0)
         self.assertIsNone(line_seconds(['G21', 'G1 X1 A90 F100'], 3000, 'MM'))
         # a native full circle has no axis word
         self.assertAlmostEqual(line_seconds(['G21', 'G2 I-10 J0 F600'], 3000, 'MM')[1], 6.2832, delta=0.01)

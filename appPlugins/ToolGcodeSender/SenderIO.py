@@ -299,9 +299,8 @@ class SenderIOController:
             self.sync_open = False
             self.sync_deadline = None
             pending = self.pending
-            if pending is not None and pending['accepted'] and (
-                    pending['kind'] == 'spindle' or self.acc_states[pending['name']] == pending['wanted']):
-                self._clear_pending()
+            if pending is not None and pending['accepted'] and self.acc_states[pending['name']] == pending['wanted']:
+                self._clear_pending()       # an opposite readback keeps it: the "not confirmed" timeout still fires
         if report['state'].split(':')[0] == 'Alarm' or tool.__dict__.get('_grbl_mpg_owned') \
                 or tool.__dict__.get('_grbl_sd_owned'):
             self.clear_commanded()
@@ -451,6 +450,11 @@ class SenderIOController:
         if self.kind == 'ecut':
             self._ecut_write(name, wanted)
         elif name in COOLANT_BYTE:
+            if self.kind == 'grbl' and (self.report_time is None or self.clock() - self.report_time > IO_STALE_S):
+                # the freshness is checked at the click: the toggle must not follow a cached state
+                self._message(_("no fresh status"))
+                self.refresh()
+                return
             self._coolant_write(name, wanted)
         else:
             self._command_write(name, wanted)

@@ -105,8 +105,13 @@ def line_seconds(lines, rapid_mm_min, units):
                     feed = value
             # a native full circle has no axis word: its end is its start
             full_circle = state.motion in (2, 3) and any(letter in 'IJ' for letter, _value in info['words'])
-            if (info['axes'] or full_circle) and not info['blocked'] and not state.inverse \
-                    and state.motion in (0, 1, 2, 3):
+            if (info['axes'] or full_circle) and not info['blocked'] and state.inverse \
+                    and state.motion in (1, 2, 3):
+                # G93: the block takes 60 / F seconds, with the F word of that block
+                block_feed = [value for letter, value in info['words'] if letter == 'F']
+                if block_feed and block_feed[-1] > 0.0:
+                    seconds += 60.0 / block_feed[-1]
+            elif (info['axes'] or full_circle) and not info['blocked'] and state.motion in (0, 1, 2, 3):
                 start, end = info['start'], state.pos
                 delta = [end[a] - start[a] for a in 'XYZ' if end[a] is not None and start[a] is not None]
                 length = math.sqrt(sum(d * d for d in delta))
