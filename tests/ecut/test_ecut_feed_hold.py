@@ -144,8 +144,8 @@ class StreamBoard(Board):
                                        fifo=max(0, 12000 - 20 * len(self.queue))))
 
 
-def run_stop(monkeypatch, moment):
-    """Run one 10 mm move through the real port and send 0x85 at `moment`; return the evidence."""
+def run_stop(monkeypatch, moment, program=b'G91G1X10F600\n', deceleration=None):
+    """Run one move through the real port and send 0x85 at `moment`; return the evidence."""
     sender_port = importlib.import_module('appPlugins.Common.ecut.ecut_sender_port')
     clock = Clock()
     monkeypatch.setattr(ecut_controller, 'time', clock.module)
@@ -158,6 +158,8 @@ def run_stop(monkeypatch, moment):
     monkeypatch.setattr(sender_port, '_Interrupted', Counted)
     api = ecut_controller.EcutAPI()
     board = api._usb = StreamBoard(clock)
+    for axis in api.config.axes:
+        axis.deceleration_mm_s2 = deceleration
     states = []
     api.on_state_change(states.append)
     port = sender_port.EcutSenderPort(api=api, timeout=0.2)
@@ -169,6 +171,8 @@ def run_stop(monkeypatch, moment):
         def fire(board):
             if moment == 'records':
                 due = len(board.sent) >= 40
+            elif moment == 'fast':  # cruising at the feed
+                due = len(board.sent) >= 1500
             elif moment == 'fifo':
                 due = len(board.queue) >= 250  # fifo_free <= 7000: the loop waits for space
             elif moment == 'drain':
@@ -185,7 +189,7 @@ def run_stop(monkeypatch, moment):
                 requested.append(clock.now)
                 # the port's own thread takes the byte; until the program is stopping the board must not
                 # drain, and the fake time must not run out meanwhile (a loaded PC makes that thread slow)
-                if moment in ('records', 'fifo', 'drain'):
+                if moment in ('records', 'fast', 'fifo', 'drain'):
                     taken = []
 
                     def in_flight():
@@ -196,7 +200,7 @@ def run_stop(monkeypatch, moment):
                 port.write(b'\x85')
             return due
         board.trigger = fire
-        port.write(b'G91G1X10F600\n')
+        port.write(program)
         deadline = time.monotonic() + 60  # real time, only a guard against a hang
         while (not raised or api.state != State.IDLE or port._active) and time.monotonic() < deadline:
             time.sleep(0.01)
@@ -234,6 +238,14 @@ def test_stop_at_the_deadline_clears_the_reference(monkeypatch):
     assert run.stop_at - run.requested == pytest.approx(5.0, abs=0.1)
     assert run.homed == ()
     assert State.ERROR not in run.states
+
+
+def test_slow_braking_stops_abruptly_at_the_deadline(monkeypatch):
+    run = run_stop(monkeypatch, 'fast', program=b'G91G1X300F3000\n', deceleration=1.0)
+    assert run.stop_at - run.requested == pytest.approx(5.0, abs=0.2)
+    stop = run.events.index(int(Cmd.STOP))
+    assert 'record' not in run.events[stop:]
+    assert run.homed == ()
 
 
 def test_stop_requested_near_the_drain_end_does_not_raise_the_timeout(monkeypatch):

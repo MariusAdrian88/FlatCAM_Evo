@@ -333,7 +333,11 @@ def plan_linear_path(config: EcutBoardConfig, start_steps, moves, *, feed_overri
         acceleration = min(config.axes[i].acceleration_mm_s2 / abs(unit[i]) for i in range(6) if unit[i])
         deceleration = min(config.axes[i].effective_deceleration_mm_s2 / abs(unit[i]) for i in range(6) if unit[i])
         if not move.rapid:
-            velocity = min(velocity, move.feed_mm_min * (feed_override / 60.0))
+            # G94: F is the speed along the XYZ path when X, Y or Z moves (A is coordinated to end with it);
+            # a move of the rotary axes alone takes F as degrees/min along its own path.
+            linear = math.hypot(*distances[:3])
+            feed_length = linear if linear > 0 else length
+            velocity = min(velocity, move.feed_mm_min * (feed_override / 60.0) * length / feed_length)
         if not math.isfinite(velocity) or velocity <= 0 or not math.isfinite(acceleration) or not math.isfinite(deceleration):
             raise EcutError('Effective feed or acceleration is outside the finite planning range')
         geometry.append((current, target, delta, length, unit, velocity, acceleration, deceleration,

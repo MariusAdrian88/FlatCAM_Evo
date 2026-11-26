@@ -714,7 +714,7 @@ class EcutGcodeEngine:
             stored[0 if non == 28.1 else 1] = list(parser.position)
         elif non in (28, 30):
             if axes:
-                lines.append(self._linear(0, target, 0))
+                lines.append(self._linear(0, target, 0, origin, origin))
             destination = list(parser.position)
             for i in (axes if axes else range(self._axis_count())):
                 destination[i] = stored[0 if non == 28 else 1][i]
@@ -749,7 +749,9 @@ class EcutGcodeEngine:
                 length = math.dist(parser.position, target)
             # G94 feed is stored in mm/min of the linear part; a pure rotary move uses the modal angular feed
             # (degrees/min as written). A mixed move keeps the inch feed of its linear part.
-            pure_rotary = bool(axes) and set(axes) == {3} and not arc
+            # "Moves" means an actual displacement of X, Y or Z, not a word that is present.
+            pure_rotary = bool(axes) and not arc and not any(
+                abs(target[i] - parser.position[i]) > 1e-9 for i in range(3))
             feed = (parser.angular_feed if pure_rotary else parser.feed) if parser.feed_mode == 94 else length * parser.feed
             # Path control: only the end of the programmed move gets the mode's corner limit. G61's 0 would
             # stop at every chord vertex of an arc, so interior vertices keep the junction setting, or the
@@ -765,7 +767,7 @@ class EcutGcodeEngine:
                 parser.motion = 1  # a probe runs only where the block says so
                 points = []
             for n, point in enumerate(points, 1):
-                line = self._linear(0 if parser.motion == 0 else 1, point, feed)
+                line = self._linear(0 if parser.motion == 0 else 1, point, feed, origin, origin)
                 corner = end if n == len(points) else interior
                 lines.append(line if corner is None else MotionLine(line, corner))
             parser.position = target

@@ -160,6 +160,23 @@ def test_backlash_offset_survives_an_idle_reset():
     assert api.homed_axes == ()
 
 
+def test_unchanged_config_push_keeps_the_logical_x_of_an_unhomed_axis():
+    engine, api = engine_api()
+    ax = api.config.axes[0]
+    ax.steps_per_mm = 25600 // api.config.interpolation_factor
+    ax.max_velocity_mm_s, ax.acceleration_mm_s2 = 100, 1000
+    ax.backlash_mm, ax.backlash_compensation_enabled = 0.05, True
+    api.config.unverified.backlash = True
+    api.push_config()
+    for line in ('G0 X10', 'G0 X0'):   # X+ X-: one reversal, no home
+        engine.execute_line(line)
+    assert api.homed_axes == ()
+    before = api.position_mm[0]
+    api.push_config()
+    assert api.position_mm[0] == pytest.approx(before)
+    assert api.logical_position_mm()[0] == pytest.approx(before)
+
+
 def test_a_stop_between_two_reversals_removes_the_reference():
     # X20 -> X10 -> X20: the offsets of the group end where they started, but the stop falls in between
     engine, api = reversed_x_engine()

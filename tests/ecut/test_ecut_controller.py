@@ -75,6 +75,21 @@ def sent_deltas(api):
     return out
 
 
+@pytest.mark.parametrize('field, value', [('method', 1), ('reverse', True), ('x1_pin', 3), ('x10_pin', 4),
+                                          ('x100_pin', 5), ('lock_pin', 6)])
+def test_enabled_mpg_refuses_a_setting_that_is_not_sent(field, value):
+    from appPlugins.Common.ecut.ecut_config import EcutConfigError
+    cfg = EcutBoardConfig()
+    cfg.mpg.enabled = cfg.unverified.mpg = True
+    cfg.mpg.port_select = 5
+    ecut_controller.encode_config(cfg)           # port_select is sent
+    setattr(cfg.mpg, field, value)
+    with pytest.raises(EcutConfigError, match=field):
+        ecut_controller.encode_config(cfg)
+    cfg.mpg.enabled = False                      # a disabled MPG keeps its values
+    ecut_controller.encode_config(cfg)
+
+
 def test_mpg_switch_sends_config():
     cfg = EcutBoardConfig()
     cfg.mpg.enabled = True

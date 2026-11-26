@@ -408,3 +408,25 @@ def test_backlash_soft_limit_uses_the_logical_position(planner):
 def test_backlash_with_the_switch_off_is_refused_by_validate():
     with pytest.raises(Exception, match='not yet verified'):
         backlash_config(enabled=False).validate()
+
+
+def _a_move_config(a_velocity):
+    cfg = config()
+    cfg.axes[3].enabled = True
+    cfg.axes[3].max_velocity_mm_s = a_velocity
+    cfg.axes[3].acceleration_mm_s2 = 1e6
+    return cfg
+
+
+def _x_a_block(planner, cfg, a):
+    target = (10, None, None, a, None, None) if a else (10, None, None, None, None, None)
+    return planner.plan_linear_path(cfg, (0,) * 6, [planner.LinearMove(target, False, 600)])[0]
+
+
+def test_g94_feed_is_the_xyz_speed_and_a_is_coordinated_to_end_with_it(planner):
+    cfg = _a_move_config(1e6)
+    x_only, mixed = _x_a_block(planner, cfg, 0), _x_a_block(planner, cfg, 90)
+    assert mixed.duration_s == pytest.approx(x_only.duration_s, rel=0.05)
+    assert mixed.nominal_speed_mm_s * 10 / math.hypot(10, 90) == pytest.approx(10)   # X runs at 600 mm/min
+    slow = _x_a_block(planner, _a_move_config(10), 90)   # the A limit caps the move: it takes longer
+    assert slow.duration_s >= 9

@@ -847,10 +847,12 @@ class EcutAPI:
         # a reset during motion stops without deceleration: nothing is kept
         self._forget_reference_if_moving()
         # an offset that is not 0 is part of the reference: a changed backlash setting removes both
-        kept = {axis for axis in self._homed_axes if self._same_axis_scale(axis)
-                and (self._same_axis_backlash(axis) or not self._backlash_offset[axis])}
+        # (homed or not: the offset maps the board counts to the logical position of an unhomed axis too)
+        counts_kept = {axis for axis in range(6) if self._same_axis_scale(axis)
+                       and (self._same_axis_backlash(axis) or not self._backlash_offset[axis])}
+        kept = counts_kept.intersection(self._homed_axes)
         for axis in range(6):
-            if axis not in kept:
+            if axis not in counts_kept:
                 self._clear_backlash([axis])
             elif not self._same_axis_backlash(axis):
                 self._backlash_dir[axis] = 0   # the last direction is not known for the new setting
@@ -1386,6 +1388,8 @@ class EcutAPI:
                 # a native move reverses the axis like a planned one, but takes up the lash by itself
                 self._travel(axis, sign)
                 hit_offset = self._backlash_offset[axis]
+                # the target is a logical position: it carries the offset that the reversal just set
+                target[axis] = start_logical + delta + hit_offset
                 self._native_move(Cmd.PROBE, target, axis, speed, 0)
                 self._wait_switch('PROBE', True, target, self._sensor_timeout(axis, cfg.max_travel_mm, speed))
                 self._stop_native_axis(axis)
@@ -1495,7 +1499,7 @@ class EcutAPI:
         if not self._config.axes[axis].enabled:
             raise EcutError('Cannot move a disabled axis')
         ax = self._config.axes[axis]
-        logical = targets[axis] / self._axis_scale(axis)
+        logical = (targets[axis] - self._backlash_offset[axis]) / self._axis_scale(axis)
         # Homing is a hardware cycle: it finds the switches and never uses the soft limits.
         enforce_soft = self._homing_axis is None
         if enforce_soft and ax.soft_limits_enabled and not ax.soft_limit_negative_mm <= logical <= ax.soft_limit_positive_mm:
@@ -1510,8 +1514,10 @@ class EcutAPI:
         for i, setting in enumerate(self._config.axes):
             if homing_limits and setting.soft_limits_enabled:
                 factor = setting.steps_per_mm * int(setting.direction)
-                bounds = sorted((int(setting.soft_limit_negative_mm * factor),
-                                 int(setting.soft_limit_positive_mm * factor)))
+                # the board counts include the lash offset (the bounds are in steps, the offset in counts)
+                offset = int(self._backlash_offset[i] / self._config.interpolation_factor)
+                bounds = sorted((int(setting.soft_limit_negative_mm * factor) + offset,
+                                 int(setting.soft_limit_positive_mm * factor) + offset))
                 minimum.append(bounds[0])
                 maximum.append(bounds[1])
             else:
@@ -2403,6 +2409,9 @@ class EcutAPI:
         self._streaming = in_run  # request_stop() brakes only while records are streamed
         try:
             while True:
+                if self._stop_deadline_passed():
+                    self._abort_requested_stop()
+                    return
                 # Native FUN_100082f0 gates up to two four-record reports on >7000 free.
                 if packet % 2 == 0 and not self._wait_for_stream_space(in_run, records):
                     return
@@ -2454,10 +2463,16 @@ class EcutAPI:
             latest = frame
         return latest
 
+    def _stop_deadline_passed(self) -> bool:
+        return self._stop_requested and time.monotonic() >= self._stop_deadline
+
     def _wait_for_stream_space(self, in_run: bool, records=None) -> bool:
         start = time.monotonic()
         paused = self._paused_seconds
         while time.monotonic() - start - (self._paused_seconds - paused) < 0.5:
+            if self._stop_deadline_passed():
+                self._abort_requested_stop()
+                return False
             if records is None or records.stopped:
                 self._wait_while_paused()
             self._require_motion_allowed()

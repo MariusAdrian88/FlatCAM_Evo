@@ -532,6 +532,12 @@ class EcutBoardConfig:
         if (not isinstance(self.soft_limit_tolerance_mm, (int, float)) or isinstance(self.soft_limit_tolerance_mm, bool)
                 or not 0 <= self.soft_limit_tolerance_mm <= SOFT_LIMIT_TOLERANCE_MAX_MM):
             raise EcutConfigError(f'Soft limit tolerance must be 0..{SOFT_LIMIT_TOLERANCE_MAX_MM} mm')
+        if self.mpg.enabled:
+            # only port_select has a verified place in the 9B report
+            defaults = MPGConfig()
+            for name in ('method', 'reverse', 'x1_pin', 'x10_pin', 'x100_pin', 'lock_pin'):
+                if getattr(self.mpg, name) != getattr(defaults, name):
+                    raise EcutConfigError(f'MPG {name} is not supported yet')
         for key, count in (('input_labels', NATIVE_INPUT_COUNT), ('output_labels', NATIVE_OUTPUT_COUNT)):
             labels = getattr(self, key)
             if (not isinstance(labels, list) or len(labels) != count

@@ -820,10 +820,20 @@ def test_stored_position_return_ends_at_stored_a_with_axes_and_bare():
 
 
 @pytest.mark.parametrize('line, feed', [('G21 G1 A10 F60', 60), ('G20 G1 A10 F60', 60),
-                                        ('G20 G1 X1 A10 F60', 1524), ('G20 G1 X1 F60', 1524)])
+                                        ('G20 G1 X1 A10 F60', 1524), ('G20 G1 X1 F60', 1524),
+                                        ('G20 G1 X0 Y0 Z0 A10 F60', 60), ('G91 G20 G1 X0 A10 F60', 60)])
 def test_inch_feed_scales_only_moves_with_a_linear_part(line, feed):
     engine, api = a_engine()
     assert _planned_moves(engine, line)[0][0] == pytest.approx(feed)
+
+
+def test_a_returns_to_zero_after_a_continuous_jog_moved_it_off_the_parser_position():
+    engine, api = a_engine()
+    assert engine.execute_line('$J=G91 G21 A0.98 F60') == ['ok']
+    engine._parser.position = [0.0] * 4   # a continuous jog moves the board without telling the parser
+    assert '|MPos:0.000,0.000,0.000,0.980|' in engine.status_report()
+    assert engine.execute_line('G90 G0 A0') == ['ok']
+    assert '|MPos:0.000,0.000,0.000,0.000|' in engine.status_report()
 
 
 @pytest.mark.parametrize('set_units, move_units', [('G20', 'G20'), ('G21', 'G21'), ('G20', 'G21'), ('G21', 'G20')])

@@ -594,6 +594,39 @@ def test_probe_retract_with_backlash_ends_at_contact_plus_retract():
     assert api.logical_position_mm()[2] == pytest.approx(-.0025 + .005, abs=1 / scale)
 
 
+def probe_targets(api, axis):
+    """Logical target (mm) of each native probe move, with the offset that is set when it is sent."""
+    logical = []
+    original = api._native_move
+
+    def spy(opcode, targets, move_axis, speed, flags):
+        logical.append((targets[move_axis] - api._backlash_offset[move_axis]) / api._axis_scale(axis))
+        original(opcode, targets, move_axis, speed, flags)
+    api._native_move = spy
+    return logical
+
+
+def test_probe_with_a_reversal_targets_the_requested_logical_position():
+    api, scale = contact_api(2, -1, -.5, start_mm=.02, backlash_mm=.010)   # contact out of reach
+    api._backlash_dir[2] = 1                                               # the last move went up
+    logical = probe_targets(api, 2)
+    with pytest.raises(EcutError, match='[Nn]o contact'):
+        api.probe(2, -.03)
+    assert logical[0] == pytest.approx(-.01, abs=2 / scale)
+
+
+def test_probe_to_the_soft_limit_with_backlash_is_accepted():
+    api, scale = contact_api(2, -1, -.5, start_mm=.02, backlash_mm=.010)
+    ax = api.config.axes[2]
+    ax.soft_limits_enabled, ax.soft_limit_negative_mm, ax.soft_limit_positive_mm = True, 0, 1
+    api.push_config()
+    api._backlash_dir[2] = 1
+    logical = probe_targets(api, 2)
+    with pytest.raises(EcutError, match='[Nn]o contact'):
+        api.probe(2, -.02)
+    assert logical[0] == pytest.approx(0.0, abs=2 / scale)
+
+
 def test_probe_that_stays_active_at_the_start_bound_fails_with_alarm_5():
     api, scale = contact_api(2, -1, -.0025, release_mm=.00125)
     with pytest.raises(EcutError):
