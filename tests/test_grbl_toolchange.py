@@ -6,6 +6,7 @@ touchplate). Run:
     .venv/Scripts/python.exe -m pytest tests/test_grbl_toolchange.py -q
 """
 import os
+import re
 import sys
 import threading
 import time
@@ -25,6 +26,8 @@ from appPlugins.ToolGcodeSender.ToolChange import (
     PLATE_NONE, PLATE_FIXED, PLATE_REMOVABLE, ToolChangeSettings, ToolChangeMeasurement,
     probe_target, check_contact, STATE_OFF, STATE_REFERENCE, STATE_MEASURED,
     STATE_NEEDS_REMOVAL, STATE_READY)
+from appPlugins.Common.grbl.grbl_protocol import parse_grbl_modal
+from appPlugins.ToolGcodeSender import SenderGen
 from tests.test_levelling_audit import FakeGrbl, make_audit_tool
 
 
@@ -778,6 +781,106 @@ class TestToolChangeWidget(unittest.TestCase):
             self.assertEqual(group.toolchange_plate_radio.get_value(), 'disabled')
             manager.defaults_read_form()
             self.assertEqual(manager.defaults['tools_grbl_toolchange_plate'], 'disabled')
+
+
+class TestHostToolChangePreamble(unittest.TestCase):
+    """The pure resume build of a host tool change (pause policy): preamble and the rest of the stream."""
+
+    @staticmethod
+    def start(**changes):
+        data = dict(pos=(0.0, 0.0, 5.0), units='MM', dist=90, motion=0, feed_mode=94, plane=17, wcs=54,
+                    feed=None, spindle=5, speed=0.0, coolant=())
+        data.update(changes)
+        return SenderGen.JobStart(**data)
+
+    def resume(self, lines, m6_index, next_index=None, dwell=0.0, **changes):
+        preamble, tail = SenderGen.tool_change_resume(
+            lines, m6_index, m6_index + 1 if next_index is None else next_index, 5.0, 'MM', 4, dwell,
+            self.start(**changes))
+        # '10.0000' -> '10'
+        return [re.sub(r'(?<=\d)\.0+\b', '', line) for line in preamble], tail
+
+    def test_preamble_and_tail_of_the_cases(self):
+        absolute = ['G21 G90', 'G0 X10 Y10', 'G1 Z-1 F300', 'G1 X20']
+        cases = [
+            # name, lines, m6 index, next index, JobStart changes, tail of the preamble, tail
+            ('a mixed block', absolute + ['T2 M6 G0 X0', 'M0', 'X30'], 4, 6, {},
+             ['G1 Z-1 F300', 'G90', 'G1', 'G0 X0'], ['X30']),
+            ('b G91 prefix', ['G91', 'G1 X5 F300', 'T2 M6', 'X5'], 2, 3, dict(pos=(5.0, 5.0, 10.0)),
+             ['G0 Z10', 'G0 X10 Y5', 'M5 S0', 'G1 Z10 F300', 'G91', 'G1'], ['X5']),
+            ('i G91 at the job start', ['G1 X10 F300', 'T2 M6', 'X5'], 1, 2, dict(pos=(100.0, 0.0, 5.0), dist=91),
+             ['G0 X110 Y0', 'M5 S0', 'G1 Z5 F300', 'G91', 'G1'], ['X5']),
+            ('h M6 first block', ['T2 M6', 'G1 Z-1 F300', 'G1 X20'], 0, 1, dict(pos=(5.0, 5.0, 10.0)),
+             ['G0 Z10', 'G0 X5 Y5', 'M5 S0', 'G90', 'G0'], ['G1 Z-1 F300', 'G1 X20']),
+            ('j G1 inherited', ['X1', 'T2 M6', 'X2'], 1, 2, dict(motion=1), ['G90', 'G1'], ['X2']),
+            ('g G2 in the M6 block', ['G17', 'G0 X10 Y0 Z5', 'G1 F300', 'G2 X0 Y10 I-10 J0',
+                                      'T2 M6 X0 Y0 I-5 J0', 'M0', 'G1 X1'], 4, 6, {},
+             ['G1 Z5 F300', 'G90', 'G2 X0 Y0 I-5 J0'], ['G1 X1']),
+            ('g G3 after the M6', ['G17', 'G0 X10 Y0 Z5', 'G1 F300', 'G3 X0 Y10 I-10 J0',
+                                   'T2 M6', 'M0', 'X5 Y5 I1 J0'], 4, 6, {},
+             ['G1 Z5 F300', 'G90'], ['G3 X5 Y5 I1 J0']),
+        ]
+        for name, lines, m6, nxt, changes, end, tail in cases:
+            with self.subTest(name):
+                preamble, rest = self.resume(lines, m6, nxt, **changes)
+                self.assertEqual(preamble[-len(end):], end)
+                self.assertEqual(rest, tail)
+                self.assertFalse([line for line in preamble + rest if 'M6' in line or 'T2' in line])
+
+    def test_states_that_the_program_does_not_set(self):
+        # the initial plane and WCS are always written, the program's own ones win
+        preamble, _rest = self.resume(['G0 X1 Y1 Z5', 'T2 M6'], 1, plane=18, wcs=55)
+        self.assertEqual(preamble[8:10], ['G18', 'G55'])
+        preamble, _rest = self.resume(['G19 G56', 'G0 X1 Y1 Z5', 'T2 M6'], 2, plane=18, wcs=55)
+        self.assertEqual(preamble[8:10], ['G19', 'G56'])
+        # the tool length offset line is not written
+        preamble, _rest = self.resume(['G43.1 Z1', 'G0 X1 Y1 Z5', 'T2 M6'], 2)
+        self.assertFalse([line for line in preamble if line.startswith(('G43', 'G49'))])
+
+    def test_spindle_and_coolant_are_restored_from_the_program(self):
+        on = ['G0 X1 Y1 Z5', 'M3 S10000', 'M8', 'T2 M6', 'G1 X2 F100']
+        preamble, _rest = self.resume(on, 3, dwell=3.0)
+        self.assertEqual(preamble[:2], ['M5', 'M9'])
+        index = preamble.index('M3 S10000')
+        self.assertEqual(preamble[index:index + 3], ['M3 S10000', 'G4 P3', 'M8'])
+        off = ['G0 X1 Y1 Z5', 'M3 S10000', 'M5', 'M9', 'T2 M6']
+        preamble, _rest = self.resume(off, 4, dwell=3.0, spindle=3, coolant=(7,))
+        self.assertEqual(preamble[:2], ['M5', 'M9'])
+        self.assertFalse([line for line in preamble if line.split()[0] in ('M3', 'M4', 'M7', 'M8', 'G4')])
+
+    def test_unknown_modes_refuse_with_the_mode_name(self):
+        lines = ['G21 X1', 'T2 M6']    # G21 sets no group of these modes
+        for field, value, word in (('feed_mode', None, 'feed mode'), ('feed_mode', 93, 'G93'),
+                                   ('dist', None, 'distance mode'), ('motion', None, 'motion mode'),
+                                   ('plane', None, 'plane'), ('wcs', None, 'work coordinate'),
+                                   ('spindle', None, 'spindle')):
+            with self.subTest(field, value=value):
+                with self.assertRaises(ValueError) as caught:
+                    self.resume(lines, 1, **{field: value})
+                self.assertIn(word, str(caught.exception))
+        # a mode that the program sets itself is not needed from the controller
+        self.resume(['G90 G0 G17 G54 G94 M5', 'G0 X1 Y1 Z5', 'T2 M6'], 2, dist=None, motion=None, feed_mode=None,
+                    plane=None, wcs=None, spindle=None)
+
+    def test_check_at_start(self):
+        numbers = [10, 11, 12, 13]
+        ok = ['G0 X1 Y1 Z5', 'M3 S1000', 'T2 M6', 'G1 X2 F100']
+        self.assertIsNone(SenderGen.check_tool_change_job(ok, numbers, 5.0, 'MM', 4, 0.0, self.start()))
+        probe = ['G0 X1 Y1 Z5', 'G38.2 Z-5 F10', 'T2 M6', 'G1 X2 F100']
+        message = SenderGen.check_tool_change_job(probe, numbers, 5.0, 'MM', 4, 0.0, self.start())
+        self.assertIn('12', message)
+        message = SenderGen.check_tool_change_job(ok, numbers, 5.0, 'MM', 4, 0.0, self.start(feed_mode=None))
+        self.assertIn('feed mode', message)
+
+    def test_from_live_reads_the_modal_answer(self):
+        modal = parse_grbl_modal('[GC:G1 G55 G18 G21 G91 G94 M5 T0 F100 S0]')
+        start = SenderGen.JobStart.from_live((1.0, 2.0, 3.0), 'MM', modal, coolant=(8,))
+        self.assertEqual((start.pos, start.units, start.dist, start.motion, start.feed_mode, start.plane, start.wcs),
+                         ((1.0, 2.0, 3.0), 'MM', 91, 1, 94, 18, 55))
+        self.assertEqual((start.feed, start.spindle, set(start.coolant)), (None, None, {8}))
+        start = SenderGen.JobStart.from_live((0, 0, 0), 'MM', parse_grbl_modal('[GC:G21]'))
+        self.assertEqual((start.dist, start.motion, start.feed_mode, start.plane, start.wcs),
+                         (None, None, None, None, None))
 
 
 if __name__ == '__main__':

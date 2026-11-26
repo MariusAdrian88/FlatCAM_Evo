@@ -81,19 +81,83 @@ def display_lines(lines, units, arc_segment, decimals, split_for_display):
     return lines, source_index, unsplit
 
 
-def restart_preamble(lines, start_line, travel_z, units, decimals=4, spindle_dwell=0.0):
+@dataclasses.dataclass
+class JobStart:
+    """The complete controller state at the job start. A field that the controller did not report is None.
+
+    `pos` (X, Y, Z work position) and `feed` are in `units` ('MM' or 'IN', the program units); `dist` is 90/91,
+    `motion` 0..3, `feed_mode` 93/94/95, `plane` 17..19, `wcs` 54..59 (59.1..59.3), `spindle` 3/4/5.
+    """
+    pos: tuple = None
+    units: str = None
+    dist: int = None
+    motion: int = None
+    feed_mode: int = None
+    plane: int = None
+    wcs: float = None
+    feed: float = None
+    spindle: int = None
+    speed: float = None
+    coolant: tuple = ()
+
+    @classmethod
+    def from_live(cls, work_pos, units, modal, feed=None, spindle=None, speed=None, coolant=()):
+        """Build it from a status report and the dict of `parse_grbl_modal`."""
+        def number(word, prefix):
+            return float(word[len(prefix):]) if word else None
+
+        def whole(value):
+            return None if value is None else int(value)
+
+        wcs = number(modal.get('wcs'), 'G')
+        return cls(pos=tuple(work_pos), units=units,
+                   dist=whole(number(modal.get('distance_mode'), 'G')),
+                   motion=whole(number(modal.get('motion_mode'), 'G')),
+                   feed_mode=whole(number(modal.get('feed_mode'), 'G')),
+                   plane=whole(number(modal.get('plane'), 'G')),
+                   wcs=wcs, feed=feed, spindle=spindle, speed=speed, coolant=tuple(sorted(coolant)))
+
+
+def _split_comments(line):
+    """The parts of a line: the even ones are code, the odd ones are comments."""
+    return re.split(r'(\([^)]*\)|;.*$)', line)
+
+
+def _has_m6(line):
+    code = ''.join(_split_comments(line)[0::2]).upper()
+    return any(k == 'M' and v == 6 for k, v in _words(code))
+
+
+_M6_T_RE = re.compile(r'(?<![A-Za-z0-9.])(?:M\s*0*6(?![0-9.])|T\s*[+-]?\d+\.?\d*)', re.IGNORECASE)
+
+
+def _strip_m6_block(line):
+    """The block of an M6 line without its M6 and T words; '' if nothing is left."""
+    parts = _split_comments(line)
+    parts[0::2] = [_M6_T_RE.sub('', part) for part in parts[0::2]]
+    text = ' '.join(''.join(parts).split())
+    return text if _words(''.join(parts[0::2]).upper()) else ''
+
+
+def restart_preamble(lines, start_line, travel_z, units, decimals=4, spindle_dwell=0.0, tool_change=False,
+                     initial=None):
     """Restore the state BEFORE a 1-based console line, without replaying skipped moves.
 
     Only deterministic GRBL modes are restored. Probes, tool changes, offset writes,
     expressions and controller commands in the skipped section require Beginning.
     Travel Z is in the CNCJob's units; the preamble uses the program's active units.
 
+    With `tool_change` an M6 in the skipped section changes nothing, no tool length offset line is written
+    and the first line is not a shortcut. `initial` (a JobStart) is the state at the job start: it seeds the
+    position, the modes, the feed, the spindle and the coolant; a mode that the program does not set and the
+    JobStart does not report refuses.
+
     :return: (preparation lines, resumed lines). The resumed lines keep their row count;
         an inherited arc mode is made explicit on its first motion block.
     """
     if not 1 <= start_line <= len(lines):
         raise ValueError(_("Select a line within the program."))
-    if start_line == 1:
+    if start_line == 1 and not tool_change:
         return [], list(lines)
     if travel_z is None or not math.isfinite(travel_z) or travel_z <= 0:
         raise ValueError(_("The CNCJob needs a finite, positive travel Z to start from a line."))
@@ -106,6 +170,23 @@ def restart_preamble(lines, start_line, travel_z, units, decimals=4, spindle_dwe
     coolant = set()
     tool = None
     offset, offset_z = None, 0.0
+    seen = set()    # the mode groups that the skipped lines set
+    if initial is not None:
+        if initial.units in ('MM', 'IN'):
+            state.units = 20 if initial.units == 'IN' else 21
+        if initial.pos is not None:
+            state.pos = dict(zip('XYZ', initial.pos))
+        state.dist, state.motion = initial.dist, initial.motion
+        state.inverse = {94: False, 93: True}.get(initial.feed_mode)
+        plane, wcs = initial.plane, initial.wcs
+        if initial.feed is not None:
+            feed = initial.feed * (25.4 if state.units == 20 else 1.0)
+        if initial.spindle is not None:
+            spindle = int(initial.spindle)
+        if initial.speed is not None:
+            speed = initial.speed
+        coolant = set(initial.coolant)
+    allowed_m = (0, 1, 3, 4, 5, 6, 7, 8, 9) if tool_change else (0, 1, 3, 4, 5, 7, 8, 9)
     allowed_g = {0, 1, 2, 3, 4, 17, 18, 19, 20, 21, 40, 43.1, 49,
                  54, 55, 56, 57, 58, 59, 61, 80, 90, 91, 91.1, 94}
     for number, raw in enumerate(lines[:start_line - 1], 1):
@@ -114,12 +195,16 @@ def restart_preamble(lines, start_line, travel_z, units, decimals=4, spindle_dwe
         if (not words or re.sub(r'\s', '', _WORD_RE.sub('', line)) or
                 any(not math.isfinite(v) or k not in 'NGXYZIJKRFSPMT' for k, v in words) or
                 any(k == 'G' and v not in allowed_g for k, v in words) or
-                any(k == 'M' and v not in (0, 1, 3, 4, 5, 7, 8, 9) for k, v in words)):
+                any(k == 'M' and v not in allowed_m for k, v in words)):
             raise ValueError(_("Cannot reconstruct the state at program line %d. Start from Beginning.") % number)
         # G91.1 is GRBL's incremental arc-centre mode; it doesn't affect endpoint tracking.
         state.advance(' '.join('%s%s' % (k, v) for k, v in words if (k, v) != ('G', 91.1)))
         for k, value in words:
             if k == 'G':
+                group = {0: 'motion', 1: 'motion', 2: 'motion', 3: 'motion', 80: 'motion', 90: 'dist',
+                         91: 'dist', 94: 'feed'}.get(value)
+                if group:
+                    seen.add(group)
                 if value in (17, 18, 19):
                     plane = int(value)
                 elif 54 <= value <= 59:
@@ -136,15 +221,30 @@ def restart_preamble(lines, start_line, travel_z, units, decimals=4, spindle_dwe
                 feed = value * (25.4 if state.units == 20 else 1.0)
             elif k == 'S':
                 speed = value
+                seen.add('speed')
             elif k == 'T':
                 tool = value
             elif k == 'M':
                 if value in (3, 4, 5):
                     spindle = int(value)
+                    seen.add('spindle')
                 elif value in (7, 8):
                     coolant.add(int(value))
                 elif value == 9:
                     coolant.clear()
+    if initial is not None:
+        if state.inverse:
+            raise ValueError(_("Inverse time feed (G93) is active. A tool change cannot be resumed."))
+        if initial.feed_mode == 95 and 'feed' not in seen:
+            raise ValueError(_("Feed per revolution (G95) is active. A tool change cannot be resumed."))
+        for known, group, name in (
+                (state.dist, 'dist', _("distance mode")), (state.motion, 'motion', _("motion mode")),
+                (state.inverse, 'feed', _("feed mode")),
+                (plane, None, _("plane")), (wcs, None, _("work coordinate system")),
+                (initial.spindle, 'spindle', _("spindle state")),
+                (initial.speed if spindle in (3, 4) else 0, 'speed', _("spindle speed"))):
+            if known is None and group not in seen:
+                raise ValueError(_("The %s at the job start is not known.") % name)
     if state.dist not in (90, 91) or state.motion not in (0, 1, 2, 3, None):
         raise ValueError(_("The motion mode before the selected line is not known."))
     if any(v is None or not math.isfinite(v) for v in state.pos.values()):
@@ -162,8 +262,8 @@ def restart_preamble(lines, start_line, travel_z, units, decimals=4, spindle_dwe
     if plane is not None:
         out.append('G%d' % plane)
     if wcs is not None:
-        out.append('G%d' % wcs)
-    if offset is not None:
+        out.append('G%g' % wcs)
+    if offset is not None and not tool_change:
         out.append(offset + (' Z%s' % _fmt(offset_z / scale, decimals) if offset == 'G43.1' else ''))
     if tool is not None:
         out.append('T%s' % _fmt(tool, 0))
@@ -192,6 +292,37 @@ def restart_preamble(lines, start_line, travel_z, units, decimals=4, spindle_dwe
     else:
         out.append('G%d' % state.motion if state.motion is not None else 'G80')
     return out, resumed
+
+
+def tool_change_resume(lines, m6_index, next_index, travel_z, units, decimals, spindle_dwell, initial):
+    """The lines to write after the operator changed the tool at the M6 line `m6_index` (0-based).
+
+    :param next_index: the index of the line that the stream continues with (after the M6 and an M0-only line)
+    :return: (preamble, tail). The preamble ends with the rest of the M6 block (its M6 and T words removed);
+        the tail is the program from `next_index`, an inherited G2/G3 made explicit.
+    """
+    lines_tc = list(lines)
+    lines_tc[m6_index] = _strip_m6_block(lines_tc[m6_index])
+    preamble, resumed = restart_preamble(lines_tc, m6_index + 1, travel_z, units, decimals, spindle_dwell,
+                                         tool_change=True, initial=initial)
+    if resumed[0]:
+        preamble.append(resumed[0])
+    return preamble, resumed[next_index - m6_index:]
+
+
+def check_tool_change_job(lines, numbers, travel_z, units, decimals, spindle_dwell, initial):
+    """Check at Start that the job can pause at every M6 line and resume.
+
+    :return: None, or the reason with the source line number of the first M6 line that cannot be resumed.
+    """
+    for index, line in enumerate(lines):
+        if not _has_m6(line):
+            continue
+        try:
+            tool_change_resume(lines, index, index + 1, travel_z, units, decimals, spindle_dwell, initial)
+        except ValueError as err:
+            return _("Line %d: %s") % (numbers[index], err)
+    return None
 
 
 def needs_segmentation(target_obj):
