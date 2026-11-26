@@ -1179,6 +1179,89 @@ def test_start_profile_outcomes(outcome):
         assert report.call_count == 1 and 'Correction refused at line 3, G91: relative moves' in messages
 
 
+_GC_G90 = 'G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0'
+
+
+def _macro_tool(gc_answers, mpos='10.000,20.000,-5.000', threaded=False):
+    """A Sender on a fake controller (the answers of $G in order, the last one repeats), with a 200 mm bed."""
+    import threading
+    from unittest.mock import MagicMock, patch
+    from appPlugins.ToolGcodeSender import Sender as sender_module
+    from tests.grbl_stream_helpers import make_stream_tool
+    from tests.test_levelling_audit import FakeGrbl
+
+    class Modal(FakeGrbl):
+        def _answer(self, cmd):
+            if cmd == '$G':
+                text = gc_answers.pop(0) if len(gc_answers) > 1 else gc_answers[0]
+                self._send('[GC:%s]' % text, 'ok')
+            elif cmd == '?':
+                self._send('<Idle|MPos:%s|FS:0,0>' % mpos)
+            else:
+                super()._answer(cmd)
+
+    fake = Modal()
+    tool = make_stream_tool(fake)
+    tool._plugin_active = True
+    tool._grbl_report_inches = False
+    tool.op_changed_sig.emit.side_effect = tool._apply_machine_state
+    tool.macro_check_sig = MagicMock()
+    threads = []
+    if threaded:
+        tool.app.worker_task.emit.side_effect = lambda task: threads.append(threading.Thread(target=task['fcn']))
+    else:
+        tool.macro_check_sig.emit.side_effect = tool._on_macro_check
+    tool._confirm_profile_stream = MagicMock(return_value=True)
+    fake.written.clear()
+    patches = (patch.object(sender_module, 'active_profile_of', return_value=_bed_profile(bed_x=200.0)),
+               patch.object(sender_module, 'report_gate'))
+    return tool, fake, threads, patches
+
+
+def _macro_written(fake, line):
+    return [c for c in fake.commands() if c == line]
+
+
+@pytest.mark.parametrize('line, gc, mpos, written', [
+    ('G0 X500', _GC_G90, '10.000,20.000,-5.000', False),
+    ('X500', 'G1 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0', '10.000,20.000,-5.000', False),
+    ('X20', 'G0 G54 G17 G21 G91 G94 M5 M9 T0 F0 S0', '190.000,20.000,-5.000', False),
+    ('G0 X50', _GC_G90, '10.000,20.000,-5.000', True)])
+def test_macro_outside_the_bed_is_refused(line, gc, mpos, written):
+    tool, fake, _, patches = _macro_tool([gc], mpos)
+    tool._stream_setup, tool._stream_setup_key = 'job setup', 'job key'
+    with patches[0], patches[1]:
+        tool.run_macro([line])
+    assert bool(_macro_written(fake, line)) is written
+    assert (tool._stream_setup, tool._stream_setup_key) == ('job setup', 'job key')
+
+
+def test_macro_refuses_when_the_machine_state_changed_after_the_check():
+    tool, fake, _, patches = _macro_tool([_GC_G90, _GC_G90.replace('G54', 'G55')])
+    with patches[0], patches[1]:
+        tool.run_macro(['G0 X50'])
+    assert _macro_written(fake, 'G0 X50') == []
+    assert 'machine state changed' in ' '.join(str(c) for c in tool.app.inform.emit.call_args_list)
+
+
+def test_stop_during_the_approval_releases_the_operation_and_a_late_yes_writes_nothing():
+    import time
+    tool, fake, threads, patches = _macro_tool([_GC_G90], threaded=True)
+    with patches[0], patches[1]:
+        tool.run_macro(['G0 X50'])
+        thread = threads[0]
+        thread.start()
+        deadline = time.monotonic() + 30.0
+        while not tool.macro_check_sig.emit.called and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert tool.macro_check_sig.emit.called
+        tool._grbl_op.cancel.set()
+        thread.join(30.0)
+        assert not thread.is_alive() and tool._grbl_op is None
+        tool._on_macro_check(*tool.macro_check_sig.emit.call_args.args)
+    assert _macro_written(fake, 'G0 X50') == []
+
+
 def test_map_point_and_unmap_point_round_trip_and_are_identity_without_the_correction():
     from appCommon.machine_profile.output import calibration_hash, map_point, unmap_point
     profile = _profile()

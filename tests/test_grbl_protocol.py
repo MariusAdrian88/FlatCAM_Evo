@@ -26,6 +26,18 @@ class TestCodeText(unittest.TestCase):
         self.assertEqual(code_text('error:20', grblhal=True), code_text('error:20'))
 
 
+class TestParseModal(unittest.TestCase):
+    def test_modal_words_of_the_gc_report(self):
+        from appPlugins.Common.grbl.grbl_protocol import parse_grbl_modal
+        modal = parse_grbl_modal('[GC:G1 G55 G18 G20 G91 G93 M5 M9 T0 F0 S0]')
+        self.assertEqual(modal, {'distance_mode': 'G91', 'motion_mode': 'G1', 'plane': 'G18', 'feed_mode': 'G93',
+                                 'arc_mode': None, 'units': 'inch', 'wcs': 'G55'})
+        modal = parse_grbl_modal('[GC:G0 G54 G17 G21 G90 G91.1 G94 M5]')
+        self.assertEqual((modal['motion_mode'], modal['units'], modal['arc_mode'], modal['feed_mode']),
+                         ('G0', 'mm', 'G91.1', 'G94'))
+        self.assertEqual(set(parse_grbl_modal('').values()), {None})
+
+
 class TestStatusReport(unittest.TestCase):
     def test_run_mpos_fs_ov(self):
         rep = parse_grbl_status_report(

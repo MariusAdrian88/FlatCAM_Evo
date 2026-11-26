@@ -37,7 +37,7 @@ from appPlugins.Common.levelling_core import LevellingCoreMixin
 from appPlugins.Common.grbl.grbl_protocol import (
     parse_grbl_status_state, parse_grbl_setting, parse_grbl_active_wcs, grbl_reply_error, probe_timeout_s,
     parse_grbl_status_report, work_position, grbl_report_scale, grbl_modes_confirmed,
-    parse_grbl_probe_output, parse_grbl_offsets, grbl_wcs_p_number)
+    parse_grbl_probe_output, parse_grbl_offsets, grbl_wcs_p_number, parse_grbl_modal)
 from appPlugins.Common.gcode_segment import split_long_moves, parse_toolpath, _words, _g_key
 from appPlugins.Common.levelling_interp import build_bilinear_grid
 from appPlugins.ToolGcodeSender import SenderGen, SenderKeys, SenderEstimate, SenderMacros
@@ -230,6 +230,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     # the prepared job of a Start (SenderGen._PreparedJob), and the prepared restart of a start from a line
     job_prepared_sig = QtCore.pyqtSignal(object)
     restart_prepared_sig = QtCore.pyqtSignal(object)
+    macro_check_sig = QtCore.pyqtSignal(int, object, object)   # request id, profile, _ProfileOutcome of a macro
+    _macro_request = 0          # id of the last macro check
+    _macro_pending = None       # the macro task that waits for the answer of the user
     probe_finished_sig = QtCore.pyqtSignal(object, object)
     # a complete directional-probe result, from a worker
     edge_probe_result_sig = QtCore.pyqtSignal(object)
@@ -639,6 +642,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.preview_ready_sig.connect(self._on_preview_ready)
             self.job_prepared_sig.connect(self._on_job_prepared)
             self.restart_prepared_sig.connect(self._on_restart_prepared)
+            self.macro_check_sig.connect(self._on_macro_check)
             self.probe_finished_sig.connect(self._on_probe_finished)
             self.edge_probe_result_sig.connect(self._on_edge_probe_result)
             self._bound_collection = self.app.collection
@@ -2114,9 +2118,54 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def _macro_profile_gate(self, op, lines):
         """Hook of the machine profile check of a macro (worker thread, before the first write).
 
+        With an active machine profile the lines are checked in the live modal state, the user approves in the GUI
+        thread and the state is read again before the first write.
+
         :return: True if the macro may be sent.
         """
+        profile = active_profile_of(self.app)
+        if profile is None:
+            return True
+        outcome = self._profile_compute('\n'.join(lines), None, profile, op, correct=False, macro=True)
+        generation = self._grbl_safety_generation
+        self._macro_request += 1
+        pending = SimpleNamespace(request=self._macro_request, event=threading.Event(), answer=False)
+        self._macro_pending = pending
+        try:
+            self.macro_check_sig.emit(pending.request, profile, outcome)
+            deadline = time.monotonic() + 120.0
+            while not pending.event.wait(0.1):
+                if self._macro_wait_over(op, generation) or time.monotonic() > deadline:
+                    return False
+        finally:
+            self._macro_pending = None
+        if not pending.answer or self._macro_wait_over(op, generation):
+            return False
+        setup = self._profile_setup(op, profile, refresh=True, live_modes=True)[0]
+        if setup != outcome.setup or self._grbl_safety_generation != generation:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("The machine state changed after the check. "
+                                                         "Run the button again."))
+            return False
         return True
+
+    def _macro_wait_over(self, op, generation):
+        """True if the operation of a macro ended while it waits for the approval (Stop, Reset, E-Stop, port lost)."""
+        if op.cancel.is_set():
+            return True
+        with self._grbl_op_lock:
+            if not self._grbl_active_locked(op):
+                return True
+        return self._grbl_safety_generation != generation
+
+    def _on_macro_check(self, request, profile, outcome):
+        """Slot of macro_check_sig (GUI thread): show the check of a macro and answer the waiting task."""
+        if request != self._macro_request:
+            return
+        answer = self._profile_present(profile, outcome, store=False)
+        pending = self._macro_pending
+        if pending is not None and pending.request == request:
+            pending.answer = answer
+            pending.event.set()
 
     def run_macro(self, lines):
         """Send the lines of a user button to the controller, in one operation; stop at the first error."""
@@ -4963,25 +5012,37 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             keep_markers=profile is not None, generation=self._al_generation, request=request)
         return inputs
 
-    def _profile_setup(self, op, profile, target):
+    def _profile_setup(self, op, profile, target=None, units=None, refresh=False, live_modes=False):
         """
         The Setup of the check of a stream: the live state of the controller when the Sender is connected (`op` is
         the reserved operation), else the declared setup of the profile.
 
         It writes nothing of the Sender (a worker runs it): the GUI thread stores the setup and the key.
 
+        :param target: the CNCJob of a stream; None for a macro (the units are `units` or the app units, no dialect)
+        :param refresh: ask the controller for its state again
+        :param live_modes: a macro runs in the live modal state: a reported mode is used, only a missing one is
+            assumed. A stream sets its own modes: they are the defaults G90, G91.1, G17, G0.
         :return: (Setup, the assumptions that this method adds to the result, the key of the live state or None)
         """
-        units = 'inch' if str(target.units).upper() in ('IN', 'INCH') else 'mm'
+        if target is not None:
+            units = target.units
+        elif units is None:
+            units = self.app.app_units
+        units = 'inch' if str(units).upper() in ('IN', 'INCH') else 'mm'
         dialect = getattr(target, 'pp_geometry_name', None)
-        live = self.live_setup(op, profile, dialect) if op is not None else None
+        live = self.live_setup(op, profile, dialect, refresh=refresh) if op is not None else None
         if live is None:
             return setup_from_profile(profile, dialect, units), [], None
-        # the controller reports no modal state except the units: the program sets its own, these are the defaults
-        setup = dataclasses.replace(
-            live, units=live.units or units, distance_mode=live.distance_mode or 'G90',
-            arc_mode=live.arc_mode or 'G91.1', plane=live.plane or 'G17', motion_mode=live.motion_mode or 'G0')
-        return setup, ['modal state assumed: G90, G91.1, G17, G0'], self.live_setup_key
+        defaults = {'distance_mode': 'G90', 'arc_mode': 'G91.1', 'plane': 'G17', 'motion_mode': 'G0'}
+        if not live_modes:
+            # the controller reports no modal state except the units: the program sets its own
+            setup = dataclasses.replace(live, units=live.units or units, **defaults)
+            return setup, ['modal state assumed: G90, G91.1, G17, G0'], self.live_setup_key
+        missing = {name: word for name, word in defaults.items() if getattr(live, name) is None}
+        setup = dataclasses.replace(live, units=live.units or units, **missing)
+        assumed = ['modal state assumed: %s' % ', '.join(missing.values())] if missing else []
+        return setup, assumed, self.live_setup_key
 
     def _confirm_profile_stream(self, note):
         """Ask the user if the stream goes on although the check has warnings (GUI thread). :return: True if yes."""
@@ -5042,34 +5103,37 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         outcome = self._profile_compute(text, target, profile, op, line_map)
         return outcome.out if self._profile_present(profile, outcome) else None
 
-    def _profile_compute(self, text, target, profile, op, line_map=None, correct=True):
+    def _profile_compute(self, text, target, profile, op, line_map=None, correct=True, macro=False):
         """
         The machine profile step of a stream with no GUI call and no write of the Sender (a worker can run it): the
         setup of the check, then the correction and the check of `text`. `correct=False` only checks the text.
+        A macro (`macro=True`) has no target (None), reads the controller again and runs in its live modal state.
 
         :return: SenderGen._ProfileOutcome
         """
-        setup, assumed, setup_key = self._profile_setup(op, profile, target)
+        live_kwargs = {'refresh': True, 'live_modes': True} if macro else {}
+        setup, assumed, setup_key = self._profile_setup(op, profile, target, **live_kwargs)
         outcome = SenderGen._ProfileOutcome(setup=setup, setup_key=setup_key)
         kwargs = {'line_map': line_map} if correct else {'correct': False}
+        decimals = 4 if target is None else target.coords_decimals
         try:
-            outcome.out, outcome.result = prepare_output(text, Purpose.STREAM, setup, profile, target.coords_decimals,
-                                                         **kwargs)
+            outcome.out, outcome.result = prepare_output(text, Purpose.STREAM, setup, profile, decimals, **kwargs)
         except CorrectionRefused as refused:
             outcome.refused = refused
             return outcome
         outcome.result.assumptions.extend(assumed)
         return outcome
 
-    def _profile_present(self, profile, outcome):
+    def _profile_present(self, profile, outcome, store=True):
         """
         Store the setup of a profile step and show its result (GUI thread): the refused correction, the status bar
         dot, the violations dialog, the confirmation.
 
         :return: True if the stream may go on.
         """
-        self._stream_setup = outcome.setup
-        self._stream_setup_key = outcome.setup_key
+        if store:
+            self._stream_setup = outcome.setup
+            self._stream_setup_key = outcome.setup_key
         refused = outcome.refused
         if refused is not None:
             message = _('Machine profile "%s": stream not started. Correction refused at line %d, %s: %s') % (
@@ -6424,6 +6488,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 machine_pos = scaled(tuple(w + c for w, c in zip(report['wpos'], report['wco'])))
 
         setup = setup_from_controller(profile, dialect, units, machine_pos, wcs_offsets, active_wcs, g92, tlo)
+        modal = parse_grbl_modal(gc_text)
+        setup = dataclasses.replace(setup, distance_mode=modal['distance_mode'], motion_mode=modal['motion_mode'],
+                                    plane=modal['plane'], arc_mode=modal['arc_mode'])
         self.live_setup_key = (setup.profile_hash,
                                None if wcs_offsets is None else tuple(sorted(setup.wcs_offsets.items())),
                                active_wcs, setup.g92, setup.tlo)

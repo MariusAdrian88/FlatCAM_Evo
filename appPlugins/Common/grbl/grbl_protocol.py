@@ -73,6 +73,30 @@ def parse_grbl_active_wcs(text):
     return 'G' + match.group(1)
 
 
+_MODAL_GROUPS = (('distance_mode', ('G90', 'G91')), ('motion_mode', ('G0', 'G1', 'G2', 'G3')),
+                 ('plane', ('G17', 'G18', 'G19')), ('feed_mode', ('G93', 'G94', 'G95')),
+                 ('arc_mode', ('G90.1', 'G91.1')))
+
+
+def parse_grbl_modal(gc_text):
+    """
+    The modal state of a ``$G`` answer: distance_mode, motion_mode, plane, feed_mode, arc_mode, units ('mm' or
+    'inch') and wcs. A word that the controller does not report is None (GRBL reports no arc mode).
+    """
+    words = set()
+    for match in re.finditer(r'\[GC:([^\]]*)\]', gc_text or ''):
+        words.update(word.upper() for word in match.group(1).split())
+    # the motion word can be written G00
+    words = {re.sub(r'^G0(\d)$', r'G\1', word) for word in words}
+    modal = {name: next((word for word in group if word in words), None) for name, group in _MODAL_GROUPS}
+    modal['units'] = 'inch' if 'G20' in words else 'mm' if 'G21' in words else None
+    try:
+        modal['wcs'] = parse_grbl_active_wcs(gc_text or '')
+    except ValueError:
+        modal['wcs'] = None
+    return modal
+
+
 _WCS_P_NUMBERS = {'G54': 1, 'G55': 2, 'G56': 3, 'G57': 4, 'G58': 5, 'G59': 6, 'G59.1': 7, 'G59.2': 8, 'G59.3': 9}
 
 
