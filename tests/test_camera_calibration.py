@@ -861,6 +861,41 @@ class TestCameraRegistrationWorkflow(unittest.TestCase):
         self.assertIsNone(ui.fit)
         self.assertTrue(ui.use_selected_button.isEnabled())
 
+    def test_registration_apply_asks_above_tolerance(self):
+        box = 'appPlugins.ToolGcodeSender.SenderRegistrationUI.QtWidgets.QMessageBox.question'
+        yes, no = QtWidgets.QMessageBox.StandardButton.Yes, QtWidgets.QMessageBox.StandardButton.No
+
+        _app, ui, _obj = self.make_ui()
+        self.add_two_pairs(ui)
+        ui.registration.add_design(0.0, 10.0, 'MM')
+        self.assertEqual(ui.registration.add_observation(self.observation(0.0, 10.5)), (True, 'ok'))
+        ui.on_preview()
+        self.assertGreater(ui.fit.max_error, ui.tolerance())
+        requested = []
+        ui.validate_sig.connect(lambda: requested.append(True))
+        with patch(box, return_value=no) as ask:
+            ui.on_apply()
+            ask.assert_called_once()
+            text = ask.call_args.args[2]
+            self.assertIn(ui._format_limit(ui.fit.max_error), text)
+            self.assertIn(ui._format_limit(ui.fit.tolerance), text)
+        self.assertEqual(requested, [])
+        with patch(box, return_value=yes) as ask:
+            ui.on_apply()
+            ask.assert_called_once()
+        self.assertEqual(requested, [True])
+
+        _app, ui, _obj = self.make_ui()
+        self.add_two_pairs(ui)
+        ui.on_preview()
+        self.assertLessEqual(ui.fit.max_error, ui.tolerance())
+        requested = []
+        ui.validate_sig.connect(lambda: requested.append(True))
+        with patch(box, return_value=no) as ask:
+            ui.on_apply()
+            ask.assert_not_called()
+        self.assertEqual(requested, [True])
+
 
 class TestCameraPane(unittest.TestCase):
     """The camera pane beside the plot: a splitter only while the pane is open."""

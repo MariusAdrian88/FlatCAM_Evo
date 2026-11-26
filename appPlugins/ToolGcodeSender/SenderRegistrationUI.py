@@ -771,6 +771,13 @@ class SenderRegistrationUI(QtWidgets.QWidget):
             self._set_message(_("A chosen object was deleted or removed. Preview again."), error=True)
             self._update_buttons()
             return
+        if self.fit.max_error > self.fit.tolerance:
+            answer = QtWidgets.QMessageBox.question(
+                self, _("Registration"),
+                _("The maximum error %s is above the tolerance %s. Apply?") % (
+                    self._format_limit(self.fit.max_error), self._format_limit(self.fit.tolerance)))
+            if answer != QtWidgets.QMessageBox.StandardButton.Yes:
+                return
         self._start_operation('validate')
         self._set_message(_("Checking the current machine reference. Nothing moves."))
         self.validate_sig.emit()
