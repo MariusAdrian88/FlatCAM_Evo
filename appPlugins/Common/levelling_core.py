@@ -1216,7 +1216,7 @@ class LevellingCoreMixin:
 
     @_al_locked
     def autolevell_gcode(self, target_obj, al_method, snapshot=None, diagnostics=None,
-                         home_wcs=None, strict=False):
+                         home_wcs=None, strict=False, stats=None):
         """
         Apply the probed height map (self.al_voronoi_geo_storage) to each
         of a CNCJob object's per-tool G-code texts
@@ -1243,6 +1243,7 @@ class LevellingCoreMixin:
         :param strict:      if True, a program with any move that was not compensated
                              (arcs, relative, unparsed, unknown, frame, cutter, cycles)
                              gives 1 error and None.
+        :param stats:       optional dict that receives 'outside': the count of the samples outside the map.
         :return:             {tooluid: levelled G-code text} for every tool
                               in target_obj.tools, or None on error.
         :rtype:              dict | None
@@ -1369,6 +1370,8 @@ class LevellingCoreMixin:
         if state['arcs_split'] > 0:
             self.app.inform.emit("%s: %d" % (_("Arc moves split into line moves"), state['arcs_split']))
 
+        if stats is not None:
+            stats['outside'] = state['outside']
         if state['outside'] > 0:
             warning = '[WARNING_NOTCL] %s: %d. %s' % (
                 _("Compensation samples outside the measured height map"), state['outside'],

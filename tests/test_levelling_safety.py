@@ -342,3 +342,25 @@ def test_long_run_past_two_minutes_is_not_a_timeout():
     assert tool._grbl_recovery is None
 
 
+@pytest.mark.parametrize('answer', [False, True])
+def test_outside_samples_need_a_confirmation(answer):
+    from unittest.mock import MagicMock
+    from tests.grbl_stream_helpers import CheckFake, JOB, ended_how, make_levelled_stream_tool
+
+    # a cut 10 mm beyond the height map (0..10)
+    text = JOB.replace("G00 Z2.0000\nG00 X0.0000", "G01 X20.0000 Y6.0000\nG00 Z2.0000\nG00 X0.0000")
+    fake = CheckFake()
+    tool, _target = make_levelled_stream_tool(fake, text=text)
+    tool._confirm_outside_map = MagicMock(return_value=answer)
+    tool.on_start()
+    tool._confirm_outside_map.assert_called_once()
+    assert tool._confirm_outside_map.call_args.args[0] > 0
+    if answer:
+        assert ended_how(tool) == 'finished'
+        assert [c for c in fake.commands() if c.startswith('G01 X')]
+    else:
+        assert [c for c in fake.commands() if c.startswith('G0')] == []
+        assert tool._grbl_op is None
+        assert tool.ui.start_button.setDisabled.call_args_list[-1].args[0] is False
+
+

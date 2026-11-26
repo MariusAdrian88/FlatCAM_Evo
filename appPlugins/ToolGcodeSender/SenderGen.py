@@ -406,6 +406,7 @@ class _PreparedJob:
     split_count: int = 0
     cumulative: list = None     # the running total of the line durations (s), None: no estimate
     job_start: JobStart = None  # the controller state at the Start (M6 policy 'pause' and an M6 line)
+    outside: int = 0            # the levelled samples outside the height map
 
 
 @dataclasses.dataclass
@@ -508,11 +509,13 @@ def prepare_levelled_job(inputs, profile_compute, autolevell, tlo_line, limits=(
         lines, count = split_long_moves(lines, level.seg_len, decimals=target.coords_decimals)
         if count:
             prepared.diagnostics.append('%s: %d' % (_("Long G1 moves split for the levelling"), count))
+    stats = {}
     result = autolevell(job_proxy(target, lines), level.method, snapshot=level.snapshot,
-                        diagnostics=prepared.diagnostics, home_wcs=level.home_wcs, strict=True)
+                        diagnostics=prepared.diagnostics, home_wcs=level.home_wcs, strict=True, stats=stats)
     if result is None:
         prepared.error = ''
         return prepared
+    prepared.outside = stats.get('outside', 0)
     if inputs.profile is None:
         job_lines = [line for line in result['job'].splitlines() if line.strip()]
     else:

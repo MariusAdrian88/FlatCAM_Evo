@@ -2003,6 +2003,26 @@ class TestActionRules(unittest.TestCase):
         tool.set_work_position({'X': 12.5})
         self.assertEqual([c for c in fake.commands() if c != '?'], ['$G', 'G10 L20 P2 X12.5'])
 
+    def test_edge_result_sets_zero(self):
+        cases = [
+            ({'kind': 'edge', 'contacts': {'xplus': (10.0, 0.0, 0.0)}, 'contact': (10.0, 0.0, 0.0)},
+             'G10 L20 P1 X-3'),
+            ({'kind': 'edge', 'contacts': {'xminus': (10.0, 0.0, 0.0)}, 'contact': (10.0, 0.0, 0.0)},
+             'G10 L20 P1 X-1'),
+            ({'kind': 'center', 'center': (6.0, 1.0)}, 'G10 L20 P1 X2 Y-1'),
+        ]
+        for result, expected in cases:
+            with self.subTest(expected=expected):
+                tool, fake = self.make()
+                tool.app.decimals = 4
+                tool.units = 'MM'
+                fake.replies['$G'] = ['[GC:G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0]', 'ok']
+                tool.ui.edge_tool_dia_entry.get_value.return_value = 2.0
+                tool._last_work = (8.0, 0.0, 0.0)
+                tool._edge_result = result
+                tool.on_edge_set_zero()
+                self.assertEqual([c for c in fake.commands() if c != '?'], ['$G', expected])
+
     def test_handlers_refuse_without_widgets(self):
         for name in ('probe', 'stream_run', 'needs_reset'):
             with self.subTest(situation=name):

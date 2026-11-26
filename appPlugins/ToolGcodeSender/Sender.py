@@ -207,6 +207,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     # shown (display units) for the typed work position
     _active_wcs = None
     _last_work = None
+    _edge_result = None     # the last complete edge or centre probe result, for "Set zero from result"
     _gc_inches = False      # the controller's modal units were G20 at the last $G
     _homed_this_session = False     # a home cycle finished since the connect
     # (request, {'frame': ...} or {'error': ...}) from the frame worker; emitted after the port is released
@@ -755,6 +756,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.grbl_save_height_map_button.clicked.connect(self.on_grbl_heightmap_save)
         self.ui.edge_probe_button.clicked.connect(self.on_grbl_edge_probe)
         self.ui.edge_center_button.clicked.connect(self.on_grbl_center_probe)
+        self.ui.edge_set_zero_button.clicked.connect(self.on_edge_set_zero)
 
         # Reset Tool
         self.ui.reset_button.clicked.connect(self.on_reset_tool)
@@ -1856,6 +1858,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._camera_new_session('disconnect')
         self._toolchange_new_session('disconnect')
         self._clear_tool_pause()
+        self._edge_result = None    # _grbl_set_ui_connected() below disables "Set zero from result"
         self.sender_io.on_disconnect()
         lost, self._grbl_lost_close = self._grbl_lost_close, None
         if lost is not None and self.app.options.get("tools_grbl_auto_reconnect", False):
@@ -4276,6 +4279,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 self.macro_page = None
         for button, byte in ui.ov_buttons.values():
             button.setEnabled(allowed['rapid_override' if byte in RAPID_OVERRIDE_BYTES else 'override'])
+        ui.edge_set_zero_button.setEnabled(allowed['zero'] and self._edge_result is not None)
         console = self.app.ui.grbl_console_dock.widget()
         if isinstance(console, GrblConsole):
             console.update_edit_controls()
@@ -4801,6 +4805,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         probe_timeout = probe_timeout_s(distance, 0.0, feed)
         self._edge_probe_op = op
         self.ui.edge_probe_result_label.setText('')
+        self._edge_result = None
+        self.ui.edge_set_zero_button.setDisabled(True)
 
         def worker_task():
             try:
@@ -4841,6 +4847,29 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if wcs:
             text += ' (%s, %s)' % (wcs, result.get('units'))
         self.ui.edge_probe_result_label.setText(text)
+        self._edge_result = result
+        self.ui.edge_set_zero_button.setEnabled(self.action_allowed('zero') is None)
+
+    def on_edge_set_zero(self):
+        """Make the probed edge (its surface) or the probed centre the work zero of its axes (GUI thread)."""
+        result = self._edge_result
+        if result is None:
+            return
+        work = self._last_work
+        if work is None:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("The work position is not known."))
+            return
+        if result['kind'] == 'center':
+            cx, cy = result['center']
+            self.set_work_position({'X': work[0] - cx, 'Y': work[1] - cy})
+            return
+        direction = next(iter(result['contacts']))
+        axis = direction[0].upper()
+        index = 'XY'.index(axis)
+        radius = self.ui.edge_tool_dia_entry.get_value() / 2.0
+        # the tool centre stops 1 radius before the surface: in the + direction the surface is beyond the contact
+        surface = result['contact'][index] + (radius if direction.endswith('plus') else -radius)
+        self.set_work_position({axis: work[index] - surface})
 
     def _on_probe_finished(self, op, context):
         if op is not getattr(self, '_probe_start_op', None):
@@ -5485,6 +5514,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._grbl_release(op)
             self._start_free_button()
             return
+        if prepared.outside > 0 and not self._confirm_outside_map(prepared.outside):
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
+            self._grbl_release(op)
+            self._start_free_button()
+            return
+        # the dialog was open: the Start can be old now
         if not self._prepared_current(inputs, req):
             self._start_abandoned(op)
             return
@@ -5517,6 +5552,25 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         """A levelled Start ended before the stream: the Start button works again (GUI thread)."""
         if self._grbl_op is None:
             self.ui.start_button.setDisabled(False)
+
+    def _confirm_outside_map(self, count):
+        """
+        Ask the user if the levelled job starts although some of its points are outside the height map
+        (GUI thread).
+
+        :return: True if the user answered Yes.
+        """
+        msgbox = FCMessageBox(parent=self.app.ui)
+        title = _("Height map")
+        msgbox.setWindowTitle(title)
+        msgbox.setText('<b>%s</b>' % title)
+        msgbox.setInformativeText(_("%d points of the job are outside the height map. Start?") % count)
+        msgbox.setIcon(QtWidgets.QMessageBox.Icon.Warning)
+        bt_yes = msgbox.addButton(_('Yes'), QtWidgets.QMessageBox.ButtonRole.YesRole)
+        bt_no = msgbox.addButton(_('No'), QtWidgets.QMessageBox.ButtonRole.NoRole)
+        msgbox.setDefaultButton(bt_no)
+        msgbox.exec()
+        return msgbox.clickedButton() == bt_yes
 
     def _confirm_imported_frame(self):
         """

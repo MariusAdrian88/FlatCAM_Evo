@@ -479,6 +479,21 @@ class GcodeSenderUI:
         self.edge_probe_result_label.setWordWrap(True)
         edge_grid.addWidget(self.edge_probe_result_label, 7, 0, 1, 2)
 
+        edge_grid.addWidget(FCLabel('%s:' % _("Tool diameter")), 8, 0)
+        self.edge_tool_dia_entry = FCDoubleSpinner()
+        self.edge_tool_dia_entry.set_precision(self.decimals)
+        self.edge_tool_dia_entry.set_range(0.0, 50.0)
+        self.edge_tool_dia_entry.set_value(0.0)
+        self.edge_tool_dia_entry.setToolTip(_(
+            "The diameter of the probing tool. An edge contact is moved by half of it."))
+        edge_grid.addWidget(self.edge_tool_dia_entry, 8, 1)
+
+        self.edge_set_zero_button = FCButton(_("Set zero from result"))
+        self.edge_set_zero_button.setToolTip(_(
+            "Make the probed edge, or the centre, the work zero of its axes."))
+        self.edge_set_zero_button.setDisabled(True)
+        edge_grid.addWidget(self.edge_set_zero_button, 9, 0, 1, 2)
+
         # the height map group: its title and the buttons hide together in the camera mode
         self.heightmap_frame = QtWidgets.QWidget()
         heightmap_box = QtWidgets.QVBoxLayout(self.heightmap_frame)
