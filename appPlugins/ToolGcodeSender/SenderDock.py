@@ -324,6 +324,10 @@ class GrblConsole(QtWidgets.QWidget):
     program_line_selected = QtCore.pyqtSignal(object)
     page_changed = QtCore.pyqtSignal(str)
     TEXT_MIN_HEIGHT = 150   # a short dock scrolls instead of squashing the Program and Console text
+    _program_source = None  # the list of the last set_program(): the same list is not set twice
+    PROGRAM_BLOCK = 20000   # lines per GUI call when the program text loads
+    _program_loaded = 0     # lines already in the document
+    _program_generation = 0  # a new set_program stops the running load chain
 
     def __init__(self, tool, parent=None):
         super().__init__(parent)
@@ -743,6 +747,8 @@ class GrblConsole(QtWidgets.QWidget):
     def _highlight_program_selection(self):
         selections = []
         for index in sorted(self._selected_lines):
+            if index >= self._program_loaded:
+                continue
             selection = QtWidgets.QTextEdit.ExtraSelection()
             selection.cursor = QtGui.QTextCursor(self.program_view.document().findBlockByNumber(index))
             selection.format.setProperty(QtGui.QTextFormat.Property.FullWidthSelection, True)
@@ -752,11 +758,37 @@ class GrblConsole(QtWidgets.QWidget):
         self.program_view.setExtraSelections(selections + self._progress_selections)
 
     def set_program(self, lines):
+        if lines is self._program_source:
+            return
+        self._program_source = lines
         self.clear_program_selection()
         self._program_count = len(lines)
-        self.program_view.setPlainText('\n'.join(lines))
+        self._program_generation += 1
+        self._program_loaded = 0
+        self.program_view.clear()
+        self._load_next_block(self._program_generation)
         self.update_progress(0)
         self.tabs.setCurrentIndex(0)
+
+    def _load_next_block(self, generation):
+        if generation != self._program_generation:
+            return
+        start = self._program_loaded
+        end = min(start + self.PROGRAM_BLOCK, self._program_count)
+        text = '\n'.join(self._program_source[start:end])
+        if start == 0:
+            self.program_view.setPlainText(text)
+        else:
+            cursor = QtGui.QTextCursor(self.program_view.document())
+            cursor.movePosition(QtGui.QTextCursor.MoveOperation.End)
+            cursor.insertText('\n' + text)
+        self._program_loaded = end
+        if start > 0:
+            wanted = [self._program_line] + list(self._program_errors) + sorted(self._selected_lines)
+            if any(start <= index < end for index in wanted):
+                self.update_progress(self._acknowledged, self._program_errors)
+        if end < self._program_count:
+            QtCore.QTimer.singleShot(0, lambda: self._load_next_block(generation))
 
     def update_progress(self, done, errors=()):
         self._acknowledged = max(0, min(done, self._program_count))
@@ -771,6 +803,8 @@ class GrblConsole(QtWidgets.QWidget):
         acknowledged = self._acknowledged - 1
         indexes = [acknowledged] if acknowledged >= 0 and acknowledged not in self._program_errors else []
         for index in indexes + self._program_errors:
+            if index >= self._program_loaded:
+                continue
             selection = QtWidgets.QTextEdit.ExtraSelection()
             selection.cursor = QtGui.QTextCursor(self.program_view.document().findBlockByNumber(index))
             selection.format.setProperty(QtGui.QTextFormat.Property.FullWidthSelection, True)
@@ -791,7 +825,7 @@ class GrblConsole(QtWidgets.QWidget):
         self._selected_lines.clear()
         self._selection_anchor = None
         self._highlight_program_selection()
-        if self._program_line >= 0:
+        if 0 <= self._program_line < self._program_loaded:
             scrollbars = (self.program_view.horizontalScrollBar(), self.program_view.verticalScrollBar())
             positions = [bar.value() for bar in scrollbars]
             cursor = QtGui.QTextCursor(self.program_view.document().findBlockByNumber(self._program_line))

@@ -181,6 +181,21 @@ class ToolsGrblSenderPrefGroupUI(OptionsGroupUI):
         par_grid.addWidget(self.status_ms_label, 14, 0)
         par_grid.addWidget(self.status_ms_entry, 14, 1)
 
+        # Spindle dwell
+        self.spindle_dwell_label = FCLabel('%s:' % _("Spindle dwell (s)"))
+        self.spindle_dwell_label.setToolTip(
+            _("Wait after the spindle start of a restart from a line, so it can reach its speed.\n"
+              "0 = no wait.")
+        )
+
+        self.spindle_dwell_entry = FCDoubleSpinner()
+        self.spindle_dwell_entry.set_precision(self.decimals)
+        self.spindle_dwell_entry.set_range(0.0, 60.0)
+        self.spindle_dwell_entry.setToolTip(self.spindle_dwell_label.toolTip())
+
+        par_grid.addWidget(self.spindle_dwell_label, 15, 0)
+        par_grid.addWidget(self.spindle_dwell_entry, 15, 1)
+
         # Tool-change touchplate
         self.toolchange_plate_label = FCLabel('%s:' % _("Tool-change touchplate"))
         self.toolchange_plate_label.setToolTip(

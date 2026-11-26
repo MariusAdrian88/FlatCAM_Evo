@@ -100,6 +100,23 @@ class SenderView3dTest(unittest.TestCase):
         view.set_accepted(-1)
         self.assertEqual(view.accepted.pos.shape, (0, 3))
 
+    def test_set_accepted_uses_line_order(self):
+        segments = [(0, (0, 0, 0), (1, 0, 0), True), (0, (1, 0, 0), (2, 0, 0), False),
+                    (1, (2, 0, 0), (3, 0, 0), False), (3, (3, 0, 0), (4, 0, 0), False)]
+        view = SenderView3d(fake_canvas())
+        view.set_toolpath(segments)
+        view.set_accepted(1)
+        self.assertEqual(view.accepted.pos.shape, (6, 3))
+        with patch.object(view.accepted, 'set_data') as set_data:
+            view.set_accepted(1)
+            set_data.assert_not_called()
+            view.set_accepted(3)
+            set_data.assert_called_once()
+        # a new toolpath starts again
+        view.set_toolpath(segments)
+        view.set_accepted(1)
+        self.assertEqual(view.accepted.pos.shape, (6, 3))
+
     def test_tool_position(self):
         view = SenderView3d(fake_canvas())
         view.set_tool_position((1.0, 2.0, 3.0))

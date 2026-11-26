@@ -329,12 +329,8 @@ class GcodeSenderUI:
         grbl_ctrl_grid.addWidget(self.jog_wdg, 0, 0)
 
         # STOP
-        self.jog_stop_button = FCButton(_("Stop / recover"))
-        self.jog_stop_button.setToolTip(
-            _("Stop the running operation now.\n"
-              "The controller goes into feed hold; the operation is abandoned. Cannot Resume.\n"
-              "Use Reset on Connect, then Home on Jog, before more motion.")
-        )
+        self.jog_stop_button = FCButton(_("Stop"))
+        self.jog_stop_button.setToolTip(_("Feed hold, then controller reset. The spindle stops."))
         self.jog_stop_button.setStyleSheet("QPushButton {background-color: red; color: white;}")
         self.jog_stop_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding,
                                            QtWidgets.QSizePolicy.Policy.Fixed)
@@ -535,12 +531,8 @@ class GcodeSenderUI:
         hm_lay.addWidget(self.grbl_get_heightmap_button, stretch=1)
 
         # STOP
-        self.stop_probing_button = FCButton(_("Stop / recover"))
-        self.stop_probing_button.setToolTip(
-            _("Stop the running operation now.\n"
-              "The controller goes into feed hold; the operation is abandoned. Cannot Resume.\n"
-              "Use Reset on Connect, then Home on Jog, before more motion.")
-        )
+        self.stop_probing_button = FCButton(_("Stop"))
+        self.stop_probing_button.setToolTip(_("Feed hold, then controller reset. The spindle stops."))
         self.stop_probing_button.setStyleSheet("QPushButton {background-color: red; color: white;}")
         # its own row, over the full width of the panel
         self.stop_probing_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding,
@@ -560,10 +552,9 @@ class GcodeSenderUI:
         self.hold_button.setToolTip(_("Feed hold. Resume continues the job."))
         self.resume_button = FCButton(_("Resume"))
         self.resume_button.setToolTip(_("Resume the job after a feed hold."))
-        self.stop_button = FCButton(_("Stop / reset"))
+        self.stop_button = FCButton(_("Stop"))
         self.stop_button.setStyleSheet("QPushButton {background-color: red; color: white;}")
-        self.stop_button.setToolTip(_("Abort the job: feed hold, then a soft reset. Cannot Resume.\n"
-                                      "Homing may be required. Reset is on the Connect page, Home in the Jog block of the machine panel."))
+        self.stop_button.setToolTip(_("Feed hold, then controller reset. The spindle stops."))
 
         # the header of the dock: made without a parent, the Sender mounts it in the dock (like jog_page)
         self.operate_header = QtWidgets.QWidget()

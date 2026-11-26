@@ -233,6 +233,26 @@ class TestGrblConsole(unittest.TestCase):
         self.assertEqual(console.program_view.textCursor().selectedText(), 'G1 X799')
         self.assertGreater(console.program_view.verticalScrollBar().value(), scroll)
 
+    def test_program_page_loads_in_blocks(self):
+        console = self.make_console()
+        console.set_program(['G1 X%d' % i for i in range(50000)])
+        self.assertLessEqual(console.program_view.document().blockCount(), 20000)
+        console.update_progress(30000)
+        self.assertIn('30000 / 50000', console.program_status.text())
+        for _ in range(100):
+            if console.program_view.document().blockCount() >= 50000:
+                break
+            _qapp.processEvents()
+        self.assertEqual(console.program_view.document().blockCount(), 50000)
+        self.assertEqual(self.selected_lines(console), [29999])
+        self.assertEqual(console.program_view.textCursor().selectedText(), 'G1 X29999')
+
+        console.set_program(['G1 X%d' % i for i in range(50000)])
+        console.set_program(['G90', 'G91'])
+        for _ in range(20):
+            _qapp.processEvents()
+        self.assertEqual(console.program_view.toPlainText(), 'G90\nG91')
+
 
     def test_click_selects_whole_line_and_progress_advances_selection(self):
         from PyQt6 import QtCore, QtTest

@@ -67,6 +67,7 @@ def make_tool(units='MM', storage=None, heights_valid=True, cls=None):
     tool.app.worker_task = MagicMock()
     tool._al_generation = 0
     tool._grbl_op_lock = threading.Lock()
+    tool._al_lock = threading.RLock()
     tool._al_target_name = None
     tool._al_target_obj = None
     # publish results at once (the worker runs inline in these tests)
@@ -130,6 +131,45 @@ class TestHeightMapCoverage(unittest.TestCase):
         self.assertEqual(len(warnings), 1)
         self.assertIn(': 3.', warnings[0])
         self.assertIn('reprobe', warnings[0])
+
+
+class TestConcurrentLevelling(unittest.TestCase):
+    def test_two_calls_at_once_each_use_their_own_map(self):
+        tool = make_tool()
+        heights = {'A': 0.1, 'B': 0.5}
+        snapshots = {name: (((0.0, 0.0, h), (10.0, 0.0, h), (0.0, 10.0, h), (10.0, 10.0, h)), 'MM', 1e-3)
+                     for name, h in heights.items()}
+        first_inside = threading.Event()
+        second_inside = threading.Event()
+        real_prepare = tool._al_prepare_interp
+        calls = []
+
+        def prepare(target, method, snapshot=None):
+            calls.append(snapshot)
+            ok = real_prepare(target, method, snapshot=snapshot)
+            if len(calls) == 1:
+                first_inside.set()
+                # the other call gets its chance to replace the state of this one
+                second_inside.wait(0.3)
+            else:
+                second_inside.set()
+            return ok
+        tool._al_prepare_interp = prepare
+        results = {}
+
+        def run(name):
+            target = make_tool_target({1: 'G21 G90\nG1 X5 Y5 Z-1\n'})
+            results[name] = tool.autolevell_gcode(target, 'b', snapshot=snapshots[name])
+
+        first = threading.Thread(target=run, args=('A',))
+        first.start()
+        self.assertTrue(first_inside.wait(10))
+        second = threading.Thread(target=run, args=('B',))
+        second.start()
+        first.join()
+        second.join()
+        for name, height in heights.items():
+            self.assertIn('Z%.4f' % (-1 + height), results[name][1], name)
 
 
 class TestFiniteLevellingInput(unittest.TestCase):

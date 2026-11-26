@@ -40,6 +40,10 @@ class SenderView3d:
         self.mesh = None
         self.z_scale = 10.0
         self._segments = []
+        self._pos = np.zeros((0, 3), dtype=np.float32)
+        self._seg_lines = np.zeros(0, dtype=int)
+        self._accepted_k = -1
+        self.has_selection = False
         native = getattr(canvas, 'native', None)
         self.coordinates = QtWidgets.QLabel(native) if isinstance(native, QtWidgets.QWidget) else None
         self._coordinate_timer = QtCore.QTimer(native)
@@ -100,6 +104,9 @@ class SenderView3d:
     def set_prepared_toolpath(self, prepared):
         """Upload prepared buffers on the GUI thread."""
         self._segments, pos, colors = prepared
+        self._pos = pos
+        self._seg_lines = np.array([s[0] for s in self._segments])
+        self._accepted_k = -1
         # VisPy cannot draw an empty color array: an empty path gets 1 color
         self.path.set_data(pos=pos, color=colors if len(colors) else CUT_COLOR)
         self.accepted.set_data(pos=np.zeros((0, 3), dtype=np.float32))
@@ -110,12 +117,15 @@ class SenderView3d:
         Draw the segments of the lines up to and including `last_line_index` in the accepted color:
         the lines that GRBL accepted. The tool marker shows the real position of the tool.
         """
-        accepted = [s for s in self._segments if s[0] <= last_line_index]
-        if not accepted:
+        # the line index of the segments does not decrease; each segment has 2 vertices
+        k = int(np.searchsorted(self._seg_lines, last_line_index, side='right'))
+        if k == self._accepted_k:
+            return
+        self._accepted_k = k
+        if k == 0:
             self.accepted.set_data(pos=np.zeros((0, 3), dtype=np.float32))
             return
-        pos = np.array([p for _i, a, b, _r in accepted for p in (a, b)], dtype=np.float32)
-        self.accepted.set_data(pos=pos, color=ACCEPTED_COLOR)
+        self.accepted.set_data(pos=self._pos[:2 * k], color=ACCEPTED_COLOR)
 
     def set_selected_line(self, line_index):
         """Highlight one program line or a collection of lines, preserving accepted progress."""
@@ -123,6 +133,7 @@ class SenderView3d:
         pos = np.array([p for i, a, b, _r in self._segments if i in indexes for p in (a, b)],
                        dtype=np.float32).reshape(-1, 3)
         self.selected.set_data(pos=pos, color=SELECTED_COLOR)
+        self.has_selection = len(pos) > 0
         self.selected.visible = True
         if len(pos):
             self._selection_timer.start()

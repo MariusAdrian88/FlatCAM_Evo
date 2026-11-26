@@ -38,9 +38,13 @@ class TestResumeBypass(unittest.TestCase):
         self.assertEqual(fake.written, [b'!'])
         tool.ui.resume_button.click()
         self.assertEqual(fake.written, [b'!'])
-        self.assertEqual(callbacks[0][0], 500)
-        callbacks[0][1]()
-        self.assertIn(b'\x18', fake.written)
+        # the probe never ends: the reset byte follows after the 2 s of retries (40 x 50 ms)
+        self.assertEqual(callbacks[0][0], 50)
+        with patch('appPlugins.ToolGcodeSender.Sender.QtCore.QTimer.singleShot',
+                   side_effect=lambda delay, callback: callbacks.append((delay, callback))):
+            while callbacks and b'\x18' not in fake.written:
+                callbacks.pop(0)[1]()
+        self.assertEqual(fake.written.count(b'\x18'), 1)
         tool._grbl_set_ui_connected(False)
         self.assertFalse(tool.ui.estop_button.isEnabled())
         self.assertFalse(tool.ui.estop_dock_button.isEnabled())
@@ -226,7 +230,7 @@ class TestStopResets(unittest.TestCase):
         self.assertIsNotNone(op)
         with patch('appPlugins.ToolGcodeSender.Sender.QtCore.QTimer.singleShot') as timer:
             tool.on_stream_stop()
-        self.assertEqual(timer.call_args.args[0], 500)  # the machine brakes in the feed hold first
+        self.assertEqual(timer.call_args.args[0], 50)  # waits for the port, then for the end of the feed hold
         tool._grbl_release(op)
         timer.call_args.args[1]()
         self.assertIn(b'\x18', fake.written)
@@ -243,12 +247,13 @@ class TestStopResets(unittest.TestCase):
                 if report_time is not None:
                     tool._controller_state_time = report_time
                 with patch('appPlugins.ToolGcodeSender.Sender.QtCore.QTimer.singleShot',
-                           side_effect=lambda _ms, fn: fn()) as timer:
+                           side_effect=lambda _ms, fn: fn()):
                     getattr(tool, action)()
                 self.assertIn(b'\x18', fake.written)
                 self.assertIsNotNone(tool._grbl_recovery)
                 if action != 'on_grbl_reset':
-                    self.assertEqual(timer.call_args_list[0].args[0], 500)  # time to brake before the reset
+                    # the hold wait read a status report before the reset byte
+                    self.assertLess(fake.written.index(b'?'), fake.written.index(b'\x18'))
 
     def test_reset_button_does_not_take_checked_as_keep_position(self):
         tool, fake = self.make_tool()

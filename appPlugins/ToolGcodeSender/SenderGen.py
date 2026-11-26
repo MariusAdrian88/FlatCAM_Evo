@@ -6,6 +6,7 @@
 # ##########################################################
 """Job preparation of the GRBL Sender: the lines that are streamed."""
 
+import dataclasses
 import math
 import re
 import gettext
@@ -13,8 +14,9 @@ import builtins
 from types import SimpleNamespace
 
 from appCommon.machine_profile.correct import MARKER_RE
+from appPlugins.Common.grbl.grbl_client import validate_stream_lines
 from appPlugins.Common.gcode_arcs import split_arcs
-from appPlugins.Common.gcode_segment import _ModalState, _WORD_RE, _words, _fmt
+from appPlugins.Common.gcode_segment import _ModalState, _WORD_RE, _words, _fmt, split_long_moves
 
 _COMMENT_PAREN_RE = re.compile(r'\([^)]*\)')
 _ = builtins.__dict__.get('_', gettext.gettext)
@@ -54,7 +56,23 @@ def clean_lines(text):
     return [line for _number, line in clean_lines_numbered(text)]
 
 
-def restart_preamble(lines, start_line, travel_z, units, decimals=4):
+def display_lines(lines, units, arc_segment, decimals, split_for_display):
+    """
+    The lines for the 3D display. In the mode "send" for arcs, the stream holds the arcs: a copy is split
+    for the display only, and each display line maps to its stream line.
+
+    :param split_for_display: False when the stream lines are the display lines already
+    :return: (lines, stream_index, chord_lines). stream_index[i] is the stream line index of lines[i]
+        (None: lines[i] is the stream line i). chord_lines: the stream line indexes of the arcs that
+        could not be split: the display draws their chords in grey.
+    """
+    if not split_for_display:
+        return lines, None, ()
+    lines, _count, source_index, unsplit = split_arcs(list(lines), units, arc_segment, decimals=decimals)
+    return lines, source_index, unsplit
+
+
+def restart_preamble(lines, start_line, travel_z, units, decimals=4, spindle_dwell=0.0):
     """Restore the state BEFORE a 1-based console line, without replaying skipped moves.
 
     Only deterministic GRBL modes are restored. Probes, tool changes, offset writes,
@@ -143,6 +161,9 @@ def restart_preamble(lines, start_line, travel_z, units, decimals=4):
     out.extend(['G0 Z%s' % _fmt(clearance, decimals),
                 'G0 X%s Y%s' % (_fmt(x, decimals), _fmt(y, decimals))])
     out.append('M%d S%s' % (spindle, _fmt(speed, decimals)))
+    if spindle in (3, 4) and spindle_dwell > 0:
+        # G4 P is in seconds; '%g' gives 3 and 1.5, never an exponent for 0..60
+        out.append('G4 P%g' % spindle_dwell)
     out.extend('M%d' % m for m in sorted(coolant))
     if feed is not None:
         out.append('G1 Z%s F%s' % (_fmt(z, decimals), _fmt(feed / scale, decimals)))
@@ -182,3 +203,183 @@ def job_proxy(target_obj, lines):
         seg_y=getattr(target_obj, 'seg_y', 0) or 0,
         obj_options=target_obj.obj_options,
     )
+
+
+@dataclasses.dataclass
+class _ProfileOutcome:
+    """The result of the machine profile computation of a stream (a worker): nothing here touches the GUI."""
+    out: str = None             # the corrected text
+    result: object = None       # the CheckResult
+    refused: object = None      # the CorrectionRefused, if the correction was refused
+    setup: object = None        # the Setup of the check (the GUI thread stores it)
+    setup_key: object = None    # the key of the live state, or None
+
+
+@dataclasses.dataclass
+class _StartInputs:
+    """What a Start reads from the widgets and the options (GUI thread), for the worker of the preparation."""
+    op: object                  # the reserved stream operation
+    target: object
+    source: str                 # the G-code text of the target
+    check_mode: bool
+    autolevel: bool
+    arc_mode: str               # 'split' or 'send'
+    arc_segment: float
+    units: str
+    decimals: int
+    profile: object             # the active machine profile, or None
+    poll_ms: int
+    seq: int                    # the start sequence number
+    generation: int             # the safety generation
+    level: object = None        # a _LevelInput for a levelled job, else None
+
+
+@dataclasses.dataclass
+class _LevelInput:
+    """What a levelled job reads from the widgets, the height map and the options (GUI thread)."""
+    method: str                 # 'v', 'b' or 'c'
+    snapshot: tuple             # (points, units, tolerance) of the height map
+    seg_len: float              # the longest piece of a split G1 move
+    home_wcs: float = None      # the WCS of the bound map frame as a G number
+    keep_markers: bool = False  # the marker lines of the fixed sequences stay (an active profile)
+    generation: int = None      # the generation of the height map
+    request: object = None      # the _StartRequest of the Start, or None
+
+
+@dataclasses.dataclass
+class _PreparedJob:
+    """The result of prepare_job() and prepare_levelled_job()."""
+    diagnostics: list = dataclasses.field(default_factory=list)
+    inputs: _StartInputs = None
+    lines: list = dataclasses.field(default_factory=list)
+    numbers: list = dataclasses.field(default_factory=list)
+    line_map: list = dataclasses.field(default_factory=list)
+    error: str = None
+    profile: _ProfileOutcome = None
+    split_count: int = 0
+
+
+@dataclasses.dataclass
+class _PreparedRestart:
+    """The result of prepare_restart(); `context` is for the GUI slot."""
+    preamble: list = dataclasses.field(default_factory=list)
+    resumed: list = dataclasses.field(default_factory=list)
+    error: str = None
+    outcome: _ProfileOutcome = None
+    context: object = None
+
+
+def prepare_job(inputs, profile_compute):
+    """
+    The full-file steps of a Start, with no GUI call (a worker): the machine profile computation, the clean, the
+    line check and the arc split.
+
+    :param inputs: _StartInputs
+    :param profile_compute: callable(text, target, profile, op, line_map) -> _ProfileOutcome
+    :return: _PreparedJob. A refused correction leaves no lines: the GUI thread tells the user.
+    """
+    prepared = _PreparedJob(inputs=inputs)
+    text = inputs.source
+    if inputs.profile is not None and inputs.source.strip():
+        outcome = prepared.profile = profile_compute(inputs.source, inputs.target, inputs.profile, inputs.op,
+                                                     prepared.line_map)
+        if outcome.refused is not None:
+            return prepared
+        text = outcome.out
+    numbered = clean_lines_numbered(text)
+    lines = [line for _number, line in numbered]
+    bad_index = validate_stream_lines(lines)
+    if bad_index is not None:
+        prepared.error = _("Line %d of the G-code is longer than GRBL accepts. The job was not made.") % \
+                         numbered[bad_index][0]
+        return prepared
+    numbers = [number for number, _line in numbered]
+    if prepared.line_map:
+        # the corrected text has other lines than the source: each line maps to the line that it comes from
+        line_map = prepared.line_map
+        numbers = [line_map[number - 1] if 0 < number <= len(line_map) else number for number in numbers]
+    elif text != inputs.source:
+        numbers = []
+    if inputs.arc_mode == 'split':
+        lines, count, source_index, unsplit = split_arcs(lines, inputs.units, inputs.arc_segment,
+                                                         decimals=inputs.decimals)
+        if unsplit:
+            prepared.error = _("This arc can not be split (plane, frame or position not known). Line %d.") % (
+                numbers[unsplit[0]] if numbers else unsplit[0] + 1)
+            return prepared
+        if numbers:
+            numbers = [numbers[i] for i in source_index]
+        prepared.split_count = count
+    prepared.lines = lines
+    prepared.numbers = numbers
+    return prepared
+
+
+def prepare_levelled_job(inputs, profile_compute, autolevell, tlo_line):
+    """
+    The full-file steps of a levelled Start, with no widget access (a worker): clean, the tool length check,
+    the segmentation, the levelling, the machine profile computation, clean and line check.
+
+    :param inputs: _StartInputs with `level` set
+    :param profile_compute: callable(text, target, profile, op, line_map) -> _ProfileOutcome
+    :param autolevell: callable(proxy, method, snapshot=, diagnostics=, home_wcs=, strict=) -> {tooluid: text} | None
+    :param tlo_line: callable(lines) -> index of the first tool length offset line, or None
+    :return: _PreparedJob. An empty `error` means that the levelling told the user already.
+    """
+    level = inputs.level
+    prepared = _PreparedJob(inputs=inputs)
+    target = inputs.target
+    numbered = clean_lines_numbered(inputs.source, level.keep_markers)
+    lines = [line for _number, line in numbered]
+    bad_index = validate_stream_lines(lines)
+    if bad_index is not None:
+        prepared.error = _("Line %d of the G-code is longer than GRBL accepts. The job was not made.") % \
+                         numbered[bad_index][0]
+        return prepared
+    tlo_index = tlo_line(lines)
+    if tlo_index is not None:
+        prepared.error = (_("The program changes the tool length offset (line %d). A levelled job can not do this. "
+                            "Remove it, or make a new height map after the change.") % numbered[tlo_index][0])
+        return prepared
+    if needs_segmentation(target):
+        lines, count = split_long_moves(lines, level.seg_len, decimals=target.coords_decimals)
+        if count:
+            prepared.diagnostics.append('%s: %d' % (_("Long G1 moves split for the levelling"), count))
+    result = autolevell(job_proxy(target, lines), level.method, snapshot=level.snapshot,
+                        diagnostics=prepared.diagnostics, home_wcs=level.home_wcs, strict=True)
+    if result is None:
+        prepared.error = ''
+        return prepared
+    if inputs.profile is None:
+        job_lines = [line for line in result['job'].splitlines() if line.strip()]
+    else:
+        outcome = prepared.profile = profile_compute(result['job'], target, inputs.profile, inputs.op, None)
+        if outcome.refused is not None:
+            return prepared
+        job_lines = [line for _number, line in clean_lines_numbered(outcome.out)]
+    bad_index = validate_stream_lines(job_lines)
+    if bad_index is not None:
+        prepared.error = _("Line %d of the levelled G-code is longer than GRBL accepts. The job was not made.") % \
+                         (bad_index + 1)
+        return prepared
+    prepared.lines = job_lines
+    return prepared
+
+
+def prepare_restart(lines, start_line, travel_z, units, decimals, profile_compute=None, spindle_dwell=0.0):
+    """
+    The restart preamble of a start from a line and its profile computation (a worker).
+
+    :param profile_compute: callable(text) -> _ProfileOutcome for the preamble and the resumed part, or None
+    :param spindle_dwell: seconds to wait after the spindle start (G4 P), 0 for none
+    :return: _PreparedRestart
+    """
+    try:
+        preamble, resumed = restart_preamble(lines, start_line, travel_z, units, decimals,
+                                                  spindle_dwell)
+        if validate_stream_lines(preamble + resumed) is not None:
+            raise ValueError(_("The restart preparation exceeds the GRBL line length limit."))
+    except ValueError as err:
+        return _PreparedRestart(error=str(err))
+    outcome = None if profile_compute is None else profile_compute('\n'.join(preamble + resumed) + '\n')
+    return _PreparedRestart(preamble=preamble, resumed=resumed, outcome=outcome)

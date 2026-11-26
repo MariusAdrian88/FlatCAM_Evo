@@ -8,6 +8,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import collections
 import tempfile
 import threading
 import time
@@ -77,6 +78,7 @@ def make_audit_tool(units='MM', storage=None, heights_valid=False, cls=None):
     tool.al_result_ready_sig.emit.side_effect = lambda result: tool._on_al_result_ready(result)
     tool._al_apply_running = False
     tool._grbl_op_lock = threading.Lock()
+    tool._al_lock = threading.RLock()
     tool._grbl_op = None
     tool._grbl_unclosed_ports = []
     tool._grbl_recovery = None
@@ -104,10 +106,20 @@ def make_audit_tool(units='MM', storage=None, heights_valid=False, cls=None):
     tool.preview_ready_sig = MagicMock()
     if isinstance(tool, ToolGCodeSender):
         tool.preview_ready_sig.emit.side_effect = tool._on_preview_ready
+    # the prepared job and the prepared restart are taken at once (the workers run inline in the tests)
+    tool.job_prepared_sig = MagicMock()
+    tool.restart_prepared_sig = MagicMock()
+    if isinstance(tool, ToolGCodeSender):
+        tool.job_prepared_sig.emit.side_effect = tool._on_job_prepared
+        tool.restart_prepared_sig.emit.side_effect = tool._on_restart_prepared
     tool.probe_finished_sig = MagicMock()
     if isinstance(tool, ToolGCodeSender):
         tool.probe_finished_sig.emit.side_effect = tool._on_probe_finished
     tool.stream_progress_sig = MagicMock()
+    tool._console_pending = collections.deque(maxlen=5000)
+    tool._progress_latest = None
+    tool._progress_shown = None
+    tool._stream_ui_timer = MagicMock()
     tool.status_report_sig = MagicMock()
     tool.spindle_state_sig = MagicMock()
     tool.stream_ended_sig = MagicMock()

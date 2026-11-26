@@ -17,6 +17,8 @@ import contextlib
 import math
 import random
 import sys
+import threading
+import functools
 from copy import deepcopy
 
 from PyQt6 import QtWidgets, QtCore, QtGui
@@ -103,6 +105,15 @@ class _AlContext:
         self.tolerance = tolerance
 
 
+def _al_locked(method):
+    """Run the method with the levelling lock of the instance held (re-entrant)."""
+    @functools.wraps(method)
+    def locked(self, *args, **kwargs):
+        with self._al_lock:
+            return method(self, *args, **kwargs)
+    return locked
+
+
 class LevellingCoreMixin:
 
     def _al_init_state(self):
@@ -159,6 +170,9 @@ class LevellingCoreMixin:
         [(x0, y0, z0), (x1, y1, z1), ...]
         '''
         self.al_bilinear_geo_storage = []
+
+        # one call of autolevell_gcode() at a time per instance: it keeps its working state on self
+        self._al_lock = threading.RLock()
 
         # working state used by autolevell_gcode() / autolevell_gcode_line()
         # while levelling a CNCJob's G-code: the (x, y, height) points used
@@ -1200,6 +1214,7 @@ class LevellingCoreMixin:
 
         return True
 
+    @_al_locked
     def autolevell_gcode(self, target_obj, al_method, snapshot=None, diagnostics=None,
                          home_wcs=None, strict=False):
         """

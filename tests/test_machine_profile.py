@@ -1137,6 +1137,48 @@ def test_sender_live_setup_key_changes_with_state_and_profile():
                                               'GRBL_11') is True
 
 
+@pytest.mark.parametrize('outcome', ['warning_declined', 'reject', 'refused'])
+def test_start_profile_outcomes(outcome):
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+    from appCommon.machine_profile.correct import CorrectionRefused
+    from appCommon.machine_profile.records import CheckResult, Violation
+    from appPlugins.ToolGcodeSender import Sender as sender_module
+    from tests.grbl_stream_helpers import CheckFake, make_stream_tool
+
+    fake = CheckFake()
+    tool = make_stream_tool(fake)
+    tool._profile_setup = lambda op, profile, target: (Setup(), [], None)
+    tool._confirm_profile_stream = MagicMock(return_value=False)
+    prepared = []
+    tool.job_prepared_sig.emit.side_effect = prepared.append
+
+    def fake_output(text, *args, **kwargs):
+        if outcome == 'refused':
+            raise CorrectionRefused(3, 'G91', 'relative moves')
+        severity = 'reject' if outcome == 'reject' else 'warn'
+        return text, CheckResult(violations=[Violation(ViolationKind.FEED, 2, 'too fast', severity=severity)])
+
+    with patch.object(sender_module, 'active_profile_of', return_value=SimpleNamespace(name='P')), \
+            patch.object(sender_module, 'prepare_output', fake_output), \
+            patch.object(sender_module, 'report_gate') as report:
+        tool.on_start()
+        tool._on_job_prepared(prepared[0])
+    assert [c for c in fake.commands() if c.startswith('G')] == []
+    assert tool._grbl_op is None
+    assert tool.ui.start_button.setDisabled.call_args_list[-1].args[0] is False
+    messages = ' '.join(str(call) for call in tool.app.inform.emit.call_args_list)
+    if outcome == 'warning_declined':
+        tool._confirm_profile_stream.assert_called_once()
+        assert report.call_count == 1
+    elif outcome == 'reject':
+        tool._confirm_profile_stream.assert_not_called()
+        assert report.call_count == 1 and 'Line 2' in messages
+    else:
+        tool._confirm_profile_stream.assert_not_called()
+        assert report.call_count == 1 and 'Correction refused at line 3, G91: relative moves' in messages
+
+
 def test_map_point_and_unmap_point_round_trip_and_are_identity_without_the_correction():
     from appCommon.machine_profile.output import calibration_hash, map_point, unmap_point
     profile = _profile()

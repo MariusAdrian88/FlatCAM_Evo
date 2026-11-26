@@ -4,10 +4,15 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import collections
+import time
 import unittest
+from unittest.mock import MagicMock, patch
 
-from tests.test_levelling_audit import emitted
-from tests.grbl_stream_helpers import make_stream_tool, make_levelled_stream_tool, ended_how, has_success, CheckFake
+from tests.test_grbl_protocol import FakeClock
+from tests.test_levelling_audit import emitted, FakeGrbl
+from tests.grbl_stream_helpers import (
+    make_stream_tool, make_levelled_stream_tool, ended_how, has_success, CheckFake, gcode)
 
 
 def fast_timeouts(tool):
@@ -163,6 +168,149 @@ class TestCheckModeJob(unittest.TestCase):
                 tabs.setCurrentWidget(editor)
                 self.assertIs(tabs.currentWidget(), editor)
 
+    def test_start_does_not_parse_on_gui_thread(self):
+        import threading
+        from unittest.mock import patch
+        from appPlugins.ToolGcodeSender import Sender as sender_module
+
+        fake = CheckFake()
+        tool = make_stream_tool(fake)
+        tool.view3d = MagicMock()
+        results = []
+        tool.preview_ready_sig = MagicMock()
+        tool.preview_ready_sig.emit.side_effect = results.append
+
+        def run_in_thread(task):
+            thread = threading.Thread(target=task['fcn'])
+            thread.start()
+            thread.join()
+        tool.app.worker_task.emit.side_effect = run_in_thread
+        threads = []
+        real_parse = sender_module.parse_toolpath
+
+        def recording_parse(*args, **kwargs):
+            threads.append(threading.current_thread())
+            return real_parse(*args, **kwargs)
+        with patch.object(sender_module, 'parse_toolpath', recording_parse):
+            tool.on_start()
+        self.assertTrue(threads)
+        self.assertNotIn(threading.main_thread(), threads)
+        self.assertEqual(len(results), 1)
+        self.assertTrue(results[0]['stream'])
+        tool.view3d.set_toolpath.assert_not_called()
+
+    def test_start_pipeline_runs_off_gui_thread(self):
+        import threading
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from appCommon.machine_profile.records import CheckResult, Violation, ViolationKind
+        from appCommon.machine_profile.records import Setup
+        from appPlugins.ToolGcodeSender import Sender as sender_module, SenderGen
+
+        main = threading.main_thread()
+        for stop in (False, True):
+            with self.subTest(stop=stop):
+                fake = CheckFake()
+                tool = make_stream_tool(fake)
+                tool._profile_setup = lambda op, profile, target: (Setup(), [], None)
+                tool._confirm_profile_stream = MagicMock(return_value=True)
+                seen = collections.defaultdict(list)
+
+                def recorder(name, real):
+                    def call(*args, **kwargs):
+                        seen[name].append(threading.current_thread())
+                        return real(*args, **kwargs)
+                    return call
+
+                def fake_output(text, *args, **kwargs):
+                    seen['prepare_output'].append(threading.current_thread())
+                    warning = Violation(ViolationKind.FEED, 1, 'too fast')
+                    return text, CheckResult(violations=[warning])
+
+                confirm = tool._confirm_profile_stream
+                confirm.side_effect = lambda note: seen['confirm'].append(threading.current_thread()) or True
+                prepared = []
+                tool.job_prepared_sig.emit.side_effect = prepared.append
+
+                def run_in_thread(task):
+                    thread = threading.Thread(target=task['fcn'])
+                    thread.start()
+                    thread.join()
+                tool.app.worker_task.emit.side_effect = run_in_thread
+                with patch.object(sender_module, 'active_profile_of', return_value=SimpleNamespace(name='P')), \
+                        patch.object(sender_module, 'prepare_output', fake_output), \
+                        patch.object(sender_module, 'report_gate',
+                                     recorder('report_gate', lambda *a, **k: None)), \
+                        patch.object(SenderGen, 'clean_lines_numbered',
+                                     recorder('clean', SenderGen.clean_lines_numbered)), \
+                        patch.object(SenderGen, 'split_arcs', recorder('split', SenderGen.split_arcs)):
+                    tool.on_start()
+                    # the worker is done; the GUI slot did not run yet
+                    self.assertEqual(len(prepared), 1)
+                    for name in ('clean', 'split', 'prepare_output'):
+                        self.assertTrue(seen[name], name)
+                        self.assertNotIn(main, seen[name], name)
+                    self.assertNotIn('report_gate', seen)
+                    self.assertEqual(fake.commands(), [])
+                    if stop:
+                        tool.on_grbl_stop()
+                    tool._on_job_prepared(prepared[0])
+                    if stop:
+                        self.assertEqual([c for c in fake.commands() if c.startswith('G')], [])
+                        self.assertIsNone(tool._grbl_op)
+                        self.assertEqual(seen['report_gate'], [])
+                    else:
+                        self.assertEqual(seen['report_gate'], [main])
+                        self.assertEqual(seen['confirm'], [main])
+                        self.assertTrue([c for c in fake.commands() if c.startswith('G')])
+
+        # a levelled Start with an existing height map
+        with self.subTest(levelled=True):
+            fake = CheckFake()
+            tool, _target = make_levelled_stream_tool(fake)
+            tool._profile_setup = lambda op, profile, target: (Setup(), [], None)
+            tool._confirm_profile_stream = MagicMock(
+                side_effect=lambda note: seen['confirm'].append(threading.current_thread()) or True)
+            seen = collections.defaultdict(list)
+            real_level = tool.autolevell_gcode
+
+            def level(*args, **kwargs):
+                seen['level'].append(threading.current_thread())
+                return real_level(*args, **kwargs)
+            tool.autolevell_gcode = level
+            prepared = []
+            frames = []
+            tool.job_prepared_sig.emit.side_effect = prepared.append
+            tool.frame_ready_sig.emit.side_effect = lambda req, result: frames.append((req, result))
+
+            def run_in_thread(task):
+                thread = threading.Thread(target=task['fcn'])
+                thread.start()
+                thread.join()
+            tool.app.worker_task.emit.side_effect = run_in_thread
+
+            def fake_output(text, *args, **kwargs):
+                seen['prepare_output'].append(threading.current_thread())
+                return text, CheckResult(violations=[Violation(ViolationKind.FEED, 1, 'too fast')])
+
+            with patch.object(sender_module, 'active_profile_of', return_value=SimpleNamespace(name='P')), \
+                    patch.object(sender_module, 'calibration_hash', return_value=tool._al_map_calibration), \
+                    patch.object(sender_module, 'prepare_output', fake_output), \
+                    patch.object(sender_module, 'report_gate', recorder('report_gate', lambda *a, **k: None)):
+                tool.on_start()
+                self.assertEqual(len(frames), 1)
+                tool._on_frame_ready(*frames[0])
+                self.assertEqual(len(prepared), 1)
+                for name in ('level', 'prepare_output'):
+                    self.assertTrue(seen[name], name)
+                    self.assertNotIn(main, seen[name], name)
+                self.assertNotIn('report_gate', seen)
+                self.assertEqual([c for c in fake.commands() if c.startswith('G0')], [])
+                tool._on_job_prepared(prepared[0])
+                self.assertEqual(seen['report_gate'], [main])
+                self.assertEqual(seen['confirm'], [main])
+                self.assertTrue([c for c in fake.commands() if c.startswith('G0')])
+
     def test_check_passed(self):
         fake = CheckFake()
         tool = make_stream_tool(fake, check_mode=True)
@@ -266,6 +414,69 @@ from tests.test_levelling_audit import FakeGrbl, emitted
 from tests.grbl_stream_helpers import make_stream_tool, ended_how, has_success, gcode
 
 
+class HookedPending(collections.deque):
+    """The console queue of the stream worker, with a hook that runs when the reader gets a line."""
+
+    def __init__(self, hook):
+        super().__init__(maxlen=5000)
+        self.hook = hook
+
+    def append(self, text):
+        super().append(text)
+        self.hook(text)
+
+
+class TestProgressCoalescing(unittest.TestCase):
+    @staticmethod
+    def console_of(tool):
+        shown = []
+        tool._console = lambda: MagicMock(append=lambda text: shown.extend(text.split('\n')))
+        return shown
+
+    def test_progress_is_coalesced(self):
+        self.progress_updates_per_flush()
+        self.pending_console_lines_are_all_shown_at_the_end()
+        self.check_summary_names_the_errors_the_queue_dropped()
+
+    def progress_updates_per_flush(self):
+        # 5000 acknowledged lines: 1 progress update per flush, the last one is complete
+        tool = make_stream_tool(CheckFake(), source=gcode(5000))
+        tool._on_stream_progress = MagicMock()
+        self.console_of(tool)
+        tool.on_start()
+        self.assertEqual(ended_how(tool), 'finished')
+        self.assertEqual(tool._on_stream_progress.call_count, 1)
+        self.assertEqual(tool._on_stream_progress.call_args.args, (5000, 5000))
+        tool._flush_stream_ui()
+        self.assertEqual(tool._on_stream_progress.call_count, 1)
+
+    def pending_console_lines_are_all_shown_at_the_end(self):
+        tool = make_stream_tool(CheckFake())
+        shown = self.console_of(tool)
+        tool._console_pending.extend('line %d' % i for i in range(1199))
+        tool._console_pending.append('error:20')
+        tool._stream_result = {}
+        tool._on_stream_ended('error')
+        self.assertEqual(len(shown), 1200)
+        self.assertEqual(shown[-1], 'error:20')
+        # a new Start begins with an empty queue
+        tool._console_pending.extend(['stale 1', 'stale 2'])
+        tool.on_start()
+        self.assertFalse([line for line in shown if line.startswith('stale')])
+
+    def check_summary_names_the_errors_the_queue_dropped(self):
+        fake = CheckFake(replies={'G1 X10.000': ['error:20'], 'G1 X7000.000': ['error:33']})
+        tool = make_stream_tool(fake, source=gcode(8000), check_mode=True)
+        shown = self.console_of(tool)
+        tool.on_start()
+        self.assertEqual(ended_how(tool), 'check_failed')
+        self.assertLessEqual(len(shown), 5010)
+        summary = shown[-3:]
+        self.assertIn('2', summary[0])
+        self.assertTrue(summary[1].endswith('11: error:20'))
+        self.assertTrue(summary[2].endswith('7001: error:33'))
+
+
 class RaisingGrbl(FakeGrbl):
     """The port raises a SerialException from the `fail_at`-th write on."""
 
@@ -356,12 +567,12 @@ class TestStreamAbort(unittest.TestCase):
         fake = FakeGrbl()
         tool = make_stream_tool(fake)
         state = {'all_acknowledged': False, 'reset': False}
-        tool.stream_progress_sig.emit.side_effect = lambda done, total: state.update(
-            all_acknowledged=(done == total))
         real_query = tool._grbl_query_status
 
         def query(op, *args, **kwargs):
             # the final wait for Idle: the user presses Reset here
+            latest = tool._progress_latest
+            state['all_acknowledged'] = latest is not None and latest[0] == latest[1]
             if state['all_acknowledged'] and not state['reset']:
                 state['reset'] = True
                 state['generation'] = tool._grbl_safety_generation + 1
@@ -410,6 +621,16 @@ class TestRestartPreamble(unittest.TestCase):
         self.assertEqual(result[-1], 'G1')
         self.assertNotIn(PROGRAM[9], result)
         self.assertNotIn('M2', result)
+
+    def test_restart_preamble_dwells_after_spindle_start(self):
+        on = [line.replace('S12000', 'S10000') for line in PROGRAM]
+        result = SenderGen.restart_preamble(on, 10, 3, 'MM', 4, 3.0)[0]
+        dwell = result.index('G4 P3')
+        self.assertEqual(result[dwell - 1], 'M3 S10000.0000')
+        self.assertLess(dwell, result.index('G1 Z-0.2000 F100.0000'))
+        self.assertIn('G4 P1.5', SenderGen.restart_preamble(on, 10, 3, 'MM', 4, 1.5)[0])
+        off = [line for line in PROGRAM if not line.startswith('M3')]
+        self.assertFalse([s for s in SenderGen.restart_preamble(off, 10, 3, 'MM', 4, 3.0)[0] if s.startswith('G4 ')])
 
     def test_incremental_and_implicit_moves_reconstruct_the_preceding_position(self):
         lines = PROGRAM[:9] + ['G91', 'G1 X2 Y3 Z-0.1', 'X1', 'X2']
@@ -557,7 +778,7 @@ class TestSenderRestart(unittest.TestCase):
         tool.on_start()
         self.assertEqual(fake.written, [])
         self.assertIsNone(tool._grbl_op)
-        tool.app.worker_task.emit.assert_not_called()
+        self.assertTrue(tool.ui.start_button.setDisabled.call_args_list[-1].args[0] is False)
 
     def test_source_edit_while_dialog_is_open_drops_the_request(self):
         tool, fake = self.make_tool()
@@ -791,7 +1012,7 @@ class TestGrblHalController(unittest.TestCase):
 
                 fake._answer = controller
                 fake.read_hook = operator
-                tool.console_line_sig.emit.side_effect = reply
+                tool._console_pending = HookedPending(reply)
                 tool.on_start()
                 self.assertNotIn(b'~', premature)
                 self.assertEqual(len(stages), 1 if fail_second else 2)
@@ -827,7 +1048,7 @@ class TestGrblHalController(unittest.TestCase):
                         tool._on_resume_button()
 
                 fake.read_hook = operator
-                tool.console_line_sig.emit.side_effect = reply
+                tool._console_pending = HookedPending(reply)
                 tool.on_start()
                 tool._on_resume_button()
                 self.assertNotIn(b'~', fake.written)
@@ -878,6 +1099,206 @@ class TestGrblHalController(unittest.TestCase):
         self.assertTrue(any('X, Y and Z' in text for text in emitted(tool)))
         self.assertIsNone(tool._grbl_reserve('stream', motion=True))
         self.assertIsNotNone(tool._grbl_reserve('status', motion=False))
+
+
+class BrakeFake(FakeGrbl):
+    """
+    A moving controller. The report is Hold:1 for the first `holds` reports, then Hold:0. Report number
+    `banner_at` is a startup banner instead. Each '?' takes 1 s of the fake clock.
+    """
+
+    def __init__(self, clock, holds=3, banner_at=None, stopped_at=None, stopped='Alarm:1', **kwargs):
+        super().__init__(**kwargs)
+        self.stopped_at = stopped_at
+        self.stopped = stopped
+        self.clock = clock
+        self.holds = holds
+        self.banner_at = banner_at
+        self.queries = 0
+        self.reset_at = None
+
+    def _answer(self, cmd):
+        if cmd == '?':
+            self.clock.now += 1.0
+            self.queries += 1
+            if self.queries == self.banner_at:
+                self._send("Grbl 1.1h ['$' for help]")
+            elif self.queries == self.stopped_at:
+                self._send('<%s|MPos:0.000,0.000,0.000|FS:0,0>' % self.stopped)
+            else:
+                self._send('<Hold:%s|MPos:0.000,0.000,0.000|FS:0,0>' % ('1' if self.queries <= self.holds else '0'))
+            return
+        if cmd == '\x18':
+            self.reset_at = self.clock.now
+        super()._answer(cmd)
+
+
+class TestStopResetsAfterHold(unittest.TestCase):
+    """Stop = feed hold, wait for the hold to complete (an operation), then the reset byte."""
+
+    def setUp(self):
+        self.clock = FakeClock()
+        self.queue = []
+        self.payloads = []
+        self.auto_deliver = True
+        # only the Sender module sees the fake clock; the reads of the port keep the real one
+        fake_time = MagicMock(wraps=time)
+        fake_time.monotonic = self.clock
+        patcher = patch('appPlugins.ToolGcodeSender.Sender.time', fake_time)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        patcher = patch('appPlugins.ToolGcodeSender.Sender.QtCore.QTimer.singleShot',
+                        side_effect=lambda delay, fn: self.queue.append((delay, fn)))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def make_tool(self, fake):
+        tool = make_stream_tool(fake)
+        tool._controller_state = 'Run'      # a moving machine: the Stop waits for the hold
+        # the scheduled work runs only when the test steps: workers and the callback of the hold wait
+        tool.app.worker_task.emit.side_effect = lambda task: self.queue.append((0, task['fcn']))
+        tool.brake_ended_sig = MagicMock()
+        tool.brake_ended_sig.emit.side_effect = self.on_brake_ended
+        self.tool = tool
+        return tool
+
+    def on_brake_ended(self, payload):
+        self.payloads.append(payload)
+        if self.auto_deliver:
+            self.queue.append((0, lambda: self.tool._on_brake_ended(payload)))
+
+    def step(self):
+        delay, fn = self.queue.pop(0)
+        self.clock.now += delay / 1000.0
+        fn()
+
+    def pump(self, limit=1000):
+        while self.queue and limit:
+            self.step()
+            limit -= 1
+        self.assertFalse(self.queue)
+
+    def test_stop_resets_after_hold_complete(self):
+        # Hold:1 three times, then Hold:0: the reset byte is written after the Hold:0 report only
+        fake = BrakeFake(self.clock, holds=3)
+        tool = self.make_tool(fake)
+        tool.on_stream_stop()
+        self.assertEqual(fake.written, [b'!'])
+        self.assertEqual(tool._grbl_recovery, 'needs_reset')
+        self.pump()
+        self.assertEqual(fake.written, [b'!', b'?', b'?', b'?', b'?', b'\x18'])
+        self.assertEqual(tool._grbl_recovery, 'needs_home')
+        self.assertFalse(tool._grbl_reset_pending)
+        self.assertIsNone(tool._grbl_stop_phase)
+        self.assertIsNone(tool._grbl_op)
+
+    def test_stop_resets_after_5_s_of_hold(self):
+        fake = BrakeFake(self.clock, holds=float('inf'))
+        tool = self.make_tool(fake)
+        tool.on_stream_stop()
+        self.pump()
+        self.assertEqual(fake.written.count(b'?'), 5)
+        self.assertEqual(fake.reset_at, 5.0)
+        self.assertEqual(tool._grbl_recovery, 'needs_home')
+
+    def test_alarm_or_door_report_ends_the_hold_wait_before_5_s(self):
+        for stopped in ('Alarm:1', 'Door:0'):
+            with self.subTest(report=stopped):
+                self.setUp()
+                fake = BrakeFake(self.clock, holds=float('inf'), stopped_at=3, stopped=stopped)
+                tool = self.make_tool(fake)
+                tool.on_stream_stop()
+                self.pump()
+                self.assertEqual(fake.written.count(b'\x18'), 1)
+                self.assertLess(fake.reset_at, 5.0)
+                self.assertEqual(tool._grbl_recovery, 'needs_home')
+
+    def test_banner_in_the_hold_wait_ends_the_brake_and_a_new_reset_follows(self):
+        fake = BrakeFake(self.clock, holds=float('inf'), banner_at=2)
+        tool = self.make_tool(fake)
+        ops = []
+        real_reserve = tool._grbl_reserve
+
+        def reserve(*args, **kwargs):
+            op = real_reserve(*args, **kwargs)
+            ops.append(op)
+            return op
+        tool._grbl_reserve = reserve
+        tool.on_stream_stop()
+        self.step()             # the brake task: report, then the banner
+        brake_op = ops[-1]
+        self.assertTrue(brake_op.failed)
+        self.assertEqual(tool._grbl_recovery, 'needs_reset')
+        self.assertIsNone(tool._grbl_stop_phase)
+        self.assertNotIn(b'\x18', fake.written)
+        self.assertEqual(len(self.payloads), 1)
+        self.step()             # the callback: an ordinary reset, in a new operation
+        self.assertEqual(fake.written.count(b'\x18'), 1)
+        self.assertEqual(tool._grbl_recovery, 'needs_reset')
+        self.pump()
+        reset_op = ops[-1]
+        self.assertIsNot(reset_op, brake_op)
+        self.assertEqual(reset_op.name, 'reset')
+        self.assertEqual(reset_op.safety_generation, tool._grbl_safety_generation)
+        self.assertEqual(tool._grbl_recovery, 'needs_home')
+
+    def test_stuck_operation_does_not_delay_the_reset_past_2_s(self):
+        fake = BrakeFake(self.clock)
+        tool = self.make_tool(fake)
+        self.assertIsNotNone(tool._grbl_reserve('command', motion=True))     # never ends
+        tool.on_stream_stop()
+        self.assertNotIn(b'\x18', fake.written)
+        self.pump()
+        self.assertAlmostEqual(fake.reset_at, 2.0)
+        self.assertNotIn(b'?', fake.written)    # no hold wait ran: it never held the port
+
+    def test_old_brake_result_writes_nothing_after_reconnect_or_a_newer_reset(self):
+        self.auto_deliver = False
+        fake = BrakeFake(self.clock, holds=float('inf'), banner_at=2)
+        tool = self.make_tool(fake)
+        tool.on_stream_stop()
+        self.pump()
+        (result,) = self.payloads
+        self.assertEqual(tool._grbl_recovery, 'needs_reset')
+        # a disconnect and a reconnect: another port, the same state
+        other = BrakeFake(self.clock)
+        tool.grbl_ser_port = other
+        tool._grbl_connected = True
+        tool._on_brake_ended(result)
+        self.assertEqual(other.written, [])
+        self.assertFalse(self.queue)
+        # a newer Reset press
+        tool.grbl_ser_port = fake
+        tool.on_grbl_reset()
+        self.pump()
+        before = list(fake.written)
+        tool._on_brake_ended(result)
+        self.assertEqual(fake.written, before)
+        self.assertFalse(self.queue)
+        self.assertEqual(before.count(b'\x18'), 1)
+
+    def test_newer_stop_owns_the_phase_and_the_next_reset_byte(self):
+        fake = BrakeFake(self.clock, holds=3)
+        tool = self.make_tool(fake)
+        pressed = []
+
+        def press_b():
+            if not pressed:
+                pressed.append(True)
+                tool.on_stream_stop()
+        fake.read_hook = press_b
+        tool.on_stream_stop()
+        self.step()             # brake task A: Stop B comes while A reads its first report
+        self.assertEqual(tool._grbl_stop_phase, 'braking')          # the phase of B, not cleared by A
+        self.assertEqual(self.payloads, [])
+        self.assertNotIn(b'\x18', fake.written)
+        self.pump()             # B waits for its own hold
+        self.assertEqual(self.payloads, [])
+        self.assertEqual(fake.written.count(b'\x18'), 1)
+        self.assertEqual(fake.written.count(b'?'), 4)
+        self.assertEqual(fake.written[-1], b'\x18')
+        self.assertEqual(tool._grbl_recovery, 'needs_home')
+        self.assertIsNone(tool._grbl_stop_phase)
 
 
 if __name__ == '__main__':
