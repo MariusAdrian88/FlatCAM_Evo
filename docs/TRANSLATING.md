@@ -17,9 +17,9 @@ translated.
 
 **Waiting for approval:** many translations were corrected or added with machine help (one model translated, a
 second one reviewed every change, and the check below passed for each). They need a native speaker's approval.
-[`docs/translation_review/`](translation_review/README.md) lists every such entry of each language, with the old
-and the new text and the reason, as a readable table and as a spreadsheet with an *Approved* column. In the `.po`
-file these entries carry the comment `# auto-review 2026-10-09: <type>`; delete it when you have checked the entry.
+In the `.po` file these entries carry the comment `# auto-review 2026-10-09: <type>` (for example `corrected` or
+`untranslated copy`). Search the file for `auto-review`, check each entry, and delete the comment when the entry is
+correct.
 
 ## Ways to help (easiest first)
 
