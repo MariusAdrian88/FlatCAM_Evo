@@ -12,7 +12,9 @@ from unittest.mock import MagicMock, patch
 
 from PyQt6 import QtCore, QtGui, QtWidgets, QtTest
 
-from appPlugins.ToolGcodeSender.Sender import GrblConsole
+import operator
+
+from appPlugins.ToolGcodeSender.Sender import GrblConsole, WIDGET_ACTIONS
 import appPlugins.Common.grbl.grbl_client  # noqa: F401
 from tests.grbl_stream_helpers import CheckFake, make_stream_tool, make_levelled_stream_tool, \
     drop_console_event_filters
@@ -1083,6 +1085,7 @@ class TestDockedJogPage(unittest.TestCase):
         # Send runs the typed command through the controller path and clears the entry
         with patch.object(self.tool, '_grbl_start_op') as start_op, \
                 patch.object(self.tool, 'action_allowed', return_value=None):
+            self.tool._apply_machine_state()
             ui.grbl_command_entry.set_value('  $G  ')
             ui.grbl_send_button.click()
         start_op.assert_called_once()
@@ -1329,7 +1332,8 @@ class TestDockedJogPage(unittest.TestCase):
         self.assertNotIn(b'!', port.written)
         cancel = port.written.index(b'\x85')
         self.assertFalse(any(d.startswith(b'$J') for d in port.written[cancel:]))
-        self.assertTrue(self.tool.ui.jog_fr_entry.isEnabled())
+        # the release of the operation reaches the GUI thread as a queued signal
+        self.wait_native(lambda: self.tool.ui.jog_fr_entry.isEnabled())
 
     def test_invalid_jog_values_never_write_motion(self):
         from PyQt6 import QtTest
@@ -1639,6 +1643,7 @@ class TestActionRules(unittest.TestCase):
         fake = FakeGrbl()
         tool = make_stream_tool(fake)
         tool._plugin_active = True
+        tool.op_changed_sig.emit.side_effect = tool._apply_machine_state
         fake.written.clear()
         return tool, fake
 
@@ -1703,6 +1708,15 @@ class TestActionRules(unittest.TestCase):
                         self.assertIsNone(reason, action)
                     else:
                         self.assertTrue(reason, action)
+                # each operator widget is enabled exactly when its action is allowed
+                tool.ui.spindle_button.isChecked.return_value = False
+                tool._apply_machine_state()
+                for path, action in WIDGET_ACTIONS.items():
+                    widget = operator.attrgetter(path)(tool.ui)
+                    self.assertEqual(widget.setEnabled.call_args.args[0], action in allowed, path)
+                self.assertEqual(tool.ui.jog_wdg.setEnabled.call_args.args[0], 'jog' in allowed)
+                for button, _byte in tool.ui.ov_buttons.values():
+                    self.assertEqual(button.setEnabled.call_args.args[0], 'override' in allowed)
 
     def test_handlers_refuse_without_widgets(self):
         for name in ('probe', 'stream_run', 'needs_reset'):
@@ -1739,6 +1753,11 @@ class TestActionRules(unittest.TestCase):
         self.assertIsNone(tool.action_allowed('start'))
         self.assertIsNone(tool.action_allowed('jog'))
         tool._grbl_release(poll)
+        for _poll in range(3):
+            poll = tool._grbl_reserve(grbl_client_module.STATUS_POLL, read_only=True)
+            tool._grbl_release(poll)
+        # no operator widget changed during the polls
+        self.assertEqual(tool.op_changed_sig.emit.call_count, 0)
         tool.on_grbl_jog('xplus')
         self.assertEqual(sum(cmd.startswith('$J=') for cmd in fake.commands()), 1)
         tool, fake = self.make()

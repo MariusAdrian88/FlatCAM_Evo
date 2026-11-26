@@ -86,6 +86,7 @@ def make_audit_tool(units='MM', storage=None, heights_valid=False, cls=None):
     tool.apply_autolevel_sig = MagicMock()
     tool.show_probing_geo_sig = MagicMock()
     tool.grbl_port_closed_sig = MagicMock()
+    tool.op_changed_sig = MagicMock()
     tool.ecut_tool_change_sig = MagicMock()
     tool.ecut_motion_result_sig = MagicMock()
     tool.ecut_connect_result_sig = MagicMock()

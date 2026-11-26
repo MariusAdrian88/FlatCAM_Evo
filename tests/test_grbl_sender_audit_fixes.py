@@ -45,9 +45,11 @@ class TestResumeBypass(unittest.TestCase):
             while callbacks and b'\x18' not in fake.written:
                 callbacks.pop(0)[1]()
         self.assertEqual(fake.written.count(b'\x18'), 1)
+        tool.grbl_ser_port = None
         tool._grbl_set_ui_connected(False)
-        self.assertFalse(tool.ui.estop_button.isEnabled())
-        self.assertFalse(tool.ui.estop_dock_button.isEnabled())
+        # E-Stop stays enabled when not connected (it stops a simulation); the status bar button hides
+        self.assertTrue(tool.ui.estop_button.isEnabled())
+        self.assertTrue(tool.ui.estop_dock_button.isEnabled())
 
     @staticmethod
     def make_button_tool():
@@ -75,8 +77,10 @@ class TestResumeBypass(unittest.TestCase):
         tool, fake = self.make_button_tool()
         self.assertIsNotNone(tool._grbl_reserve('stream', motion=True))
         tool._grbl_stream_dirty = True
+        tool._apply_machine_state()
         tool.ui.hold_button.click()
         tool._controller_state = 'Hold'
+        tool._apply_machine_state()
         tool.ui.resume_button.click()
         self.assertEqual(fake.written, [b'!', b'~'])
 

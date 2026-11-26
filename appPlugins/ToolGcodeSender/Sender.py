@@ -10,6 +10,7 @@ import dataclasses
 import logging
 import ipaddress
 import math
+import operator
 import os
 import random
 import re
@@ -108,6 +109,23 @@ ACTION_RULES = (
     ('idle', tuple(name for name in SENDER_ACTIONS if name not in ('resume', 'next_block', 'hold'))),
 )
 
+# The operator widgets of SenderUI (dotted attribute paths) and the action that enables each of them.
+# The override buttons (ui.ov_buttons) take the action 'override'; ui.jog_wdg takes 'jog' (see _apply_machine_state).
+WIDGET_ACTIONS = {
+    'start_button': 'start', 'hold_button': 'hold', 'resume_button': 'resume',
+    'stop_button': 'stop', 'jog_stop_button': 'stop', 'stop_probing_button': 'stop',
+    'estop_button': 'estop', 'estop_dock_button': 'estop',
+    'controller_reset_button': 'reset', 'unlock_button': 'unlock',
+    'zero_axs_wdg.grbl_homing_button': 'home',
+    'jog_step_entry': 'jog', 'jog_fr_entry': 'jog',
+    'zero_axs_wdg.grbl_zerox_button': 'zero', 'zero_axs_wdg.grbl_zeroy_button': 'zero',
+    'zero_axs_wdg.grbl_zeroz_button': 'zero', 'zero_axs_wdg.grbl_zero_all_button': 'zero',
+    'spindle_button': 'spindle',
+    'grbl_command_entry': 'console', 'grbl_send_button': 'console',
+    'edge_probe_button': 'probe', 'edge_center_button': 'probe',
+    'config_tab': 'config',
+}
+
 
 def _qt_deleted(obj):
     """:return: True if obj is a Qt object that Qt has deleted (False for None and for other objects)."""
@@ -180,6 +198,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     stream_progress_sig = QtCore.pyqtSignal(int, int)
     # a parsed status report (dict) from a worker
     status_report_sig = QtCore.pyqtSignal(object)
+    # a port operation (not a monitor operation) was reserved or released, from any thread
+    op_changed_sig = QtCore.pyqtSignal()
     # the spindle runs (True) or stopped (False): an accepted M3/M4/M5 line, from a worker
     spindle_state_sig = QtCore.pyqtSignal(bool)
     # how the stream worker ended: 'finished', 'stopped', 'check_passed', ... (see _on_stream_ended)
@@ -582,6 +602,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.show_probing_geo_sig.connect(self._on_show_probing_geo_sig)
             self.stream_progress_sig.connect(self._on_stream_progress)
             self.status_report_sig.connect(self._on_status_report)
+            self.op_changed_sig.connect(self._apply_machine_state)
             self.io_discovery_sig.connect(lambda port: self.sender_io.discover(port))
             self.io_result_sig.connect(lambda result: self.sender_io.on_result(result))
             self.camera_capture_sig.connect(self._on_camera_capture)
@@ -726,7 +747,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.save_levelled_button.clicked.connect(self.on_save_levelled_gcode)
         self.ui.view3d_button.clicked.connect(self.on_show_3d)
         for (name, text), (btn, byte) in self.ui.ov_buttons.items():
-            btn.clicked.connect(lambda checked=False, b=byte: self._grbl_realtime(b))
+            btn.clicked.connect(lambda checked=False, b=byte: self.on_grbl_override(b))
 
     def on_reset_tool(self):
         if self.ui is None:
@@ -1510,13 +1531,14 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 for report in reports:
                     self._grbl_update_ownership(report)
                 self._last_wco = None
-                self._grbl_set_ui_connected(True)
-                self.app.inform.emit("%s: %s" % (_("Port connected"), port_name))
-                if self._grbl_recovery is not None:
-                    self.app.inform.emit('[WARNING_NOTCL] %s' % self._grbl_recovery_text())
                 connected = True
 
         if connected:
+            # the UI reads the machine situation, which takes the operation lock: after the lock
+            self._grbl_set_ui_connected(True)
+            self.app.inform.emit("%s: %s" % (_("Port connected"), port_name))
+            if self._grbl_recovery is not None:
+                self.app.inform.emit('[WARNING_NOTCL] %s' % self._grbl_recovery_text())
             self._camera_new_session('connect')
             self._toolchange_new_session('connect')
             # after this slot ended: the read is a new operation, so the port must be free for the caller
@@ -1617,8 +1639,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._invalidate_configuration()
         if not connected:
             self.ui.status_strip.clear()
+            self.ui.status_label.setText(_("Idle"))
+            self.ui.progress_bar.setValue(0)
+            self.ui.ov_values_label.setText('F: 100%  R: 100%  S: 100%')
             self._unlock_execution_view()
-        self._set_estop_enabled(connected)
+        self.app.ui.sender_estop_button.setVisible(connected)
         self.sender_io.refresh()
         camera_mode = bool(self.__dict__.get('_camera_public_mode', False))
         # fixed-step jog and the position readouts need a connected controller in either workflow
@@ -1639,14 +1664,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._stop_continuous_jog()
         color = 'seagreen' if connected else 'red'
         self.ui.com_connect_button.setStyleSheet("QPushButton {background-color: %s;}" % color)
-        self.ui.controller_reset_button.setDisabled(not connected)
-        for button in (self.ui.start_button, self.ui.hold_button, self.ui.resume_button,
-                       self.ui.unlock_button, self.ui.spindle_button):
-            button.setEnabled(connected)
-        for button, byte in self.ui.ov_buttons.values():
-            button.setEnabled(connected)
         # zero and Home sit in the jog block, outside the frames that are enabled above
         self.ui.zero_axs_wdg.setEnabled(connected)
+        self._apply_machine_state()
         self.ui.camera_widget.set_connected(connected)
         self.ui.registration_widget.set_connected(connected)
         self.ui.toolchange_widget.set_connected(connected)
@@ -3256,10 +3276,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         return mode, settings
 
     def on_toolchange_calibrate(self):
-        self._toolchange_start('reference')
+        if self._action_ok('probe'):
+            self._toolchange_start('reference')
 
     def on_toolchange_measure(self):
-        self._toolchange_start('measure')
+        if self._action_ok('probe'):
+            self._toolchange_start('measure')
 
     def _toolchange_start(self, action):
         if (self.__dict__.get('_grbl_caps') or {}).get('probe') is False:
@@ -3762,12 +3784,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         return reason is None
 
     def _machine_situation(self):
-        """:return: the name of the first ACTION_RULES row that matches the machine now."""
-        with self._grbl_op_lock:
-            op = self._grbl_op
-            reset_pending = self._grbl_reset_pending
-            recovery = self._grbl_recovery
-            phase = self._grbl_stop_phase
+        """
+        :return: the name of the first ACTION_RULES row that matches the machine now.
+
+        A read without the operation lock: a status slot can run under the lock on the same thread, and the lock
+        is not reentrant. Each value is one attribute read; a change after the read sends op_changed_sig or a
+        status report, which applies the rules again. The port reservation still checks under the lock.
+        """
+        op = self._grbl_op
+        reset_pending = self._grbl_reset_pending
+        recovery = self._grbl_recovery
+        phase = self._grbl_stop_phase
         if op is not None and op.name in MONITOR_OPS:
             op = None
         state = self._controller_state
@@ -3823,6 +3850,38 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             'idle': _("Not available now."),
         }
         return reasons[situation]
+
+    def _apply_machine_state(self):
+        """Enable each operator widget from action_allowed() and show the recovery state (GUI thread only)."""
+        ui = self.ui
+        situation = self._machine_situation()
+        allowed = {action: self.action_allowed(action) is None for action in SENDER_ACTIONS}
+        # the Spindle button also stops a running spindle where only spindle_off is allowed
+        allowed['spindle'] = allowed['spindle'] or (allowed['spindle_off'] and ui.spindle_button.isChecked())
+        # the Resume button stays off after a refused recheck until _on_status_report clears the refusal
+        allowed['resume'] = allowed['resume'] and self._resume_refused_version is None
+        for path, action in WIDGET_ACTIONS.items():
+            widget = operator.attrgetter(path)(ui)
+            widget.setEnabled(allowed[action])
+        for button, _byte in ui.ov_buttons.values():
+            button.setEnabled(allowed['override'])
+        # a jog arrow that the operator holds must stay enabled, or its release never arrives
+        op = self._grbl_op
+        ui.jog_wdg.setEnabled(allowed['jog'] or (op is not None and op.name == 'continuous jog'))
+        if situation == 'needs_reset':
+            ui.status_strip.set_state(_("Reset needed"))
+        elif situation == 'needs_home':
+            ui.status_strip.set_state(_("Home needed"))
+        # the recovery banner is latched: only the end of the recovery hides it
+        if self._grbl_recovery is None:
+            ui.status_strip.set_recovery(None)
+        elif self._grbl_recovery == 'needs_home':
+            ui.status_strip.set_recovery(_("Reset done. Home the machine."), button=False)
+
+    def on_grbl_override(self, byte):
+        """A feed, rapid or spindle override button: send its real-time byte."""
+        if self._action_ok('override'):
+            self._grbl_realtime(byte)
 
     def on_grbl_stop(self):
         """A Stop (also of the registration and tool change dialogs): see _hold_now()."""
@@ -6374,12 +6433,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         elif not self.ui.status_strip.alarm_label.text():
             self.ui.status_strip.set_alarm(
                 code_text('ALARM:' + report['substate'], self._grbl_grblhal) if 'substate' in report else 'ALARM')
-        # the recovery banner is latched: only the end of the recovery hides it (S7 moves this to
-        # _apply_machine_state())
-        if self._grbl_recovery is None:
-            self.ui.status_strip.set_recovery(None)
-        elif self._grbl_recovery == 'needs_home':
-            self.ui.status_strip.set_recovery(_("Reset done. Home the machine."), button=False)
+        self._apply_machine_state()
         if 'ov' in report:
             self.ui.ov_values_label.setText('F: %d%%  R: %d%%  S: %d%%' % report['ov'])
             # the accessory field comes with 'Ov'; without it, no accessory is on
@@ -6732,7 +6786,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._invalidate_coordinates()
         self._grbl_tool_commands = []
         self._grbl_tool_command_busy = False
-        self.ui.start_button.setDisabled(False)
+        self._apply_machine_state()
         result = self._stream_result or {}
         console = self.app.ui.grbl_console_dock.widget()
         if isinstance(console, GrblConsole):

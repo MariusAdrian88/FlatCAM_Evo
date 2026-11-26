@@ -523,6 +523,7 @@ class GrblClientMixin:
         self.grbl_work_offset = (0.0, 0.0, 0.0)
 
         # serial session: 1 operation that reads GRBL replies at a time
+        # not reentrant: _grbl_read_more_locked frees it for the read; GUI code runs after the lock is released
         self._grbl_op_lock = threading.Lock()
         self._grbl_op = None
         # None, 'needs_reset' or 'needs_home'; motion is blocked until it is None again
@@ -762,7 +763,9 @@ class GrblClientMixin:
             op.safety_generation = self._grbl_safety_generation
             op.port = self.grbl_ser_port
             self._grbl_op = op
-            return op
+        if name not in MONITOR_OPS:
+            self.op_changed_sig.emit()
+        return op
 
     def _grbl_release(self, op):
         """Free the serial port after the operation `op` ended; close it if a disconnect waits."""
@@ -771,6 +774,8 @@ class GrblClientMixin:
             if self._grbl_op is op:
                 self._grbl_op = None
                 close_now = self._grbl_close_pending
+        if op.name not in MONITOR_OPS:
+            self.op_changed_sig.emit()
         if close_now:
             self._grbl_close_port()
 

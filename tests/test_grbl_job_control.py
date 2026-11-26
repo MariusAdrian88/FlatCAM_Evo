@@ -1197,6 +1197,32 @@ class TestStopResetsAfterHold(unittest.TestCase):
         self.assertIsNone(tool._grbl_stop_phase)
         self.assertIsNone(tool._grbl_op)
 
+    def test_recovery_sequence(self):
+        # moving job, Stop, confirmed reset, position not kept: only Home works; a good home cycle frees the rest
+        fake = BrakeFake(self.clock, holds=1)
+        tool = self.make_tool(fake)
+        tool.op_changed_sig.emit.side_effect = tool._apply_machine_state
+        tool.ui.spindle_button.isChecked.return_value = False
+        tool.on_stream_stop()
+        self.assertEqual(tool.ui.status_strip.set_state.call_args.args[0], 'Reset needed')
+        self.assertFalse(tool.ui.start_button.setEnabled.call_args.args[0])
+        self.pump()
+        self.assertEqual(tool._grbl_recovery, 'needs_home')
+        self.assertEqual(tool.ui.status_strip.set_state.call_args.args[0], 'Home needed')
+        self.assertTrue(tool.ui.zero_axs_wdg.grbl_homing_button.setEnabled.call_args.args[0])
+        self.assertFalse(tool.ui.start_button.setEnabled.call_args.args[0])
+        self.assertIn('Home', tool.ui.status_strip.set_recovery.call_args.args[0])
+        self.assertFalse(tool.ui.status_strip.set_recovery.call_args.kwargs['button'])
+        # a good home cycle ends the recovery (on_grbl_homing); the controller reports Idle
+        tool._grbl_recovery = None
+        tool._controller_state = 'Idle'
+        tool._apply_machine_state()
+        for button in (tool.ui.start_button, tool.ui.zero_axs_wdg.grbl_homing_button, tool.ui.spindle_button,
+                       tool.ui.zero_axs_wdg.grbl_zerox_button, tool.ui.jog_wdg):
+            self.assertTrue(button.setEnabled.call_args.args[0])
+        self.assertFalse(tool.ui.hold_button.setEnabled.call_args.args[0])
+        self.assertIsNone(tool.ui.status_strip.set_recovery.call_args.args[0])
+
     def test_stop_resets_after_5_s_of_hold(self):
         fake = BrakeFake(self.clock, holds=float('inf'))
         tool = self.make_tool(fake)
