@@ -77,6 +77,13 @@ def actions():
 # ---------------------------------------------------------------------------------------------------------------------
 # Everywhere (MainGUI.eventFilter): before the plot area, an editor or a plugin, unless the focus is in a text field
 # ---------------------------------------------------------------------------------------------------------------------
+def sender_estop(ui, key=None):
+    """E-Stop of the G-code Sender: nothing if the tool does not exist or has no ready port."""
+    sender = ui.app.grbl_sender_tool
+    if sender is not None and sender._grbl_port_ready():
+        sender.on_emergency_stop()
+
+
 def global_actions():
     return [
         Shortcut('global.axis', _("Toggle the axis"), 'global', 'Shift+A',
@@ -86,6 +93,7 @@ def global_actions():
         Shortcut('global.hud', _("Toggle HUD"), 'global', 'Shift+H', lambda ui, key: ui.menuview_toggle_hud.trigger()),
         Shortcut('global.workspace', _("Toggle the workspace"), 'global', 'Shift+W',
                  lambda ui, key: ui.menuview_toggle_workspace.trigger()),
+        Shortcut('global.sender_estop', _("Sender: E-Stop"), 'global', 'Pause', sender_estop),
     ]
 
 

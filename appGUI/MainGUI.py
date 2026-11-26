@@ -14,7 +14,7 @@ from PyQt6.QtCore import QSettings
 
 from appGUI.GUIElements import *
 from appGUI.TitleBar import TitleBar
-from appGUI import shortcuts
+from appGUI import shortcuts, shortcut_actions
 from appDatabase import _database_option
 
 from appGUI.preferences.cncjob.CNCJobPreferencesUI import CNCJobPreferencesUI
@@ -2097,6 +2097,15 @@ class MainGUI(QtWidgets.QMainWindow):
             replot_callback=self.app.on_toolbar_replot
         )
         self.infobar.addWidget(self.activity_view)
+
+        # the G-code Sender shows it while a port is ready (Sender._set_estop_enabled)
+        self.sender_estop_button = QtWidgets.QPushButton(_("E-Stop"))
+        self.sender_estop_button.setStyleSheet(
+            'QPushButton {background-color: #800020; color: white; font-weight: bold; padding: 0px 10px;}')
+        self.sender_estop_button.setToolTip(_("SOFTWARE emergency-stop request of the G-code Sender."))
+        self.sender_estop_button.setVisible(False)
+        self.sender_estop_button.clicked.connect(lambda: shortcut_actions.sender_estop(self))
+        self.infobar.addPermanentWidget(self.sender_estop_button)
         self.compact_infobar()
 
         # disabled
@@ -3311,7 +3320,7 @@ class MainGUI(QtWidgets.QMainWindow):
             # the keys of the 'global' context of the shortcuts (the View toggles): caught before the canvas, the
             # editor or the plugin handlers can consume them
             action = shortcuts.registry().global_action(event.key(), event.modifiers())
-            if action is not None and not self.app_focus_in_text():
+            if action is not None and (action.id == 'global.sender_estop' or not self.app_focus_in_text()):
                 if not event.isAutoRepeat():
                     action.run(self, event.key())
                 event.accept()

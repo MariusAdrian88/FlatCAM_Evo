@@ -588,6 +588,37 @@ class TestGrblConsole(unittest.TestCase):
                 self.assertIn(2, rows)
                 self.assertIn('error:20', console.log_view.toPlainText())
 
+    def test_ecut_dialog_sensor_home_sends_the_home_command(self):
+        from tests.test_levelling_audit import make_audit_tool, run_worker
+
+        class Dialog(QtWidgets.QDialog):
+            apply_requested = QtCore.pyqtSignal(dict)
+            calibration_requested = QtCore.pyqtSignal(str, float, float, int)
+            output_requested = QtCore.pyqtSignal(int, bool)
+            stop_requested = QtCore.pyqtSignal()
+            reference_requested = QtCore.pyqtSignal(list)
+            sensor_home_requested = QtCore.pyqtSignal()
+
+            def __init__(self, result, parent=None):
+                super().__init__()
+
+            def set_machine_profile(self, profile):
+                pass
+
+        tool = make_audit_tool()
+        fake = FakeGrbl()
+        tool.grbl_ser_port = fake
+        tool._grbl_connected = True
+        tool._ecut_motion_io_timer = MagicMock()
+        tool._refresh_ecut_motion_io = MagicMock()
+        with patch('appPlugins.ToolGcodeSender.SenderMotion.EcutMotionDialog', Dialog):
+            tool._on_ecut_motion_result((fake, None, 'load', {'revision': 1}, None))
+        dialog = tool._ecut_motion_dialog
+        self.addCleanup(dialog.deleteLater)
+        dialog.sensor_home_requested.emit()
+        run_worker(tool)
+        self.assertIn('$H', fake.commands())
+
 
 class DockJogFake:
     """A connected controller with native continuous jog, without a serial port."""
@@ -1065,6 +1096,42 @@ class TestDockedJogPage(unittest.TestCase):
         for button in (self.tool.ui.sim_button, self.tool.ui.save_levelled_button,
                        self.tool.ui.view3d_button):
             self.assertTrue(button.isEnabled())
+
+    def test_estop_button_in_status_bar_follows_connection(self):
+        button = QtWidgets.QPushButton('E-Stop')
+        self.window.statusBar().addPermanentWidget(button)
+        button.hide()
+        self.app.ui.sender_estop_button = button
+        self.dock.hide()
+        self.app.ui.notebook.setCurrentIndex(1)     # another plugin tab
+        self.connect(DockJogFake())
+        _qapp.processEvents()
+        self.assertTrue(button.isVisible())
+        self.tool._grbl_set_ui_connected(False)
+        _qapp.processEvents()
+        self.assertFalse(button.isVisible())
+
+    def test_estop_key_works_in_a_text_field(self):
+        from appGUI.MainGUI import MainGUI
+        self.connect(DockJogFake())
+        self.tool.on_emergency_stop = MagicMock()
+        self.app.grbl_sender_tool = self.tool
+        window = SimpleNamespace(app=self.app, isAncestorOf=lambda widget: True,
+                                 app_focus_in_text=MainGUI.app_focus_in_text)
+        field = QtWidgets.QLineEdit(self.window)
+
+        def press(key):
+            event = QtGui.QKeyEvent(QtCore.QEvent.Type.KeyPress, key, QtCore.Qt.KeyboardModifier.NoModifier)
+            with patch.object(QtWidgets.QApplication, 'focusWidget', return_value=field):
+                return MainGUI.eventFilter(window, field, event)
+
+        self.assertTrue(press(QtCore.Qt.Key.Key_Pause))
+        self.tool.on_emergency_stop.assert_called_once_with()
+        self.tool._grbl_connected = False           # no port: the key does nothing
+        press(QtCore.Qt.Key.Key_Pause)
+        self.tool.on_emergency_stop.assert_called_once_with()
+        self.app.grbl_sender_tool = None            # no Sender tool: nothing happens
+        press(QtCore.Qt.Key.Key_Pause)
 
     def test_work_position_identifies_converted_job_units_and_reported_spindle(self):
         self.connect(DockJogFake())

@@ -792,6 +792,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         """Both E-Stop buttons (the Plugin tab footer and the dock header) share one state."""
         self.ui.estop_button.setEnabled(enabled)
         self.ui.estop_dock_button.setEnabled(enabled)
+        self.app.ui.sender_estop_button.setVisible(enabled)     # the status bar, always in view
 
     def _mount_emergency_stop(self):
         button = getattr(getattr(self, 'ui', None), 'estop_button', None)
@@ -1785,6 +1786,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 self._ecut_motion_action(dialog, 'output', (pin, active, self._ecut_motion_revision)))
             dialog.stop_requested.connect(self._stop_ecut_calibration)
             dialog.reference_requested.connect(lambda axes: self._ecut_motion_action(dialog, 'reference', (axes,)))
+            dialog.sensor_home_requested.connect(lambda: self.on_grbl_homing())
             dialog.finished.connect(lambda _result: self._closed_ecut_motion_settings(dialog))
             dialog.show()
             self._ecut_motion_io_timer.start()
