@@ -371,3 +371,40 @@ def test_per_move_corner_deviation_bounds_record_chord_error(planner):
     tight, blocks = run(limit)
     assert tight <= limit + 1e-12
     assert blocks[0].exit_speed_mm_s < run(None)[1][0].exit_speed_mm_s
+
+
+def backlash_config(enabled=True):
+    cfg = config()
+    cfg.axes[0].steps_per_mm = 25600 // cfg.interpolation_factor   # 25600 counts per mm
+    cfg.axes[0].backlash_mm = 0.05
+    cfg.axes[0].backlash_compensation_enabled = True
+    cfg.unverified.backlash = enabled
+    return cfg
+
+
+def test_backlash_adds_counts_on_reversal_only(planner):
+    cfg = backlash_config()
+    state = planner.BacklashState((0,) * 6, (0,) * 6, (0,) * 6)
+    moves = [move(planner, x=10), move(planner, x=20), move(planner, x=10)]
+    out, end = planner.apply_backlash(moves, state, cfg)
+    assert len(out) == 4 and out[2].rapid and out[2].target_mm[0] == 20   # the compensation, before move 3
+    assert [m.offset_counts[0] for m in out] == [0, 0, -1280, -1280]
+    assert end.offsets[0] == -1280 and end.dirs[0] == -1
+    blocks = planner.plan_linear_path(cfg, (0,) * 6, out, start_offsets=state.offsets)
+    assert blocks[-1].target_steps[0] == 10 * 25600 - 1280   # board = logical + offset
+    assert blocks[2].target_steps[0] - blocks[1].target_steps[0] == -1280
+
+
+def test_backlash_soft_limit_uses_the_logical_position(planner):
+    cfg = backlash_config()
+    cfg.axes[0].soft_limits_enabled = True
+    cfg.axes[0].soft_limit_negative_mm, cfg.axes[0].soft_limit_positive_mm = 0, 20
+    cfg.soft_limit_tolerance_mm = 0
+    state = planner.BacklashState((0,) * 6, (0,) * 6, (0,) * 6)
+    out, _ = planner.apply_backlash([move(planner, x=20), move(planner, x=0)], state, cfg)
+    planner.plan_linear_path(cfg, (0,) * 6, out)   # the board runs to -0.05 mm: inside the logical window
+
+
+def test_backlash_with_the_switch_off_is_refused_by_validate():
+    with pytest.raises(Exception, match='not yet verified'):
+        backlash_config(enabled=False).validate()

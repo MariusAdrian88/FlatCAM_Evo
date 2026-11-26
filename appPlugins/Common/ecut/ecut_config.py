@@ -32,6 +32,7 @@ NATIVE_INPUT_COUNT = 16
 NATIVE_OUTPUT_COUNT = 8
 LABEL_MAX_LENGTH = 32
 SOFT_LIMIT_TOLERANCE_MAX_MM = 1.0
+BACKLASH_MAX_MM = 1.0
 
 
 class EcutConfigError(EcutError, ValueError):
@@ -551,7 +552,12 @@ class EcutBoardConfig:
                     or ax.soft_limit_negative_mm >= ax.soft_limit_positive_mm):
                 raise EcutConfigError('Invalid soft limit interval')
             if ax.backlash_compensation_enabled or ax.backlash_mm:
-                raise EcutConfigError('Backlash compensation is not yet verified')
+                if not self.unverified.backlash:
+                    raise EcutConfigError('Backlash compensation is not yet verified')
+                if (type(ax.backlash_compensation_enabled) is not bool or isinstance(ax.backlash_mm, bool)
+                        or not isinstance(ax.backlash_mm, (int, float))
+                        or not math.isfinite(ax.backlash_mm) or not 0 <= ax.backlash_mm <= BACKLASH_MAX_MM):
+                    raise EcutConfigError(f'Backlash must be 0..{BACKLASH_MAX_MM} mm')
         for sig in self.inputs.values():
             if (type(sig.pin) is not int or not 0 <= sig.pin < 32 or sig.port not in (0, 1)
                     or sig.polarity not in (SignalPolarity.ACTIVE_LOW, SignalPolarity.ACTIVE_HIGH)

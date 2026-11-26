@@ -43,7 +43,8 @@ from .ecut_config import (
     EcutBoardConfig, AxisDirection, SignalPolarity, SpindleControl, InputSignal, ProbeMode,
 )
 
-from .ecut_planner import LinearMove, plan_path_segments, iter_jog_segments
+from .ecut_planner import (BacklashState, LinearMove, apply_backlash, backlash_active, backlash_axis_active,
+                           backlash_reversal, plan_path_segments, iter_jog_segments)
 
 log = logging.getLogger(__name__)
 
@@ -111,6 +112,9 @@ class _PlannedPathAction:
     target_steps: tuple[int, ...]
     segments: Sequence[tuple[int, ...]]
     feed_mm_min: Optional[float]
+    # backlash (directions, offsets) before and after the path; a run checks the start state
+    backlash_start: tuple = ((0,) * 6, (0,) * 6)
+    backlash_end: tuple = ((0,) * 6, (0,) * 6)
 
 @dataclass(frozen=True)
 class _ProbeAction(_MoveAction):
@@ -367,10 +371,12 @@ class _StepAccumulator:
     def reset(self) -> None:
         self.steps = [0] * 6
 
-    def position_mm(self) -> list[float]:
+    def position_mm(self, offsets=None) -> list[float]:
+        """Axis positions; ``offsets`` (backlash counts, board minus logical) gives the logical position."""
+        offsets = offsets or (0,) * 6
         return [
-            self.steps[i] / (self.config.axes[i].steps_per_mm * self.config.interpolation_factor
-                             * int(self.config.axes[i].direction))
+            (self.steps[i] - offsets[i]) / (self.config.axes[i].steps_per_mm * self.config.interpolation_factor
+                                            * int(self.config.axes[i].direction))
             if self.config.axes[i].enabled else 0.0
             for i in range(6)
         ]
@@ -610,6 +616,11 @@ class EcutAPI:
         self._jog_active = False
         self._jog_cancel = threading.Event()
         self._homed_axes = set()
+        # host backlash compensation: last direction per axis (1, -1, 0 unknown) and the offset in counts
+        # (board minus logical); the offset lives and dies with the reference of its axis
+        self._backlash_dir = [0] * 6
+        self._backlash_offset = [0] * 6
+        self._backlash_pending = set()   # axes whose offset changed in the path that is running
         self._last_probe_result = None
         self._fault_reason = None
         self._fault_alarm = 1
@@ -760,6 +771,7 @@ class EcutAPI:
             self._input_pending.clear()
             self._expansion_inputs = None
             self._homed_axes.clear()
+            self._clear_backlash()
             self._last_probe_result = None
             self._native_motion_active = False
             self._initialized = False
@@ -780,6 +792,7 @@ class EcutAPI:
             self._input_pending.clear()
             self._expansion_inputs = None
             self._homed_axes.clear()
+            self._clear_backlash()
             self._last_probe_result = None
             self._native_motion_active = False
             self._initialized = False
@@ -817,7 +830,14 @@ class EcutAPI:
         # the counts are kept (checked below): a reference stays valid while its axis scale is the same
         # a reset during motion stops without deceleration: nothing is kept
         self._forget_reference_if_moving()
-        kept = {axis for axis in self._homed_axes if self._same_axis_scale(axis)}
+        # an offset that is not 0 is part of the reference: a changed backlash setting removes both
+        kept = {axis for axis in self._homed_axes if self._same_axis_scale(axis)
+                and (self._same_axis_backlash(axis) or not self._backlash_offset[axis])}
+        for axis in range(6):
+            if axis not in kept:
+                self._clear_backlash([axis])
+            elif not self._same_axis_backlash(axis):
+                self._backlash_dir[axis] = 0   # the last direction is not known for the new setting
         self._homed_axes.clear()
         self._last_probe_result = None
         self._native_motion_active = False
@@ -868,6 +888,38 @@ class EcutAPI:
         before, now = previous['axes'][axis], self._config.axes[axis]
         return before['steps_per_mm'] == now.steps_per_mm and before['direction'] == int(now.direction)
 
+    def _same_axis_backlash(self, axis: int) -> bool:
+        previous = self._initialized_config
+        if previous is None:
+            return False
+        before, now = previous['axes'][axis], self._config.axes[axis]
+        return (before['backlash_mm'] == now.backlash_mm
+                and before['backlash_compensation_enabled'] == now.backlash_compensation_enabled)
+
+    def _clear_backlash(self, axes=range(6)) -> None:
+        for axis in axes:
+            self._backlash_dir[axis] = self._backlash_offset[axis] = 0
+        self._backlash_pending.difference_update(axes)
+
+    def _lose_backlash(self, axes) -> None:
+        """The offset of these axes is not known: they lose their reference and their offset."""
+        axes = [axis for axis in axes if backlash_axis_active(self._config.axes[axis])]
+        for axis in axes:
+            self._homed_axes.discard(axis)
+        self._clear_backlash(axes)
+
+    def _backlash_state(self, steps=None) -> BacklashState:
+        return BacklashState(tuple(self._acc.steps if steps is None else steps),
+                             tuple(self._backlash_dir), tuple(self._backlash_offset))
+
+    def logical_position_mm(self, frame=None) -> list[float]:
+        """Axis positions in mm without the backlash offset; of a board frame, else of the host counts."""
+        if frame is None:
+            return self._acc.position_mm(self._backlash_offset)
+        return [(frame.axis_positions[i] - self._backlash_offset[i])
+                / (ax.steps_per_mm * self._config.interpolation_factor * int(ax.direction))
+                for i, ax in enumerate(self._config.axes)]
+
     def reference_axes(self, axes) -> None:
         """Manual homing, without a home switch: the current position becomes each axis home position.
 
@@ -893,7 +945,8 @@ class EcutAPI:
             target[axis] = round(value)
         for axis in axes:
             self._homed_axes.discard(axis)
-        packet = bytearray(build_tx_packet(Cmd.SET_POSITION, bytes(32) + b'\x00\x3f'))
+        self._clear_backlash(axes)   # the board counts are set new
+        packet =bytearray(build_tx_packet(Cmd.SET_POSITION, bytes(32) + b'\x00\x3f'))
         struct.pack_into('>6i', packet, 6, *target)
         self._usb.cmd(packet[1], bytes(packet[2:]))
         # the board applies the counts about 10 ms after a0: idle frames before that still show the old counts
@@ -979,6 +1032,8 @@ class EcutAPI:
             self._shutdown(Cmd.STOP)
             frame = self._wait_idle()
             self._acc.steps = list(frame.axis_positions)
+            # a path with a reversal stopped half way: the offset of its axes is not known
+            self._lose_backlash(self._backlash_pending)
             if self._state not in (State.ESTOP, State.ERROR):
                 self._set_state(State.IDLE)
         except Exception:
@@ -1206,6 +1261,7 @@ class EcutAPI:
             for axis in sorted(set(axes), key=lambda i: int(self._config.homing[i].sequence)):
                 self._homing_axis = axis
                 self._homed_axes.discard(axis)
+                self._clear_backlash([axis])   # the board counts are set new
                 h = self._config.homing[axis]
                 name = 'XYZABC'[axis] + '_HOME'
                 passes = self._config.homing_count if self._config.homing_mode == 3 else 1
@@ -1234,6 +1290,7 @@ class EcutAPI:
                 target = self._measured_counts()
                 target[axis] = round(h.home_offset_mm * self._axis_scale(axis))
                 self._set_board_counts(target, 1 << axis)
+                self._clear_backlash([axis])
                 self._homed_axes.add(axis)
         except Exception as error:
             self._sensor_error()
@@ -1302,18 +1359,25 @@ class EcutAPI:
         try:
             hit = None
             seek_speed = cfg.fast_velocity_mm_s if speed is None else speed
+            sign = 1 if delta > 0 else -1
             for speed in (seek_speed, min(seek_speed, cfg.slow_velocity_mm_s)):
+                # a native move reverses the axis like a planned one, but takes up the lash by itself
+                self._travel(axis, sign)
+                hit_offset = self._backlash_offset[axis]
                 self._native_move(Cmd.PROBE, target, axis, speed, 0)
                 self._wait_switch('PROBE', True, target, self._sensor_timeout(axis, cfg.max_travel_mm, speed))
                 self._stop_native_axis(axis)
                 hit = tuple(self._acc.steps)
                 retract = list(hit)
-                retract[axis] -= (1 if delta > 0 else -1) * round(cfg.retract_mm * abs(self._axis_scale(axis)))
+                retract[axis] -= sign * round(cfg.retract_mm * abs(self._axis_scale(axis)))
+                self._travel(axis, -sign)
                 self._native_move(Cmd.PROBE, retract, axis, cfg.retract_velocity_mm_s, 0)
                 self._wait_switch('PROBE', False, retract, self._sensor_timeout(axis, cfg.retract_mm, cfg.retract_velocity_mm_s))
                 self._usb.cmd(Cmd.PROBE_FINISH)
                 self._wait_native_target(retract, self._sensor_timeout(axis, cfg.retract_mm, cfg.retract_velocity_mm_s))
-            point = tuple(hit[i] / self._axis_scale(i) for i in range(6))
+            offsets = list(self._backlash_offset)
+            offsets[axis] = hit_offset
+            point = tuple((hit[i] - offsets[i]) / self._axis_scale(i) for i in range(6))
             self._last_probe_result = {'position_mm': point, 'raw_counts': hit,
                                        'position_source': 'stationary_controller_report',
                                        'firmware_latched': False}
@@ -1321,6 +1385,7 @@ class EcutAPI:
             return point
         except Exception:
             self._last_probe_result = None
+            self._lose_backlash([axis])
             self._sensor_error()
             raise
         finally:
@@ -1371,6 +1436,12 @@ class EcutAPI:
         inputs = self.read_inputs()
         if inputs.get('PROBE', True) or self._raw_input_active('PROBE') is not False:
             raise EcutError('Probe input is already active or unavailable')
+
+    def _travel(self, axis: int, sign: int) -> None:
+        """Note a move of ``axis`` in direction ``sign`` (+1/-1) that is not planned (probe)."""
+        state = backlash_reversal(self._config, self._backlash_state(), axis, sign)
+        self._backlash_dir[axis] = state.dirs[axis]
+        self._backlash_offset[axis] = state.offsets[axis]
 
     def _axis_scale(self, axis: int) -> float:
         ax = self._config.axes[axis]
@@ -1511,8 +1582,10 @@ class EcutAPI:
             keep = should_continue is None or should_continue()
             return keep and not self._jog_cancel.is_set() and self._state == State.RUNNING
 
-        segments = iter_jog_segments(self._config, tuple(self._acc.steps), axis, direction,
-                                     feed_mm_min, held)
+        self._compensate_jog(axis, direction)
+        # the soft bound of the jog runs on the logical position
+        start = tuple(steps - offset for steps, offset in zip(self._acc.steps, self._backlash_offset))
+        segments = iter_jog_segments(self._config, start, axis, direction, feed_mm_min, held)
         # Validation and first release check happen before changing state or USB.
         self._set_state(State.RUNNING)
         try:
@@ -1525,6 +1598,7 @@ class EcutAPI:
             if self._state in (State.RUNNING, State.PAUSED):
                 self._set_state(State.IDLE)
             return
+        self._travel(axis, (1 if direction == 0 else -1) * (1 if self._axis_scale(axis) > 0 else -1))
         self._running = self._jog_active = True
         self._traj_id = (self._traj_id + 1) & 0xffffff
         submitted = 0
@@ -1612,6 +1686,37 @@ class EcutAPI:
             if self._state in (State.RUNNING, State.PAUSED):
                 self._set_state(State.IDLE)
 
+    def _compensate_jog(self, axis: int, direction: int) -> None:
+        """Before a continuous jog that reverses the axis: the compensation move, then the direction is noted."""
+        if type(axis) is not int or not 0 <= axis < 6 or direction not in (0, 1):
+            return   # iter_jog_segments refuses it
+        scale = self._axis_scale(axis)
+        sign = (1 if direction == 0 else -1) * (1 if scale > 0 else -1)
+        before = (tuple(self._backlash_dir), tuple(self._backlash_offset))
+        after = backlash_reversal(self._config, self._backlash_state(), axis, sign)
+        if after.offsets == before[1]:
+            return   # no reversal: jog_start notes the direction when the jog moves
+        steps = tuple(self._acc.steps)
+        target = [None] * 6
+        target[axis] = (steps[axis] - before[1][axis]) / scale
+        try:
+            segments = plan_path_segments(self._config, steps, [LinearMove(tuple(target), True, None, None, after.offsets)],
+                                          feed_override=self._feed_override, checkpoint=self._planning_checkpoint,
+                                          junction_deviation_mm=self._config.junction_deviation_mm,
+                                          start_offsets=before[1])
+            end = tuple(steps[i] + after.offsets[i] - before[1][i] for i in range(6))
+            self._run_action(_PlannedPathAction(steps, end, segments, self._feed_mm_min, before,
+                                                (after.dirs, after.offsets)))
+        except Exception:
+            self._initialized = False
+            if self._state != State.ESTOP:
+                self._set_state(State.ERROR)
+            try:
+                self._shutdown(Cmd.STOP)
+            except EcutError:
+                log.exception('Failed to stop after the backlash move')
+            raise
+
     def jog_stop(self) -> None:
         """Thread-safe release request; the owning worker sends the braking tail."""
         self._jog_cancel.set()
@@ -1621,7 +1726,7 @@ class EcutAPI:
         if not (0 <= axis < 6):
             raise ValueError(f'Invalid axis {axis}')
         target: list[Optional[float]] = [None] * 6
-        target[axis] = self._acc.position_mm()[axis] + distance_mm
+        target[axis] = self.logical_position_mm()[axis] + distance_mm
         self._require_motion_allowed()
         try:
             self._move_linear(_MoveAction(True, True, {axis: target[axis]}, None))
@@ -1807,6 +1912,7 @@ class EcutAPI:
         # a stop without deceleration can lose steps: home the axes again
         if self._running or self._jog_active or (self._last_rx is not None and self._last_rx.motion_busy):
             self._homed_axes.clear()
+            self._clear_backlash()
 
     def _shutdown(self, command: Cmd) -> None:
         """Attempt every independent stop write, retaining the initialized pin polarity."""
@@ -1947,7 +2053,8 @@ class EcutAPI:
 
     @property
     def position_mm(self) -> list[float]:
-        return self._acc.position_mm()
+        """The logical position (the tool): the board counts without the backlash offset."""
+        return self.logical_position_mm()
 
     @property
     def position_steps(self) -> list[int]:
@@ -2117,6 +2224,7 @@ class EcutAPI:
                     raise EcutUsbError('Invalid RX CRC')
                 if not frame.configured and self._initialized:
                     self._homed_axes.clear()
+                    self._clear_backlash()
                 self._last_rx = frame
                 self._update_inputs(frame)
                 self._check_interlocks(frame)
@@ -2339,22 +2447,39 @@ class EcutAPI:
                 self.spindle_speed(action.rpm)
         elif isinstance(action, _PlannedPathAction):
             self._require_motion_allowed()
-            if tuple(self._acc.steps) != action.start_steps:
+            if (tuple(self._acc.steps) != action.start_steps
+                    or (tuple(self._backlash_dir), tuple(self._backlash_offset)) != action.backlash_start):
                 raise EcutError('Position changed since path preflight')
             self._feed_mm_min = action.feed_mm_min
+            changed = {i for i in range(6) if action.backlash_end[1][i] != action.backlash_start[1][i]}
+            self._backlash_dir[:], self._backlash_offset[:] = action.backlash_end
             if len(action.segments):
-                self._submit_segments(action.segments)
+                was_running = self._running
+                try:
+                    self._backlash_pending |= changed
+                    self._submit_segments(action.segments)
+                except BaseException:
+                    self._lose_backlash(changed)
+                    raise
+                if not self._stop_requested and (self._running or not was_running):
+                    self._backlash_pending -= changed
         elif isinstance(action, _ProbeAction):
             axis, value = next(iter(action.words.items()))
-            distance = value - self._acc.position_mm()[axis] if action.absolute else value
+            distance = value - self.logical_position_mm()[axis] if action.absolute else value
             self._probe_sensor(axis, distance, action.feed_mm_min / 60.0)
         else:
             self._move_linear(action)
 
-    def _plan_linear_actions(self, actions, start_steps) -> _PlannedPathAction:
+    def _plan_linear_actions(self, actions, start_steps, backlash=None) -> _PlannedPathAction:
+        """``backlash``: (directions, offsets) at the start; default the present ones.
+
+        The moves are planned on the logical position (``virtual``); ``apply_backlash`` turns them into board
+        moves with the compensation of each reversal.
+        """
         self._require_motion_allowed()
+        dirs, offsets = backlash or (tuple(self._backlash_dir), tuple(self._backlash_offset))
         virtual = _StepAccumulator(self._config)
-        virtual.steps = list(start_steps)
+        virtual.steps = [start_steps[i] - offsets[i] for i in range(6)]
         moves = []
         for lineno, action in actions:
             if self._planning_checkpoint is not None:
@@ -2369,24 +2494,28 @@ class EcutAPI:
                 raise EcutError(f'line {lineno}: target exceeds the board position range') from error
             moves.append(LinearMove(tuple(target), action.rapid, action.feed_mm_min, action.corner_deviation_mm))
             virtual.advance(total)
+        moves, end = apply_backlash(moves, BacklashState(tuple(start_steps), tuple(dirs), tuple(offsets)), self._config)
         segments = plan_path_segments(self._config, tuple(start_steps), moves, feed_override=self._feed_override,
                                       junction_deviation_mm=self._config.junction_deviation_mm,
-                                      checkpoint=self._planning_checkpoint)
-        return _PlannedPathAction(tuple(start_steps), tuple(virtual.steps), segments, actions[-1][1].feed_mm_min)
+                                      checkpoint=self._planning_checkpoint, start_offsets=tuple(offsets))
+        target_steps = tuple(virtual.steps[i] + end.offsets[i] for i in range(6))
+        return _PlannedPathAction(tuple(start_steps), target_steps, segments, actions[-1][1].feed_mm_min,
+                                  (tuple(dirs), tuple(offsets)), (end.dirs, end.offsets))
 
     def _plan_program_actions(self, actions):
         """Preflight known paths; probe-dependent moves use confirmed runtime counts."""
         planned = []
         pending = []
         position = tuple(self._acc.steps)
+        backlash = (tuple(self._backlash_dir), tuple(self._backlash_offset))
         position_unknown = False
 
         def flush():
-            nonlocal position
+            nonlocal position, backlash
             if pending:
-                path = self._plan_linear_actions(pending, position)
+                path = self._plan_linear_actions(pending, position, backlash)
                 planned.append((pending[0][0], path))
-                position = path.target_steps
+                position, backlash = path.target_steps, path.backlash_end
                 pending.clear()
 
         for lineno, action in actions:
@@ -2401,9 +2530,9 @@ class EcutAPI:
                     pending.append((lineno, action))
                 else:
                     flush()
-                    path = self._plan_linear_actions([(lineno, action)], position)
+                    path = self._plan_linear_actions([(lineno, action)], position, backlash)
                     planned.append((lineno, path))
-                    position = path.target_steps
+                    position, backlash = path.target_steps, path.backlash_end
             else:
                 flush()
                 planned.append((lineno, action))

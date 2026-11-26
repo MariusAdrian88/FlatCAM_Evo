@@ -134,6 +134,40 @@ def test_reset_in_motion_forgets_reference(busy, homed):
     assert api.homed_axes == homed
 
 
+def reversed_x_engine():
+    engine, api = engine_api()
+    ax = api.config.axes[0]
+    ax.steps_per_mm = 25600 // api.config.interpolation_factor
+    ax.max_velocity_mm_s, ax.acceleration_mm_s2 = 100, 1000
+    ax.backlash_mm, ax.backlash_compensation_enabled = 0.05, True
+    api.config.unverified.backlash = True
+    api.push_config()
+    api.reference_axes([0])
+    for line in ('G0 X10', 'G0 X20', 'G0 X10'):   # X+ X+ X-: one reversal
+        engine.execute_line(line)
+    return engine, api
+
+
+def test_backlash_offset_survives_an_idle_reset():
+    engine, api = reversed_x_engine()
+    assert api._usb.positions[0] == 10 * 25600 - 1280   # the board went 0.05 mm further down
+    assert api.position_mm[0] == pytest.approx(10.0)
+    api.push_config()
+    assert api.position_mm[0] == pytest.approx(10.0) and api.homed_axes == (0,)
+    api.config.axes[0].backlash_mm = 0.1
+    api.push_config()
+    assert api.homed_axes == ()
+
+
+def test_status_and_probe_position_are_logical_after_a_reversal():
+    engine, api = reversed_x_engine()
+    api._poll()
+    report = engine.status_report()
+    assert 'Pos:10.000,' in report
+    with pytest.raises(GcodeError, match='backlash'):   # a calibration move is not planned with offsets
+        engine.calibration_move(0, 1, 60, engine.get_motion_settings()['revision'])
+
+
 def test_a_scale_change_removes_the_reference():
     engine, api = limited_engine()
     api.reference_axes([0, 1])

@@ -173,7 +173,8 @@ class EcutMotionDialog(QtWidgets.QDialog):
                   ('acceleration_mm_s2', _('Acceleration (mm/s²)')),
                   ('deceleration_mm_s2', _('Deceleration (mm/s²)')),
                   ('soft_limit_negative_mm', _('Minimum machine position (mm)')),
-                  ('soft_limit_positive_mm', _('Maximum machine position (mm)'))]
+                  ('soft_limit_positive_mm', _('Maximum machine position (mm)')),
+                  ('backlash_mm', _('Backlash (mm)'))]
         tips = {
             'steps_per_mm': _('Driver pulses per mm of travel of this axis, a whole number. '
                               'Saved in the E-Cut when you click Apply.'),
@@ -185,7 +186,9 @@ class EcutMotionDialog(QtWidgets.QDialog):
             'soft_limit_negative_mm': _('Lowest allowed machine position of this axis in mm '
                                         '(machine coordinates, not the work zero).'),
             'soft_limit_positive_mm': _('Highest allowed machine position of this axis in mm '
-                                        '(machine coordinates, not the work zero).')}
+                                        '(machine coordinates, not the work zero).'),
+            'backlash_mm': _('Play of this axis when its direction reverses, 0 to 1 mm. '
+                             'Used when \\"Compensate backlash\\" is checked.')}
         for form in self._axis_pages(layout):
             fields = {}
             for key, label in labels:
@@ -193,6 +196,9 @@ class EcutMotionDialog(QtWidgets.QDialog):
                     widget = self._spin(True, 1, MAX_STEPS_PER_MM)
                 elif key.startswith('soft_limit_'):
                     widget = self._spin(minimum=-1e12)
+                elif key == 'backlash_mm':
+                    widget = self._spin(minimum=0, maximum=1.0)
+                    widget.setSingleStep(0.01)
                 else:
                     widget = self._spin()
                 widget.setToolTip(tips[key])
@@ -213,6 +219,13 @@ class EcutMotionDialog(QtWidgets.QDialog):
                                   'are refused. Saved when you click Apply.'))
             checkbox.toggled.connect(self._changed)
             fields['soft_limits_enabled'] = checkbox
+            form.addRow(checkbox)
+            checkbox = FCCheckBox(_('Compensate backlash'))
+            checkbox.setToolTip(_('Adds the backlash distance to each move that reverses this axis. '
+                                  'Needs \\"Backlash compensation\\" in the Not verified tab. '
+                                  'A change needs the machine home again.'))
+            checkbox.toggled.connect(self._changed)
+            fields['backlash_compensation_enabled'] = checkbox
             form.addRow(checkbox)
             self.motion_fields.append(fields)
         self._build_motion_extras(layout)
@@ -505,6 +518,10 @@ class EcutMotionDialog(QtWidgets.QDialog):
                         widget.setChecked(settings['deceleration_mm_s2'] is None)
                     elif key == 'soft_limits_enabled':
                         widget.setChecked(settings[key])
+                    elif key == 'backlash_compensation_enabled':
+                        widget.setChecked(settings.get(key, False))
+                    elif key == 'backlash_mm':
+                        widget.setValue(settings.get(key, 0.0))
                     else:
                         value = settings[key]
                         if key == 'max_velocity_mm_s':
@@ -547,7 +564,8 @@ class EcutMotionDialog(QtWidgets.QDialog):
         motors = []
         for axis, fields in enumerate(self.motion_fields):
             values = {key: widget.value() for key, widget in fields.items()
-                      if key not in ('follow_acceleration', 'soft_limits_enabled')}
+                      if key not in ('follow_acceleration', 'soft_limits_enabled', 'backlash_compensation_enabled')}
+            values['backlash_compensation_enabled'] = fields['backlash_compensation_enabled'].isChecked()
             values['max_velocity_mm_s'] /= 60
             if fields['follow_acceleration'].isChecked():
                 values['deceleration_mm_s2'] = None
@@ -643,6 +661,10 @@ class EcutMotionDialog(QtWidgets.QDialog):
         except ValueError as error:
             self.show_error(str(error))
             return
+        if any(values['backlash_mm'] != old.get('backlash_mm', 0.0)
+               or values['backlash_compensation_enabled'] != old.get('backlash_compensation_enabled', False)
+               for values, old in zip(payload['axes'], self._snapshot['axes'])):
+            QtWidgets.QMessageBox.information(self, _('Backlash'), _('Backlash changed: set the machine home again.'))
         self.set_busy(True)
         self.status_label.setText(_('Applying settings…'))
         self.apply_requested.emit(payload)

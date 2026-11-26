@@ -19,7 +19,7 @@ from bisect import bisect_right
 import math
 import sys
 from collections.abc import Iterator, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Optional
 
 from .ecut_config import EcutBoardConfig
@@ -35,6 +35,86 @@ class LinearMove:
     # tighten it (the smaller one wins); 0 is exact path: stop where the direction changes, pass
     # straight continuations. A path setting of 0 stops at every block whatever this says.
     corner_deviation_mm: Optional[float] = None
+    # Backlash offsets (counts per axis, board minus logical) that hold after this move; see apply_backlash.
+    offset_counts: Optional[tuple[int, ...]] = None
+
+
+@dataclass(frozen=True)
+class BacklashState:
+    steps: tuple[int, ...]     # board counts
+    dirs: tuple[int, ...]      # last direction of each axis: 1, -1, or 0 when unknown
+    offsets: tuple[int, ...]   # board minus logical counts
+
+
+def _offsets(values):
+    if values is None:
+        return (0,) * 6
+    if not isinstance(values, Sequence) or len(values) != 6 or any(type(v) is not int for v in values):
+        raise EcutError('Backlash offsets require six integer counts')
+    return tuple(values)
+
+
+def backlash_axis_active(axis) -> bool:
+    return bool(axis.enabled and axis.backlash_compensation_enabled and axis.backlash_mm > 0)
+
+
+def backlash_active(config: EcutBoardConfig) -> bool:
+    return any(backlash_axis_active(axis) for axis in config.axes)
+
+
+def backlash_reversal(config: EcutBoardConfig, state: BacklashState, axis: int, sign: int) -> BacklashState:
+    """State after axis ``axis`` travels in direction ``sign`` (+1/-1): a reversal adds the backlash counts."""
+    ax = config.axes[axis]
+    if not backlash_axis_active(ax):
+        return state
+    dirs, offsets = list(state.dirs), list(state.offsets)
+    if dirs[axis] and dirs[axis] != sign:
+        offsets[axis] += sign * round(ax.backlash_mm * abs(ax.steps_per_mm * config.interpolation_factor))
+    dirs[axis] = sign
+    return BacklashState(state.steps, tuple(dirs), tuple(offsets))
+
+
+def apply_backlash(moves, state: BacklashState, config: EcutBoardConfig):
+    """Add a short compensation move before each move that reverses an axis.
+
+    ``moves`` are logical (the tool position). Each returned move carries the offsets that hold after it
+    (``offset_counts``), so ``plan_linear_path(..., start_offsets=state.offsets)`` gives board targets
+    (logical plus offset) and checks the soft limits on the logical position. The compensation is a
+    rapid move of ``backlash_mm`` on the reversing axes only (limited by the axis velocity).
+    Returns the new moves and the state after them. The first move of an axis only sets its direction.
+    """
+    if not backlash_active(config):
+        return list(moves), state
+    scales = tuple(axis.steps_per_mm * config.interpolation_factor * int(axis.direction) for axis in config.axes)
+    logical = [state.steps[i] - state.offsets[i] for i in range(6)]
+    now = state
+    out = []
+    for move in moves:
+        if (not isinstance(move, LinearMove) or not isinstance(move.target_mm, Sequence)
+                or len(move.target_mm) != 6):
+            out.append(move)   # the planner refuses it
+            continue
+        reversed_axes = {}
+        for i, position in enumerate(move.target_mm):
+            if position is None or not _finite(position) or not _finite(position * scales[i]):
+                continue
+            target = round(position * scales[i])
+            sign = (target > logical[i]) - (target < logical[i])
+            before, logical[i] = logical[i], target
+            if not sign:
+                continue
+            after = backlash_reversal(config, now, i, sign)
+            if after.offsets[i] != now.offsets[i]:
+                reversed_axes[i] = before
+            now = after
+        offsets = now.offsets
+        if reversed_axes:
+            target = [None] * 6
+            for i, before in reversed_axes.items():
+                target[i] = before / scales[i]
+            out.append(LinearMove(tuple(target), True, None, None, offsets))
+        out.append(replace(move, offset_counts=offsets))
+    return out, BacklashState(tuple(logical[i] + now.offsets[i] for i in range(6)), now.dirs, now.offsets)
 
 
 @dataclass(frozen=True)
@@ -179,8 +259,11 @@ def check_soft_limit_move(axis, start, target, tolerance, name='axis'):
 
 def plan_linear_path(config: EcutBoardConfig, start_steps, moves, *, feed_override=1.0,
                      junction_deviation_mm=0.01, period_s=0.001, checkpoint=None,
-                     corner_speed_caps=None) -> list[PlannedBlock]:
+                     corner_speed_caps=None, start_offsets=None) -> list[PlannedBlock]:
     """Validate the whole path, then maximize feasible speeds at all junctions.
+
+    ``start_offsets`` (backlash, counts per axis: board minus logical) lets the soft limits run on the
+    logical position; a move with ``offset_counts`` sets the offsets of its explicit axes after it.
 
     First entry and final exit are stopped. ``None`` preserves the actual count
     of that axis. Profiles and targets are immutable; records are generated
@@ -205,6 +288,7 @@ def plan_linear_path(config: EcutBoardConfig, start_steps, moves, *, feed_overri
         raise EcutError('Junction deviation must be finite and nonnegative')
     if not isinstance(start_steps, Sequence) or len(start_steps) != 6 or any(type(value) is not int or not -0x80000000 <= value <= 0x7fffffff for value in start_steps):
         raise EcutError('Start position requires six signed 32-bit counts')
+    offsets = _offsets(start_offsets)
     scales = tuple(axis.steps_per_mm * config.interpolation_factor * int(axis.direction) for axis in config.axes)
     current = tuple(start_steps)
     geometry = []
@@ -212,6 +296,8 @@ def plan_linear_path(config: EcutBoardConfig, start_steps, moves, *, feed_overri
         if (not isinstance(move, LinearMove) or not isinstance(move.target_mm, Sequence)
                 or len(move.target_mm) != 6 or type(move.rapid) is not bool):
             raise EcutError('Linear move requires six targets and a rapid flag')
+        move_offsets = offsets if move.offset_counts is None else _offsets(move.offset_counts)
+        offsets = list(offsets)
         if ((move.feed_mm_min is not None and (not _finite(move.feed_mm_min) or move.feed_mm_min <= 0))
                 or (not move.rapid and move.feed_mm_min is None)):
             raise EcutError('Feed must be finite and positive')
@@ -228,10 +314,14 @@ def plan_linear_path(config: EcutBoardConfig, start_steps, moves, *, feed_overri
             if not _finite(position):
                 raise EcutError('Target must be finite')
             raw = position * scales[i]
-            if not math.isfinite(raw) or not -0x80000000 <= raw <= 0x7fffffff:
+            if not math.isfinite(raw) or not -0x80000000 <= raw + move_offsets[i] <= 0x7fffffff:
                 raise EcutError('Target exceeds signed 32-bit board position range')
-            target[i] = round(raw)
-            check_soft_limit_move(axis, current[i] / scales[i], target[i] / scales[i], tolerance, 'XYZABC'[i])
+            target[i] = round(raw) + move_offsets[i]
+            # the soft limits use the logical position: the board counts without the backlash offset
+            check_soft_limit_move(axis, (current[i] - offsets[i]) / scales[i], (target[i] - move_offsets[i]) / scales[i],
+                                  tolerance, 'XYZABC'[i])
+            offsets[i] = move_offsets[i]
+        offsets = tuple(offsets)
         target = tuple(target)
         delta = tuple(target[i] - current[i] for i in range(6))
         if not any(delta):
@@ -430,14 +520,15 @@ def iter_path_segments(blocks, *, junction_deviation_mm=0.01, checkpoint=None, s
 
 
 def plan_path_segments(config: EcutBoardConfig, start_steps, moves, *, feed_override=1.0,
-                       junction_deviation_mm=0.01, checkpoint=None, max_rounds=8):
+                       junction_deviation_mm=0.01, checkpoint=None, max_rounds=8, start_offsets=None):
     """Plan ``moves`` and return the path records, slowing only the corners that need it.
 
     A corner whose record chord exceeds its tolerance gets a lower exit speed (the chord error is
     linear in the speed for a fixed 1 ms record) and the path is planned again. If a corner is still
     above tolerance after ``max_rounds``, the whole timebase is slowed instead, so the tolerance holds.
     """
-    kwargs = dict(feed_override=feed_override, junction_deviation_mm=junction_deviation_mm, checkpoint=checkpoint)
+    kwargs = dict(feed_override=feed_override, junction_deviation_mm=junction_deviation_mm, checkpoint=checkpoint,
+                  start_offsets=start_offsets)
     caps = {}
     for _ in range(max_rounds):
         blocks = plan_linear_path(config, start_steps, moves, corner_speed_caps=caps, **kwargs)

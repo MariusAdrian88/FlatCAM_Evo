@@ -20,7 +20,8 @@ def snapshot():
             'axes': [dict(steps_per_mm=400, max_velocity_mm_s=5,
                           acceleration_mm_s2=40, deceleration_mm_s2=None,
                           soft_limits_enabled=False, soft_limit_negative_mm=-100,
-                          soft_limit_positive_mm=100) for _ in range(4)],
+                          soft_limit_positive_mm=100, backlash_mm=0.0,
+                          backlash_compensation_enabled=False) for _ in range(4)],
             'motors': [dict(steps_per_revolution=200, microsteps=8,
                             gear_ratio=1, travel_per_revolution_mm=4) for _ in range(4)]}
 

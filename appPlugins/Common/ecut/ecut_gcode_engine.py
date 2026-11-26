@@ -21,7 +21,7 @@ from pathlib import Path
 
 from .ecut_controller import EcutError, MotionLine, State, _strip_comments, compile_program, encode_config
 from .ecut_config import EcutBoardConfig, OutputSignal
-from .ecut_planner import LinearMove, check_soft_limit_move, plan_linear_path
+from .ecut_planner import LinearMove, backlash_active, check_soft_limit_move, plan_linear_path
 
 
 class GcodeError(EcutError):
@@ -139,9 +139,12 @@ class EcutGcodeEngine:
         frame = self.api.last_rx_frame
         if frame is None:
             return [0.0] * 3
-        return [frame.axis_positions[i] / (ax.steps_per_mm *
-                self.api.config.interpolation_factor * int(ax.direction))
-                for i, ax in enumerate(self.api.config.axes[:3])]
+        # the logical position: the board counts without the backlash offset
+        return self.api.logical_position_mm(frame)[:3]
+
+    def _refuse_with_backlash(self):
+        if backlash_active(self.api.config):
+            raise GcodeError(3, 'Turn off backlash compensation for motion settings and the calibration move.')
 
     def _offset(self, parser=None, wcs=None):
         parser = parser or self._parser
@@ -222,7 +225,8 @@ class EcutGcodeEngine:
         revision = hashlib.sha256(json.dumps([hardware, self._native, self._motor_setup],
                                   sort_keys=True, allow_nan=False).encode('utf-8')).hexdigest()
         keys = ('steps_per_mm', 'max_velocity_mm_s', 'acceleration_mm_s2', 'deceleration_mm_s2',
-                'soft_limits_enabled', 'soft_limit_negative_mm', 'soft_limit_positive_mm')
+                'soft_limits_enabled', 'soft_limit_negative_mm', 'soft_limit_positive_mm',
+                'backlash_mm', 'backlash_compensation_enabled')
         return {'revision': revision, 'interpolation_factor': self.api.config.interpolation_factor,
                 'axes': [{key: int(axis.steps_per_mm) if key == 'steps_per_mm' else getattr(axis, key)
                           for key in keys} for axis in self.api.config.axes[:4]],
@@ -293,7 +297,7 @@ class EcutGcodeEngine:
                            *_ADDED_HARDWARE_FIELDS) and value != snapshot['hardware'][key]:
                 raise GcodeError(3, f'Hardware field {key} is read only')
         axis_fields = {'enabled', 'direction', 'step_pin', 'dir_pin', 'step_port', 'dir_port',
-                       'step_active_low', 'dir_active_low'}
+                       'step_active_low', 'dir_active_low', 'backlash_mm', 'backlash_compensation_enabled'}
         for i, values in enumerate(hardware['axes']):
             for key, value in values.items():
                 if (i >= 4 or key not in axis_fields) and value != snapshot['hardware']['axes'][i][key]:
@@ -310,9 +314,9 @@ class EcutGcodeEngine:
             if not isinstance(values, dict) or set(values) != set(snapshot['axes'][i]):
                 raise GcodeError(3, 'Invalid axis settings fields')
             for key, value in values.items():
-                if key == 'soft_limits_enabled':
+                if key in ('soft_limits_enabled', 'backlash_compensation_enabled'):
                     if type(value) is not bool:
-                        raise GcodeError(3, 'Soft limit switch requires a boolean')
+                        raise GcodeError(3, 'Axis switches require a boolean')
                 elif value is None and key == 'deceleration_mm_s2':
                     continue
                 elif (isinstance(value, bool) or not isinstance(value, (int, float))
@@ -325,6 +329,8 @@ class EcutGcodeEngine:
                 value = (values[name] or 0) * factor
                 self._candidate_setting(candidate, base + i, float(value))
                 native[base + i] = value
+            candidate.axes[i].backlash_mm = values['backlash_mm']
+            candidate.axes[i].backlash_compensation_enabled = values['backlash_compensation_enabled']
         motors = self._validated_motors(payload.get('motors'))
         for key, value in ((11, candidate.junction_deviation_mm), (30, candidate.spindle.speed_rpm_max),
                            (31, candidate.spindle.speed_rpm_min)):
@@ -363,6 +369,7 @@ class EcutGcodeEngine:
 
     def calibration_move(self, axis, distance_mm, feed_mm_min, revision):
         self._require_tuning_idle(revision)
+        self._refuse_with_backlash()
         if type(axis) is not int or not 0 <= axis < 4:
             raise GcodeError(3, 'Calibration axis must be X, Y, Z or A')
         if (isinstance(distance_mm, bool) or not isinstance(distance_mm, (int, float))
