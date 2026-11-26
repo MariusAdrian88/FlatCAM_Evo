@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from appPlugins.Common.ecut import EcutError, State
+from appPlugins.Common.ecut.ecut_controller import _MoveAction
 from appPlugins.Common.ecut.ecut_gcode_engine import GcodeError
 from test_ecut_gcode_engine import engine_api
 
@@ -156,6 +157,26 @@ def test_backlash_offset_survives_an_idle_reset():
     assert api.position_mm[0] == pytest.approx(10.0) and api.homed_axes == (0,)
     api.config.axes[0].backlash_mm = 0.1
     api.push_config()
+    assert api.homed_axes == ()
+
+
+def test_a_stop_between_two_reversals_removes_the_reference():
+    # X20 -> X10 -> X20: the offsets of the group end where they started, but the stop falls in between
+    engine, api = reversed_x_engine()
+    engine.execute_line('G0 X20')
+    assert api.homed_axes == (0,)
+    path = api._plan_linear_actions(
+        [(1, _MoveAction(True, True, {0: 10.0}, None)), (2, _MoveAction(True, True, {0: 20.0}, None))],
+        tuple(api._acc.steps))
+    send = api._usb.send_motion
+
+    def send_then_fail(records):
+        send(records)
+        if api._acc.steps[0] < 15 * 25600:
+            raise EcutError('stop in the negative leg')
+    api._usb.send_motion = send_then_fail
+    with pytest.raises(EcutError, match='negative leg'):
+        api._run_action(path)
     assert api.homed_axes == ()
 
 

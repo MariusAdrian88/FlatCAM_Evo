@@ -58,6 +58,27 @@ def test_continuous_jog_accelerates_cruises_and_brakes_at_soft_limit(monkeypatch
     assert [int(op) for op, _ in api._usb.cmds] == [int(Cmd.END_STREAM)]
 
 
+def test_release_during_the_backlash_take_up_stops_the_records(monkeypatch):
+    api, clock = jog_api(monkeypatch, reverse=True)
+    api.config.axes[0].backlash_mm = 1.0
+    api.config.axes[0].backlash_compensation_enabled = True
+    api.config.unverified.backlash = True
+    api.push_config()
+    api.jog_start(0, 1, 120)            # to the limit at 0: the last direction is negative
+    sent = api._usb.send_motion
+    packets = []
+
+    def counting(records):
+        sent(records)
+        packets.append(len(records))
+        if len(packets) == 1:
+            api.jog_stop()              # release in the take-up of the reversal
+    api._usb.send_motion = counting
+    api.jog_start(0, 0, 120)
+    assert len(packets) == 1
+    assert api.state == State.IDLE and not api.jogging
+
+
 @pytest.mark.parametrize('release_at', [.15, .65])
 def test_release_brakes_without_sending_native_jog_or_hard_stop(monkeypatch, release_at):
     api, clock = jog_api(monkeypatch)

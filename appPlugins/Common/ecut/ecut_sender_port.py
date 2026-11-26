@@ -793,7 +793,10 @@ class EcutSenderPort:
                     else:
                         with self._condition:
                             prepared = self._prepare_request is not None or self._prepared_job is not None
-                        if prepared and (0x90 <= value <= 0x9e or value in (0xa0, 0xa1)):
+                            ready = self._prepared_ready
+                        # the feed override (0x90-0x94) reaches the engine once the prepared program runs
+                        if prepared and (0x90 <= value <= 0x9e or value in (0xa0, 0xa1)) and not (
+                                ready and 0x90 <= value <= 0x94):
                             self._emit(['[MSG:E-Cut real-time command refused (error 20)]'])
                             continue
                         replies = self._engine.realtime(value)
@@ -820,7 +823,7 @@ class EcutSenderPort:
         if self._api is None:
             self._api = EcutAPI()
             for axis in range(6):
-                self._api.configure_axis(axis, enabled=axis < 4)
+                self._api.configure_axis(axis, enabled=axis < 3)
             self._api.configure_spindle(SpindleControl.PWM, rpm_max=24000.0)
             self._api.config.spindle.pwm_period_counts = 1000
             # No output has a role by default: the operator assigns SPINDLE_CW/CCW to O0..O7.

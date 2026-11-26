@@ -64,7 +64,7 @@ _GROUPS = {
     92: 'nonmodal', 92.1: 'nonmodal',
 }
 # Machine profile fields added after the first release; older PC profiles lack them.
-_ADDED_HARDWARE_FIELDS = ('soft_limit_tolerance_mm', 'input_labels', 'output_labels')
+_ADDED_HARDWARE_FIELDS = ('soft_limit_tolerance_mm', 'input_labels', 'output_labels', 'unverified')
 # $12 above this turns small circles into polygons
 ARC_TOLERANCE_MAX_MM = 0.1
 _WORD = re.compile(r'([A-Z])([-+]?(?:\d+(?:\.\d*)?|\.\d+))')
@@ -300,7 +300,7 @@ class EcutGcodeEngine:
             raise GcodeError(3, 'Interpolation factor is read only')
         hardware = self._validated_hardware(payload.get('hardware', snapshot['hardware']), snapshot['hardware'])
         for key, value in hardware.items():
-            if key not in ('axes', 'inputs', 'outputs', 'homing', 'probe', 'spindle', 'safety',
+            if key not in ('axes', 'inputs', 'outputs', 'homing', 'probe', 'spindle', 'safety', 'unverified',
                            *_ADDED_HARDWARE_FIELDS) and value != snapshot['hardware'][key]:
                 raise GcodeError(3, f'Hardware field {key} is read only')
         axis_fields = {'enabled', 'direction', 'step_pin', 'dir_pin', 'step_port', 'dir_port',
@@ -700,9 +700,11 @@ class EcutGcodeEngine:
             if axes:
                 lines.append(self._linear(0, target, 0))
             destination = list(parser.position)
-            for i in (axes if axes else range(3)):
+            for i in (axes if axes else range(self._axis_count())):
                 destination[i] = stored[0 if non == 28 else 1][i]
-            lines.append(self._linear(0, destination, 0, target if axes else parser.position))
+            # the second leg starts where the first one ended
+            leg_start = target if axes else parser.position
+            lines.append(self._linear(0, destination, 0, leg_start, leg_start))
             parser.position = destination
         if axes and non in (28.1, 30.1, 92.1):
             raise GcodeError(31, 'Unused axis words')
@@ -729,7 +731,10 @@ class EcutGcodeEngine:
             else:
                 points = [target]
                 length = math.dist(parser.position, target)
-            feed = parser.feed if parser.feed_mode == 94 else length * parser.feed
+            # G94 feed is stored in mm/min of the linear part; a pure rotary move keeps degrees/min, so the
+            # G20 scale is taken off again. A mixed move keeps the inch feed of its linear part.
+            pure_rotary = bool(axes) and set(axes) == {3} and not arc
+            feed = (parser.feed / scale if pure_rotary else parser.feed) if parser.feed_mode == 94 else length * parser.feed
             # Path control: only the end of the programmed move gets the mode's corner limit. G61's 0 would
             # stop at every chord vertex of an arc, so interior vertices keep the junction setting, or the
             # G64 P tolerance, which bounds how far the chords may leave the programmed arc.
@@ -803,7 +808,7 @@ class EcutGcodeEngine:
         compile_program(lines, checkpoint=self.api._planning_checkpoint)
         return parser, wcs, stored, lines, coolant, ended
 
-    def _linear(self, motion, target, feed, start=None):
+    def _linear(self, motion, target, feed, start=None, base=None):
         if motion == 0 and self._rapid_override != 100:
             start = self._parser.position if start is None else start
             distance = [abs(target[i] - start[i]) for i in range(self._axis_count())]
@@ -813,8 +818,10 @@ class EcutGcodeEngine:
             feed = (min(limits) * 60 * self._rapid_override / 100 if limits else 1)
             feed /= max(.1, self.api.feed_override)
             motion = 1
-        coordinates = ' '.join(f'{name}{target[i]:.9f}' for i, name in enumerate('XYZA')
-                               if abs(target[i] - self._parser.position[i]) > 1e-9
+        # A word per axis that changes against the real start of this leg; a disabled A is never a target
+        base = self._parser.position if base is None else base
+        coordinates = ' '.join(f'{name}{target[i]:.9f}' for i, name in enumerate('XYZA'[:self._axis_count()])
+                               if abs(target[i] - base[i]) > 1e-9
                                or (i < 3 and self.api.config.axes[i].enabled))
         return f'G21 G90 G{motion} {coordinates}' + (f' F{feed:.9f}' if motion else '')
 
@@ -882,7 +889,7 @@ class EcutGcodeEngine:
             point[linear] += (target[linear] - start[linear]) * fraction
             point[3] += (target[3] - start[3]) * fraction
             points.append(target if n == count else point)
-        return points, math.hypot(abs(sweep) * radius, target[linear] - start[linear])
+        return points, math.hypot(abs(sweep) * radius, target[linear] - start[linear], target[3] - start[3])
 
     def path_deviation_mm(self, parser=None):
         """Corner deviation for `LinearMove.corner_deviation_mm` under the active path control mode.

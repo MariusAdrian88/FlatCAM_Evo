@@ -469,7 +469,7 @@ def test_default_profile_has_only_sh9001_axes_pwm_and_no_output_roles(monkeypatc
     monkeypatch.setattr(ecut_sender_port, 'EcutAPI', lambda: api)
     port = ecut_sender_port.EcutSenderPort()
     try:
-        assert [axis.enabled for axis in api.config.axes] == [True] * 4 + [False] * 2
+        assert [axis.enabled for axis in api.config.axes] == [True] * 3 + [False] * 3
         assert api.config.spindle.control == SpindleControl.PWM
         assert api.config.spindle.pwm_period_counts == 1000
         assert not api.config.outputs['SPINDLE_CW'].enabled
@@ -1476,3 +1476,19 @@ def test_io_tab_follows_a_saved_settings_config_pins_and_revision_together():
         page.deleteLater()
         if io._timer is not None:
             io._timer.stop()
+
+
+def test_feed_override_reaches_the_engine_while_a_prepared_program_runs(connection):
+    port, api, engine = connection
+    wait_for(lambda: not port._startup_pending and not port._active)
+    port.prepare_program(['G21', 'WAIT'])
+    port.write(b'G21\nWAIT\n')
+    wait_for(engine.entered.is_set)
+    port.write(bytes([0x91]))
+    wait_for(lambda: 0x91 in engine.controls)
+    port.write(bytes([0x95]))
+    lines = []
+    wait_for(lambda: lines.extend(port.readlines()) or any(x.startswith(b'[MSG:E-Cut real-time command refused') for x in lines))
+    assert 0x95 not in engine.controls
+
+

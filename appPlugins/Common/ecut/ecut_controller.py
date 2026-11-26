@@ -115,6 +115,8 @@ class _PlannedPathAction:
     # backlash (directions, offsets) before and after the path; a run checks the start state
     backlash_start: tuple = ((0,) * 6, (0,) * 6)
     backlash_end: tuple = ((0,) * 6, (0,) * 6)
+    # axes whose offset changes anywhere in the path (a reversal and its way back cancel at the end)
+    backlash_changed: frozenset = frozenset()
 
 @dataclass(frozen=True)
 class _ProbeAction(_MoveAction):
@@ -631,6 +633,8 @@ class EcutAPI:
         # (board minus logical); the offset lives and dies with the reference of its axis
         self._backlash_dir = [0] * 6
         self._backlash_offset = [0] * 6
+        self._takeup_held = None   # continuation check of the backlash take-up of a continuous jog
+        self._takeup_cut = False
         self._backlash_pending = set()   # axes whose offset changed in the path that is running
         self._last_probe_result = None
         self._fault_reason = None
@@ -1034,7 +1038,12 @@ class EcutAPI:
     def is_stationary(self, frame: Optional[EcutRxFrame]) -> bool:
         """Hold complete: the board is configured, idle, its FIFO is empty and it is at the target counts."""
         return (frame is not None and frame.configured and not frame.motion_busy
-                and frame.fifo_free == 12000 and list(frame.axis_positions) == self._acc.steps)
+                and frame.fifo_free == 12000 and self._at_target_counts(frame))
+
+    def _at_target_counts(self, frame: EcutRxFrame) -> bool:
+        """The measured counts of the enabled axes are the target; a disabled axis keeps any retained count."""
+        return all(measured == target for measured, target, axis
+                   in zip(frame.axis_positions, self._acc.steps, self._config.axes) if axis.enabled)
 
     def _finish_requested_stop(self) -> None:
         # nothing moves: _shutdown() does not forget the machine reference (_forget_reference_if_moving)
@@ -1594,7 +1603,16 @@ class EcutAPI:
             keep = should_continue is None or should_continue()
             return keep and not self._jog_cancel.is_set() and self._state == State.RUNNING
 
-        self._compensate_jog(axis, direction)
+        # the take-up of a reversal is part of the jog: it ends at the release too
+        self._takeup_held = lambda: (should_continue is None or should_continue()) and not self._jog_cancel.is_set()
+        self._takeup_cut = False
+        try:
+            self._compensate_jog(axis, direction)
+        finally:
+            self._takeup_held = None
+        if self._takeup_cut:
+            self._lose_backlash([axis])   # the take-up did not reach its end: the offset is not known
+            return
         # the soft bound of the jog runs on the logical position
         start = tuple(steps - offset for steps, offset in zip(self._acc.steps, self._backlash_offset))
         segments = iter_jog_segments(self._config, start, axis, direction, feed_mm_min, held)
@@ -2385,6 +2403,9 @@ class EcutAPI:
                 self._require_motion_allowed()
                 if in_run and not self._running:
                     return  # stop() during the run: do not send the rest of this move
+                if self._takeup_held is not None and not self._takeup_held():
+                    self._takeup_cut = True   # jog release during the backlash take-up
+                    break
                 chunk = records.take(per_packet)
                 if not chunk:
                     if records.done:
@@ -2474,7 +2495,8 @@ class EcutAPI:
                     or (tuple(self._backlash_dir), tuple(self._backlash_offset)) != action.backlash_start):
                 raise EcutError('Position changed since path preflight')
             self._feed_mm_min = action.feed_mm_min
-            changed = {i for i in range(6) if action.backlash_end[1][i] != action.backlash_start[1][i]}
+            changed = set(action.backlash_changed) | {
+                i for i in range(6) if action.backlash_end[1][i] != action.backlash_start[1][i]}
             self._backlash_dir[:], self._backlash_offset[:] = action.backlash_end
             if len(action.segments):
                 was_running = self._running
@@ -2522,8 +2544,14 @@ class EcutAPI:
                                       junction_deviation_mm=self._config.junction_deviation_mm,
                                       checkpoint=self._planning_checkpoint, start_offsets=tuple(offsets))
         target_steps = tuple(virtual.steps[i] + end.offsets[i] for i in range(6))
+        changed = set()
+        previous = tuple(offsets)
+        for move in moves:
+            if move.offset_counts is not None:
+                changed.update(i for i in range(6) if move.offset_counts[i] != previous[i])
+                previous = move.offset_counts
         return _PlannedPathAction(tuple(start_steps), target_steps, segments, actions[-1][1].feed_mm_min,
-                                  (tuple(dirs), tuple(offsets)), (end.dirs, end.offsets))
+                                  (tuple(dirs), tuple(offsets)), (end.dirs, end.offsets), frozenset(changed))
 
     def _plan_program_actions(self, actions):
         """Preflight known paths; probe-dependent moves use confirmed runtime counts."""
@@ -2669,7 +2697,7 @@ class EcutAPI:
                     return
             elif (frame and frame.configured and not frame.motion_busy
                     and frame.outputs == self._expected_outputs and frame.fifo_free == 12000
-                    and list(frame.axis_positions) == self._acc.steps):
+                    and self._at_target_counts(frame)):
                 return
             time.sleep(0.001)
         if self._stop_requested:

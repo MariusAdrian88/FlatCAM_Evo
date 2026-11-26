@@ -1,8 +1,10 @@
 """Host G-code grammar and machine-coordinate translation using the simulated board."""
 import importlib
+import json
 import math
 import struct
 import pytest
+from appPlugins.Common.ecut.ecut_config import EcutBoardConfig
 from appPlugins.Common.grbl.grbl_protocol import grbl_capabilities, parse_grbl_identity
 from test_ecut_spindle import pwm_api
 
@@ -111,6 +113,20 @@ def test_host_settings_and_offsets_persist(tmp_path):
     restored = module.EcutGcodeEngine(api, path)
     assert restored.settings[12] == .001
     assert any('[G54:2.000,' in line for line in restored.execute_line('$#'))
+
+def test_saved_machine_profile_without_unverified_section_loads_defaults(tmp_path):
+    module = importlib.import_module('appPlugins.Common.ecut.ecut_gcode_engine')
+    api = pwm_api()
+    path = tmp_path / 'host.json'
+    module.EcutGcodeEngine(api, path).execute_line('$12=.001')
+    data = json.loads(path.read_text())
+    assert 'unverified' in data['machine']
+    del data['machine']['unverified']
+    path.write_text(json.dumps(data))
+    restored = module.EcutGcodeEngine(api, path)
+    assert restored.settings[12] == .001
+    assert api.config.unverified.to_dict() == EcutBoardConfig().unverified.to_dict()
+
 
 @pytest.mark.parametrize('setting,value,field,expected', [
     (100, 120, 'steps_per_mm', 120),
@@ -768,3 +784,69 @@ def test_a_axis_move():
     assert '|MPos:10.000,0.000,0.000|' in engine.status_report()
     identity = parse_grbl_identity('\n'.join(engine.execute_line('$I')))
     assert grbl_capabilities(identity)['axes'] == 'XYZ'
+
+
+def a_engine():
+    engine, api = engine_api()
+    api.config.axes[3].enabled = True
+    api.config.axes[3].steps_per_mm = 100          # steps per degree
+    api.push_config()
+    return engine, api
+
+
+def _planned_moves(engine, text):
+    """(feed, [x, y, z, a] end points) of the G1 records of a block."""
+    import re
+    moves, point = [], [0.0] * 4
+    for line in engine._plan(text)[3]:
+        if ' G1 ' in line:
+            for name, value in re.findall(r'([XYZA])(-?[\d.]+)', line):
+                point['XYZA'.index(name)] = float(value)
+            moves.append((float(re.search(r'F(-?[\d.]+)', line).group(1)), list(point)))
+    return moves
+
+
+def test_stored_position_return_ends_at_stored_a_with_axes_and_bare():
+    engine, api = a_engine()
+    for stored, go in (('G28.1', 'G28'), ('G30.1', 'G30')):
+        engine.execute_line('G1 A0 F600')
+        engine.execute_line(stored)
+        engine.execute_line(go + ' A10')
+        assert api._usb.positions[3] == 0, go
+        engine.execute_line('G1 A7 F600')
+        engine.execute_line(go)
+        assert api._usb.positions[3] == 0, go
+
+
+@pytest.mark.parametrize('line, feed', [('G21 G1 A10 F60', 60), ('G20 G1 A10 F60', 60),
+                                        ('G20 G1 X1 A10 F60', 1524), ('G20 G1 X1 F60', 1524)])
+def test_inch_feed_scales_only_moves_with_a_linear_part(line, feed):
+    engine, api = a_engine()
+    assert _planned_moves(engine, line)[0][0] == pytest.approx(feed)
+
+
+def test_retained_a_count_does_not_block_xyz_moves_when_a_is_disabled():
+    engine, api = engine_api()
+    api._usb.positions[3] = 500
+    api.poll()
+    assert not api.config.axes[3].enabled
+    assert not any('A' in line for line in engine._plan('G1 X1 F600')[3])
+    assert engine.execute_line('G1 X1 F600') == ['ok']   # the wait for the target ignores the disabled A
+    assert api.position_mm[0] == pytest.approx(1, abs=.005)
+
+
+def test_inverse_time_arc_with_a_word_takes_the_requested_time():
+    engine, api = a_engine()
+    moves = _planned_moves(engine, 'G93 G3 X1 Y1 I0 J1 A90 F60')
+    previous, seconds = [0.0, 0.0, 0.0, 0.0], 0.0
+    for feed, point in moves:
+        seconds += math.dist(previous, point) / feed * 60
+        previous = point
+    assert seconds == pytest.approx(1.0, rel=.02)
+
+
+def test_unverified_switches_are_writable():
+    engine, api = engine_api()
+    payload = engine.get_motion_settings()
+    payload['hardware']['unverified']['homing'] = True
+    assert engine.save_motion_settings(payload)['hardware']['unverified']['homing'] is True
