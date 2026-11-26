@@ -87,6 +87,35 @@ class TestGotoLine(unittest.TestCase):
         last = self.edit.document().blockCount()
         self.assertEqual(self.goto(str(last)), (last, []))
 
+class TestHighlightFromEventLoop(unittest.TestCase):
+    """updateRequest comes while setPlainText is still changing the document: formatting there corrupted the heap."""
+
+    def test_set_plain_text_highlights_after_it_returned(self):
+        edit = CodeEdit(theme='default')
+        edit.resize(500, 300)
+        edit.show()
+        pump()
+        inside = []
+        state = {'in_set': False}
+        original = edit.highlighter.rehighlightBlock
+
+        def spy(block):
+            inside.append(state['in_set'])
+            return original(block)
+
+        edit.highlighter.rehighlightBlock = spy
+        state['in_set'] = True
+        edit.setPlainText(gcode(100))
+        state['in_set'] = False
+        self.assertNotIn(True, inside)
+        pump()
+        self.assertTrue(inside)
+        self.assertNotEqual(edit.document().findBlockByNumber(5).userState(), -1)
+        edit.close()
+        edit.deleteLater()
+        pump()
+
+
 class FindCase(unittest.TestCase):
 
     def setUp(self):

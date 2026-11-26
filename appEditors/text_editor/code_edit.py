@@ -80,7 +80,13 @@ class CodeEdit(FCPlainTextAreaExtended):
         self.highlighter = LazyHighlighter(self.document(), self.lexer, self.colors)
         self.highlighter.editor = self
 
-        self.updateRequest.connect(self.highlight_shown_blocks)
+        # updateRequest can come while the document is still inside a change (setPlainText, clear): the blocks
+        # are formatted from the event loop, never from inside that change
+        self._highlight_timer = QtCore.QTimer(self)
+        self._highlight_timer.setSingleShot(True)
+        self._highlight_timer.setInterval(0)
+        self._highlight_timer.timeout.connect(self.highlight_shown_blocks)
+        self.updateRequest.connect(self._schedule_highlight)
         self.updateRequest.connect(self._on_update_request)
         self.blockCountChanged.connect(self.adjust_gutter_width)
         self.cursorPositionChanged.connect(self.highlight)
@@ -297,10 +303,16 @@ class CodeEdit(FCPlainTextAreaExtended):
     # ------------------------------------------------------------------------------------------------------------
     # lazy highlighting
     # ------------------------------------------------------------------------------------------------------------
+    def _schedule_highlight(self, *args):
+        """Slot of updateRequest (scroll, resize, text changes): one highlight_shown_blocks() run from the event loop."""
+        if not self.highlighting_shown and not self._highlight_timer.isActive():
+            self._highlight_timer.start()
+
     def highlight_shown_blocks(self, *args):
         """
         Highlights the blocks shown that were never highlighted (their state is still -1).
-        Connected to the updateRequest signal: it is emitted on scroll, resize and text changes.
+        Runs at once: load(), resizeEvent() and the folding call it outside a document change; updateRequest
+        schedules it through _schedule_highlight().
         """
         if self.highlighting_shown:
             return
