@@ -22,6 +22,88 @@ G-code Sender IO and camera:
 - fixed: status reports that wait in the buffer before an output write update the MPG/SD owner and the IO page first, so an MPG owner blocks the write, and the grblHAL full report sets the buttons
 - fixed: a replaced IO page (new project with the port open) drops its queued requests; an unread grblHAL $10 shows the inputs gray, not Off
 
+G-code Sender safety:
+
+- added: action rules decide which operator commands run in each machine state (not connected, reset needed, home needed, alarm, operation, tool change pause, stream, held, idle); Start, Hold, Resume, Stop, E-Stop, Reset, Unlock, Home, Jog, Zero, Spindle, the console, probing and the configuration check their rule first and write nothing when the rule refuses them; M5 is allowed in recovery and in Alarm
+- added: the buttons follow the same rules after each status report, on connect and disconnect, at the end of a stream and when a port operation starts or ends; during a recovery the status shows "Reset needed" or "Home needed"; a disconnect clears the status text, the progress and the override values
+- added: an E-Stop button in the main status bar shows while a Sender port is connected, also with the dock closed; the global shortcut "Sender: E-Stop" (default Pause) works also when a text field has the focus and in a detached plot or camera window
+- added: an aborted stream (error, alarm, timeout, port error or unexpected reset) shows a red row with the text of the error or alarm code (GRBL 1.1 and grblHAL) and a "Reset (spindle off)" button; status reports do not hide the row; $X clears it after its result; a late $X result of an older Stop or reset, of an earlier connection or for a deleted status strip is dropped
+- added: the Sender takes the RX buffer size and the line limit from the controller (80 characters for GRBL, 257 for grblHAL); a line that is too long is refused before any write, also after the arc split and in the restart preamble
+- added: after a lost port the Sender shows "Connection lost." and closes the port once; the option "Reconnect automatically" (default off) tries to connect again every 2 s until it works or the user presses "Cancel reconnect"; a reconnect never starts or resumes a job and shows "Reconnected. The job was stopped." when an operation was running
+- added: the height map probe is refused before any motion when the probe pin is active or the work Z is at or below the probe depth
+- added: a "CHECK" badge in the job row and the text "Start (check)" show the check mode; a Check job ends with an error summary
+- added: the rapid override is refused while an E-Cut program streams; after an E-Cut connect with no readable E-stop or limit input, the Sender shows one warning
+- changed: Stop sends a feed hold, waits until the hold is complete (Idle, Hold:0, Door:0 or Alarm, max 5 s) and then resets; a stuck operation gets the reset after 2 s; the 3 Stop buttons have the same meaning
+- changed: a Run, Jog, Home, Hold, Door or Tool status report counts as stream progress, a Check report only shows that the link works; when no reply comes for 5 s while lines are in flight, the stream ends with a timeout; a lost "ok" in Check mode or while a host M6 waits also ends in a timeout
+- changed: Start no longer waits on the GUI thread: the job preparation, the 3D path and the levelled build run in workers, the serial and E-Cut connect also run in a worker, and the progress and console lines show with a 100 ms timer; the E-Cut port closes in a worker and "Port disconnected." shows after a good close
+- fixed: Zero and Home change the coordinates, the camera and the tool change sessions only after the port is reserved; a failed Start of a stream with a too long line leaves no dirty state and no recovery latch
+- fixed: Start no longer moves the dock to the Program page
+- fixed: after a project reset, a kept Sender no longer writes to deleted dock widgets, and the status poll stops until the next run; Stop, E-Stop, Hold and the feed override still run
+
+G-code Sender operator features:
+
+- added: the DRO shows the work and machine values of each axis with the state, the WCS and the units; it is an overlay at the top left of the Plot 3D canvas (gray when the reports stop) and, in compact form, in the status strip; "not homed" shows when $22 enables homing and no home cycle ran in this session
+- added: a G54-G59 selector sends the code and $G; the active WCS shows in the status strip and in the overlay; a click on a work value (in Idle) asks for a value and sends G10 L20 P<n>
+- added: the jog block has a row of 4 step presets (mm, set in Preferences) with the keys ] [ 1-4, and 4 diagonal buttons that send one `$J=` move with X and Y; the jog step, the jog feed and the travel Z are stored in mm, and in inch mode the fields show the converted value
+- added: the context "G-code Sender" in the shortcuts: arrows jog X/Y, PgUp/PgDown jog Z, Space holds and resumes, Esc stops, Tab collapses the jog block; Start, Home, Zero and the console focus have no default key; the keys work in the Sender dock and in the Sender plugin tab when no text field has the focus, and a held jog key runs the continuous jog until its release or until the window loses the focus; all keys can be changed in Preferences > Shortcuts
+- added: in the console, the Up and Down keys show the sent commands (100 entries, no repeat of the last)
+- added: the Job tab has "Optional stop (M1)" (off removes the M1 word, on changes M1 to M0) and "Block delete (/)" (on drops the / lines, off removes the /); compact G-code (N10M1, G1X2M01, T2M6) follows these options; the source line numbers stay
+- added: the Start dialog shows the estimated job time, a label under the progress bar shows the elapsed time and the estimated time left (with the feed override), and the end message gives the elapsed time; the estimate has no acceleration model, shows "≈" and is not made for a job with an A word; it counts a full circle (G2 I.. J.. with no axis word), follows a G20/G21 change of the modal feed, and in G93 a G1/G2/G3 block takes 60 / F seconds
+- added: the dock page "Buttons" holds up to 24 user buttons with a name, a tooltip and G-code or $ lines; Add, Edit, Delete, Move left/right and JSON import and export; a button runs only when the action rules allow it and stops at the first error; with an active machine profile, the lines are checked against the profile in the live modal state of the controller, and a change of position, offsets or modes before the first write refuses the button
+- added: "Single block" on the Job tab: the stream writes a line only after the operator presses "Next block" (header button, no default key); after each block the stream sends `G4 P0` and waits for its ok, so "Next block" comes only after the motion ended; the wait is not a stall; in Hold or Door only Resume, Stop, E-Stop and the overrides work; it does not apply in Check mode and is not available for an E-Cut port
+- added: the Configuration page shows the description and the units of each GRBL 1.1 and grblHAL setting; "Save to file" writes the confirmed values as $n=v lines; "Load from file" fills only the Pending column, sends nothing before Apply and lists the settings that the controller does not have
+- added: the Program page has Edit, Apply and Revert; Apply keeps the text for the next Start ("Edited program"); Start, the levelled Start, the restart, the Resume checks, the 3D preview and "Save levelled G-code" use the edited text; the CNCJob object does not change; a new G-code of the object, another selected object or Revert drops the edit; Edit works only in Idle with no operation; a click in edit mode places the cursor
+- added: a levelled Start with points outside the height map asks "<n> points of the job are outside the height map. Start?" (No is the default); the simulation, the 3D preview and "Save levelled G-code" keep only the warning
+- added: the Probing tab has "Tool diameter" and "Set zero from result": after an edge probe the probed surface becomes the work zero of its axis (the tool radius is taken into account), and after a centre probe the centre becomes X0 Y0
+- added: the camera registration asks with a Yes/No box before it applies a fit with an error above the tolerance; it shows the maximum error and the tolerance; No keeps the registration unchanged
+- changed: the program page loads in blocks of 20 000 lines
+- fixed: a change of $10 through the Configuration page reads the pin report mode again
+- fixed: a Flood or Mist click with no fresh status writes nothing, and a spindle request stays pending until the readback matches, so "not confirmed" shows after the timeout
+
+G-code Sender tool change and restart:
+
+- added: the option "M6 on GRBL" (Send, Skip, Pause; default Pause) for a controller with no manual or automatic tool change; it does not apply to an E-Cut port, and grblHAL tool change and ATC keep their flow; Skip removes the M6 word and Send writes the M6 line; Skip also applies to a levelled job
+- added: with Pause, the stream does not write the M6 line: it waits until the machine is Idle, writes M5 and ends cleanly; the header shows "Tool change: T<n>. Change the tool, set Z, then press Resume."; jog, probing, the console and the Tool change tab work; Stop, Reset, E-Stop and a disconnect end the pause
+- added: Resume after the pause reads $#, then writes a restart preamble from the M6 line (the program units and modes, M5/M9, lift to the travel Z, the XY before the M6, the spindle and coolant of the program with the dwell, the plunge with the program feed) and then the rest of the M6 block; the progress numbers go on, and a next M6 pauses again
+- added: at Start, a job with an M6 line reads $$, $G, $# and a status report; Start is refused, with the reason and the line number, when G92 is active or a tool change of the job cannot be resumed (a probe or G10 before it, a mode that the controller does not report, G93)
+- added: with a machine profile, the preamble and the rest of the job are checked from the live position, offsets and tool length offset; Resume reads the complete controller setup again, and a setup change after the approval refuses the stream; a reject or No writes nothing and the pause stays
+- added: Resume of a levelled job is refused when the height map is no longer valid or its frame changed (Zero, a new map, another WCS or a changed X/Y work offset); a change of the Z offset ("set Z") is allowed
+- added: the restart from a line waits for the new preference "Spindle dwell" (3 s) after the spindle start; the restart is refused when the program moved A before the line and the A position is not known
+
+G-code Sender A axis:
+
+- added: the Sender accepts a controller with 4 axes (XYZA): the status report and the $# offsets take 3 or 4 values, and the A value (degrees) is never scaled in inch mode
+- added: with an XYZA controller, the jog block shows A+ / A- buttons, an A step (degrees) with 4 presets ("1, 5, 15, 90") and an A feed (degrees/min); the jog sends `$J=G91 G2x A<step> F<feed>` and never converts A for inch; the zero row shows "Zero A", and Zero All also zeros A; the keys "Jog A+" (.) and "Jog A-" (,) are new
+- added: the DRO shows A with 3 decimals and the degree sign; the typed work position works for A; the A widgets are hidden for an XYZ controller, on disconnect and in the camera mode
+- added: the restart from a line puts the A position into the positioning move; a levelled job with A words is refused before any write; the machine profile check gives the warning "axis A is not checked" for an A word; Split Arcs refuses an arc with an A axis move and gives the reason
+- added: with axis A enabled, E-Cut accepts the A word (degrees) in G0/G1, as the linear word of G2/G3, and in G92, G10 L2/L20 and G53; the soft limit and the maximum speed of A apply; the positions, the work offsets and the stored positions have 4 values; the status report, `$#` and the G28/G30/G92 rows give 4 values; the `$I` answer gives `[AXS:4:XYZA]` or `[AXS:3:XYZ]`; a settings file of the 3-axis format still loads (A = 0)
+- added: a pure A move keeps its feed in degrees/min in G20 and in G21; G28/G30 return A to the stored angle; an inverse-time (G93) arc with an A word takes the requested time
+- added: with axis A disabled, the A word is refused as before (error 20), and a retained board count of A does not block XYZ moves and jogs; a new or default E-Cut config has axis A disabled
+
+G-code Sender web pendant:
+
+- added: the Connect tab has a "Web pendant" checkbox, the address with the token (read only) and a Copy button; the Sender serves a page on 127.0.0.1:8080 (host and port are set in Preferences) and every request needs the token; a port in use unchecks the box with a message; the server stops when the box is cleared, the plugin closes or the app quits
+- added: the page shows the state, the positions, the progress and the overrides, and has Hold, Resume, Stop, E-Stop and feed override (+10 / -10 / 100 %) buttons; it has no Start and sends no G-code text; the jog pad, Zero and Home show only with the preference "Allow jog, zero and home" (off by default) and only when the action rules allow motion; a request runs only when the action rules allow it at that moment
+
+E-Cut controller:
+
+- added: the "Not verified" switches (homing, probing, backlash, MPG) in the E-Cut hardware dialog; all are off by default, sensor cycles refuse with the name of the switch, and a board profile with a value that is not true or false in this section is refused with the field name; a profile without this section loads with the defaults; the switches can be saved
+- added: with the switch "homing" on, $H / $HX / $HY / $HZ run the sensor homing cycle, and the "Home (sensor)" button of the motion dialog sends $H through the Sender home path
+- added: with the switch "probing" on, G38.2 and G31 run the sensor probe (1 X, Y or Z word and a feed; G90/G91, G20 and the soft limits apply as for G1); on contact the controller answers `[PRB:x,y,z:1]` and then `ok`, with no contact it answers ALARM:5; `$#` gives the last PRB record and `$I` reports PROBE or NOPROBE; the retract never passes the probe start, and a switch that stays closed there fails the probe with ALARM:5; probing is refused in a jog and in a prepared program, and the Sender tool change measurement works with an E-Cut that reports the probe option
+- added: with the switch "backlash" on, the motion dialog has per axis "Backlash (mm)" (0..1.0) and "Compensate backlash"; a reversal adds a compensation move, and the reported position is the logical one; an idle reset keeps the offset, homing, referencing or a reset in motion clears it, and a stop between 2 reversals clears the reference of that axis; the calibration move is refused while backlash compensation is on; releasing a continuous jog also stops the take-up records
+- added: with the switch "MPG" on, an enabled MPG configuration is sent to the board instead of being refused; there is no host-side handwheel jog
+- added: the status report has Pn: (X Y Z A limits, P probe, E E-stop), and each fault gives one ALARM line (1 limit, 10 E-stop, 9 homing failure) with the reason
+- changed: a feed override (10 % to 100 %) during a program ramps the speed both ways inside the deceleration and acceleration limits; a request above 100 % keeps 100 % and answers a [MSG:] line; each program starts at 100 %, and the end of a program resets it
+- changed: a corner above the chord tolerance caps only the speed of its own junction; before, the whole path speed was scaled
+- fixed: a reset during motion forgets the machine reference; Stop brakes along the path while records stream, and the reference stays when the board is stationary before the 5 s deadline, else an abrupt stop clears it
+- fixed: a program preparation timeout cancels the planner, so the next preparation is accepted; the end-of-program drain wait adds the time that the board still needs for its records
+- fixed: a dwell ends on a requested stop and uses a monotonic deadline in every non-fault state
+- fixed: the feed override 0x90-0x94 reaches the engine while a prepared program runs
+
+Text editor:
+
+- fixed: the syntax highlight of the shown lines runs after a document change has ended; before, it could format lines inside the change and crash the program (heap corruption) when the Sender program page loaded a program
+
 25.11.2026
 
 Machine Profiles:
