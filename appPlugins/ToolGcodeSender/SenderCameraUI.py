@@ -62,6 +62,57 @@ if '_' not in builtins.__dict__:
     _ = gettext.gettext
 
 
+class CurrentPageTabWidget(QtWidgets.QTabWidget):
+    """A tab widget as tall as the minimum of its current page, not of its tallest page: a short page leaves no
+    empty space under it and a taller hidden page adds no scroll range."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.currentChanged.connect(lambda index: self.updateGeometry())
+
+    def event(self, event):
+        # QTabWidget does not pass the layout change of a page up: the parent layouts keep a stale size hint
+        if event.type() == QtCore.QEvent.Type.LayoutRequest:
+            self.updateGeometry()
+        return super().event(event)
+
+    def tabInserted(self, index):
+        super().tabInserted(index)
+        self.updateGeometry()
+
+    def tabRemoved(self, index):
+        super().tabRemoved(index)
+        self.updateGeometry()
+
+    def _chrome(self):
+        """The tab bar and frame height around the pages."""
+        tallest = max(self.widget(i).minimumSizeHint().height() for i in range(self.count()))
+        return super().minimumSizeHint().height() - tallest
+
+    def minimumSizeHint(self):
+        hint = super().minimumSizeHint()
+        page = self.currentWidget()
+        if page is not None:
+            hint.setHeight(self._chrome() + page.minimumSizeHint().height())
+        return hint
+
+    def hasHeightForWidth(self):
+        page = self.currentWidget()
+        return page is not None and page.hasHeightForWidth()
+
+    def heightForWidth(self, width):
+        # the default takes the tallest page: a wrapped label of a hidden page must not size this one
+        page = self.currentWidget()
+        if page is None or not page.hasHeightForWidth():
+            return super().heightForWidth(width)
+        return self._chrome() + max(page.minimumSizeHint().height(), page.heightForWidth(width))
+
+    def sizeHint(self):
+        hint = super().sizeHint()
+        hint.setHeight(self.minimumSizeHint().height())
+        return hint
+
+
 class _CrosshairOverlay(QtWidgets.QWidget):
     """The fixed center mark over the preview; it never receives mouse events."""
 
@@ -87,6 +138,7 @@ class CameraView(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumHeight(220)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
         self.scene = QtWidgets.QGraphicsScene(self)
         self.view = QtWidgets.QGraphicsView(self.scene, self)
         self.view.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
@@ -243,7 +295,10 @@ class SenderCameraUI(QtWidgets.QWidget):
         self.preview_button.setToolTip(_("Start or stop the live camera image."))
         preview_layout.addWidget(self.preview_button)
 
-        orientation_row = QtWidgets.QHBoxLayout()
+        # shown only while the preview runs (see _sync_orientation_visibility)
+        self.orientation_widget = QtWidgets.QWidget()
+        orientation_row = QtWidgets.QHBoxLayout(self.orientation_widget)
+        orientation_row.setContentsMargins(0, 0, 0, 0)
         orientation_row.addWidget(FCLabel('%s:' % _("Orientation")))
         self.orientation_combo = FCComboBox2()
         self.orientation_combo.addItems(['0°', '90°', '180°', '270°'])
@@ -253,7 +308,8 @@ class SenderCameraUI(QtWidgets.QWidget):
         self.mirror_cb = FCCheckBox(_("Mirror"))
         self.mirror_cb.setToolTip(_("Mirror the preview horizontally. A change needs revalidation."))
         orientation_row.addWidget(self.mirror_cb)
-        preview_layout.addLayout(orientation_row)
+        preview_layout.addWidget(self.orientation_widget)
+        self.orientation_widget.setVisible(False)
 
         self.view = self._provided_view if self._provided_view is not None else CameraView()
         if not self._external_view:
@@ -594,7 +650,12 @@ class SenderCameraUI(QtWidgets.QWidget):
             self.preview_button.setChecked(True)
             self.preview_button.blockSignals(False)
         self.status_label.setText(_("Waiting for the first camera image..."))
+        self._sync_orientation_visibility()
         return True
+
+    def _sync_orientation_visibility(self):
+        """Orientation and Mirror are shown only while the camera runs."""
+        self.orientation_widget.setVisible(self.camera is not None)
 
     def stop_preview(self):
         if self.preview_button.isChecked():
@@ -630,6 +691,7 @@ class SenderCameraUI(QtWidgets.QWidget):
             self.view.set_orientation(self.rotation(), self.mirror())
         except RuntimeError:
             pass  # the view was deleted while the application closes
+        self._sync_orientation_visibility()
         self._update_buttons()
         self.preview_available_sig.emit(False)
 

@@ -18,7 +18,6 @@ if '_' not in builtins.__dict__:
     _ = gettext.gettext
 
 WIDTH_KEY = 'global_camera_pane_width'
-DEFAULT_WIDTH = 400
 PLOT_TAB_NAME = 'plotarea_tab'
 
 
@@ -28,19 +27,18 @@ class CameraPane(QtCore.QObject):
     A QSplitter (plot left, camera right) exists only while the pane is open and not detached. The pane is an
     FCDetachableTab with one "Camera" tab: dragged out, it gets its own window and the splitter goes away; when the
     window closes or the tab is dropped back, a new splitter is made. If the plot tab is detached, the splitter is made
-    in the window of the plot. Closing the pane gives the camera view back to the dock page and stops the camera."""
+    in the window of the plot. Closing the pane keeps the camera view (hidden, never in the dock) and stops the camera."""
 
-    def __init__(self, app, view, dock_layout, stop_camera):
+    def __init__(self, app, view, stop_camera):
         """
         :param app: the application; app.ui has plot_tab_area, plot_tab and right_lay
-        :param view: the camera view widget (a child of the dock page)
-        :param dock_layout: the layout of the dock page that holds the view (the view goes back at index 1)
+        :param view: the camera view widget; it is shown only in the pane, never in the dock
         :param stop_camera: called when the pane is closed: the camera runs only while the pane is shown
         """
         super().__init__()
         self.app = app
         self.view = view
-        self.dock_layout = dock_layout
+        self.holder = view.parentWidget()   # keeps the hidden view while the pane is closed
         self.stop_camera = stop_camera
         self.pane = None
         self.page = None
@@ -71,7 +69,9 @@ class CameraPane(QtCore.QObject):
         page_layout.setContentsMargins(0, 0, 0, 0)
         page_layout.addWidget(self.view, 1)
         self.view.show()
+        self.view.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
         self.pane = FCDetachableTab(protect=False)
+        self.pane.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
         self.pane.callback_on_close = self.close
         self.pane.addTab(self.page, _("Camera"))
         self.pane.tab_detached.connect(self._on_detached)
@@ -96,7 +96,7 @@ class CameraPane(QtCore.QObject):
             self.pane.show()
 
     def close(self):
-        """Close the pane: the plot goes back, the view goes back to the dock page, the camera stops."""
+        """Close the pane: the plot goes back, the view is kept hidden, the camera stops."""
         if self.pane is None or self._closing:
             return
         self._closing = True
@@ -121,8 +121,9 @@ class CameraPane(QtCore.QObject):
                 except (TypeError, RuntimeError):
                     pass
             self._connected = False
-        self.dock_layout.insertWidget(1, self.view, 1)
-        self.view.show()
+        # the view never goes back to the dock: the pane keeps it, hidden
+        self.view.hide()
+        self.view.setParent(self.holder)
         self.pane = None
         self.page = None
         pane.hide()
@@ -173,8 +174,13 @@ class CameraPane(QtCore.QObject):
         layout.insertWidget(index, self.splitter, stretch)
         self._place = (target, layout, index, stretch)
         self.pane.show()
-        width = min(width, max(size.width() - self.splitter.handleWidth() - 1, 1))
-        self.splitter.setSizes([max(size.width() - self.splitter.handleWidth() - width, 1), width])
+        room = max(size.width() - self.splitter.handleWidth(), 2)
+        if width <= 0:
+            width = room // 2
+        width = min(width, room - 1)
+        self.splitter.setSizes([max(room - width, 1), width])
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 1)
         self.splitter.splitterMoved.connect(self._remember_width)
         return True
 
@@ -196,11 +202,12 @@ class CameraPane(QtCore.QObject):
         splitter.deleteLater()
 
     def _saved_width(self):
+        """The width the user gave the pane; 0 when there is none yet (the first open takes a share of the plot)."""
         try:
-            width = int(self.app.options.get(WIDTH_KEY, DEFAULT_WIDTH))
+            width = int(self.app.options.get(WIDTH_KEY, 0))
         except (TypeError, ValueError):
-            width = DEFAULT_WIDTH
-        return width if width > 0 else DEFAULT_WIDTH
+            return 0
+        return max(width, 0)
 
     def _remember_width(self, *_args):
         if self.splitter is None:

@@ -439,6 +439,33 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.show_console_if_wanted()
 
         self.app.ui.notebook.setTabText(2, self.pluginName)
+        self._fit_notebook_width()
+        # the layout is polished when the panel is first shown: fit again once the event loop settled
+        QtCore.QTimer.singleShot(0, self._fit_notebook_width)
+
+    MAX_PANEL_WIDTH = 720
+
+    def _fit_notebook_width(self):
+        """Open the notebook wide enough for the widgets of the panel (the splitter keeps its width only when it is
+        already wide enough; never wider than MAX_PANEL_WIDTH or the half of the window)."""
+        try:
+            ui = self.app.ui
+            content = ui.plugin_scroll_area.widget()
+            if content is None:
+                return
+            sizes = ui.splitter.sizes()
+            total = int(sum(sizes))
+            if len(sizes) != 2 or total <= 0:
+                return
+            scrollbar = int(ui.plugin_scroll_area.verticalScrollBar().sizeHint().width())
+            hint = max(int(content.sizeHint().width()), int(content.minimumSizeHint().width()))
+        except RuntimeError:
+            return  # the Qt widgets were deleted (the tool was closed before the timer fired)
+        # + the margins of the plugin tab and the notebook frame
+        wanted = hint + scrollbar + 16
+        wanted = min(wanted, self.MAX_PANEL_WIDTH, total // 2)
+        if sizes[0] < wanted:
+            ui.splitter.setSizes([wanted, total - wanted])
 
     # The camera mode (public workflow: Connect, Camera and manual positioning only) as data.
     # ui widgets that are hidden (dotted names go through nested attributes). The state strip, Unlock, the status
@@ -466,6 +493,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 for part in name.split('.'):
                     widget = getattr(widget, part)
                 widget.hide()
+            # Home is then alone in the zero frame: no frame around a single button
+            ui.zero_axs_wdg.setStyleSheet("")
+            ui.zero_axs_wdg.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
             for name in self.CAMERA_MODE_HIDDEN_TABS:
                 ui.al_toolbar.setTabVisible(ui.al_toolbar.indexOf(getattr(ui, name)), False)
         for key in self.CAMERA_MODE_HIDDEN_PAGES:
@@ -706,6 +736,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui = GcodeSenderUI(layout=self.layout, app=self.app)
         self.ui.estop_button = QtWidgets.QPushButton(_('E-Stop'), self)
         self.ui.estop_button.setMinimumHeight(56)
+        self.ui.estop_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed)
         self.ui.estop_button.setStyleSheet(
             'QPushButton {background-color: #800020; color: white; font-size: 20px; font-weight: bold;}')
         self.ui.estop_button.setToolTip(_(
@@ -727,7 +758,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.connect_signals_at_init()
         # the camera view moves into a pane beside the plot while the preview runs; the dock keeps the controls
         self.camera_pane = CameraPane(
-            self.app, self.ui.camera_view, self.ui.camera_page_layout, self.ui.camera_widget.stop_preview)
+            self.app, self.ui.camera_view, self.ui.camera_widget.stop_preview)
         self.ui.camera_widget.preview_button.toggled.connect(self._on_camera_preview_toggled)
         # the job buttons live in the dock header: mount it now, so the widgets always have a parent
         self._console()
@@ -749,7 +780,6 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 footer = self._estop_layout = QtWidgets.QHBoxLayout()
                 footer.setContentsMargins(0, 0, 0, 0)
                 footer.setSpacing(0)
-                footer.addStretch(1)
                 layout.addLayout(footer)
             footer.insertWidget(0, button, 1)
             button.show()
@@ -1446,6 +1476,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         :return: the status of the transaction ('ok', 'error', 'timeout', 'cancelled' or 'port_error').
         """
+        self.sender_io.pin_report = None        # not known until this read succeeds
         text, status = self._grbl_transact(op, '$$', timeout=5.0, echo=False)
         value = parse_grbl_setting(text, 13) if status == 'ok' else None
         self._grbl_report_inches = (value == 1.0) if value in (0.0, 1.0) else None
@@ -1737,7 +1768,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             try:
                 dialog.load_settings(result)
                 self._ecut_motion_revision = result['revision']
-                self.sender_io.revision = result['revision']
+                self.sender_io.on_ecut_config_saved(port, result['revision'])
             except (ValueError, TypeError, KeyError, OverflowError) as failure:
                 dialog.show_error(str(failure))
             dialog.set_busy(False)

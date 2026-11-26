@@ -1342,3 +1342,68 @@ def test_io_tab_reads_only_the_cached_state_and_writes_through_the_port_worker()
         page.deleteLater()
         if io._timer is not None:
             io._timer.stop()
+
+
+def test_io_tab_follows_a_saved_settings_config_pins_and_revision_together():
+    import os
+    import sys
+    from unittest.mock import MagicMock
+    from PyQt6 import QtWidgets
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from appPlugins.Common.ecut.ecut_controller import effective_inputs, effective_outputs
+    from appPlugins.Common.ecut.ecut_config import InputSignal, OutputSignal, SignalPolarity
+    from tests.grbl_stream_helpers import make_stream_tool
+    from tests.test_levelling_audit import FakeGrbl
+    QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    cfg = _io_config()
+
+    class Port(FakeGrbl):
+        effective_inputs = staticmethod(lambda: effective_inputs(cfg))
+        effective_outputs = staticmethod(lambda: effective_outputs(cfg))
+        save_motion_settings = calibration_move = lambda self, *args: None
+
+        def __init__(self):
+            super().__init__()
+            self.calls = []
+            self.io = {'fresh': True, 'configured': True, 'connected': True, 'busy': False, 'inputs': 0, 'outputs': 0}
+
+        def get_motion_settings(self):
+            return {'revision': 7}
+
+        def get_io_state(self):
+            return dict(self.io)
+
+        def set_manual_output(self, pin, active, revision):
+            self.calls.append(('set', pin, active, revision))
+            return dict(self.io)
+
+    port = Port()
+    tool = make_stream_tool(port)
+    tool._status_poll_timer = MagicMock()
+    tool.io_discovery_sig = MagicMock()
+    tool.ecut_motion_result_sig.emit.side_effect = tool._on_ecut_motion_result
+    io = tool.sender_io
+    io._page_shown = lambda: True
+    page = io.new_page()
+    io.discover(port)
+    try:
+        io.revision = 7
+        assert 'O1' in page.outputs['FLOOD'].text()
+        cfg.outputs['FLOOD'] = OutputSignal(True, 6, False)
+        cfg.outputs['MIST'] = OutputSignal(True, 6, False)
+        cfg.inputs['PROBE'] = InputSignal(True, 8, SignalPolarity.ACTIVE_HIGH, 0)
+        port.io['inputs'] = 1 << 8
+        dialog = MagicMock()
+        tool._ecut_motion_dialog = dialog
+        tool._refresh_ecut_motion_io = MagicMock()
+        tool._on_ecut_motion_result((port, dialog, 'save', {'revision': 8}, None))
+        assert 'O6' in page.outputs['FLOOD'].text()
+        io.tick()
+        assert page.inputs['PROBE'].state is True              # the new pin, not the old one
+        io.on_output_requested('FLOOD', True)
+        assert port.calls[-1] == ('set', 6, True, 8)
+    finally:
+        page.deleteLater()
+        if io._timer is not None:
+            io._timer.stop()

@@ -16,6 +16,11 @@ G-code Sender IO and camera:
 - added: the Sender asks $I+ and then $I, reads the OPT, SIGNALS and AUX IO lines, and reads $10 to know if grblHAL reports its pins
 - changed: the dock tabs go to a second row when they do not fit on one row (max 2 rows); at the minimum width the labels are shortened, the tooltip has the full text
 - changed: the camera image opens in a pane at the right of the plot (a splitter that exists only while the camera runs); the dock keeps Calibration and Board registration; the pane width is saved; the Camera tab of the pane can be dragged out to its own window and comes back when the window closes; the camera stops when the pane closes
+- changed: the whole Sender dock scrolls as one part, the tabs take the height of the page that shows (no empty space under it), and the camera image is never in the dock; Orientation and Mirror show only while the camera runs
+- changed: the "Machine panel" checkbox is on the title row; the left E-Stop button fills the panel width; the jog block has one frame; Home alone has no frame; the left panel opens wide enough for its widgets
+- fixed: after an E-Cut settings save, the IO tab uses the new pins together with the new revision; before, an output click could write the old pin
+- fixed: status reports that wait in the buffer before an output write update the MPG/SD owner and the IO page first, so an MPG owner blocks the write, and the grblHAL full report sets the buttons
+- fixed: a replaced IO page (new project with the port open) drops its queued requests; an unread grblHAL $10 shows the inputs gray, not Off
 
 25.11.2026
 

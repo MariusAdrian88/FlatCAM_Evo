@@ -724,13 +724,54 @@ class TestDockedJogPage(unittest.TestCase):
         self.assertTrue(self.dock.isVisible())
         self.assertTrue(self.console().jog_block_visible())
 
-    def test_camera_page_is_current_with_the_jog_block_and_the_view(self):
+    def test_camera_page_is_current_with_the_jog_block_and_without_the_view(self):
         console = self.console()
         ui = self.tool.ui
-        self.assertIs(console.tabs.currentWidget(), ui.camera_page)
-        self.assertTrue(ui.camera_view.isVisible())
+        self.assertTrue(console.is_page_current(ui.camera_page))
         self.assertTrue(ui.jog_wdg.isVisible())
-        self.assertTrue(console.isAncestorOf(ui.camera_view))
+        self.assertTrue(ui.camera_widget.preview_button.isVisible())
+        # the camera image is never in the dock: it lives in the camera pane only
+        self.assertFalse(ui.camera_view.isVisible())
+        self.assertEqual(ui.camera_page_layout.indexOf(ui.camera_view), -1)
+
+    def test_a_short_dock_scrolls_as_a_whole_and_a_tall_dock_grows_the_text(self):
+        console = self.console()
+        console.show_page('console')
+        bar = console.scroll_area.verticalScrollBar()
+        self.window.resize(900, 300)
+        _qapp.processEvents()
+        self.assertGreater(bar.maximum(), 0)        # header, jog block and tabs scroll together
+        self.window.resize(900, 1600)
+        _qapp.processEvents()
+        self.assertEqual(bar.maximum(), 0)
+        tall = console.log_view.height()
+        self.window.resize(900, 1900)
+        _qapp.processEvents()
+        self.assertGreater(console.log_view.height(), tall)     # the text fills the free height
+
+    def test_a_normal_dock_height_has_no_scroll_bar_and_no_empty_space(self):
+        console = self.console()
+        bar = console.scroll_area.verticalScrollBar()
+        for key in console.PAGE_ORDER:
+            if not console.tabs.isTabVisible(console.tab_index(key)):
+                continue
+            console.show_page(key)
+            self.window.resize(1200, 900)
+            _qapp.processEvents()
+            viewport = console.scroll_area.viewport()
+            self.assertEqual(bar.maximum(), 0, key)
+            bottom = console.tabs.mapTo(viewport, QtCore.QPoint(0, console.tabs.height())).y()
+            self.assertLessEqual(viewport.height() - bottom, 6, key)
+
+    def test_orientation_controls_show_only_while_the_camera_runs(self):
+        camera = self.tool.ui.camera_widget
+        self.assertFalse(camera.orientation_widget.isVisibleTo(camera.preview_controls))
+        camera.camera = object()
+        camera._sync_orientation_visibility()
+        self.assertTrue(camera.orientation_widget.isVisibleTo(camera.preview_controls))
+        camera.camera = None
+        camera.stop_preview()
+        self.assertFalse(camera.orientation_widget.isVisibleTo(camera.preview_controls))
 
     def test_preview_runs_while_the_camera_pane_is_open_and_stops_with_it(self):
         console = self.console()
@@ -943,8 +984,8 @@ class TestDockedJogPage(unittest.TestCase):
                   if bar.isTabVisible(bar.indexOf(getattr(ui, name)))}
         console = self.console()
         dock = {key for key in ('camera', 'program', 'console', 'overrides')
-                if console.tabs.isTabVisible(console.tabs.indexOf(console.page(key)))
-                and console.tabs.isTabEnabled(console.tabs.indexOf(console.page(key)))}
+                if console.tabs.isTabVisible(console.tab_index(key))
+                and console.tabs.isTabEnabled(console.tab_index(key))}
         return plugin, dock, ui.job_row.isVisible()
 
     def test_the_mode_table_sets_the_pages_of_the_plugin_tab_and_the_dock(self):
@@ -1443,7 +1484,7 @@ class TestDockTabWrap(unittest.TestCase):
         self.console.set_page_enabled('console', False)
         shown = self.at(self.strip.sizeHint().width())
         self.assertEqual(len(shown), len(self.buttons) - 1)
-        index = self.console.tabs.indexOf(self.console.page('console'))
+        index = self.console.tab_index('console')
         self.assertFalse(self.buttons[index].isEnabled())
         before = self.console.tabs.currentIndex()
         QtTest.QTest.mouseClick(self.buttons[index], QtCore.Qt.MouseButton.LeftButton)
@@ -1497,8 +1538,13 @@ class MonitorFake(FakeGrbl):
         self.queries = 0
         self.home_due = None
         self.on_ok = None
+        self.full_report = None         # the answer to the grblHAL real-time 0x87
 
     def write(self, data):
+        if data == b'\x87' and self.full_report is not None:
+            self.written.append(data)
+            self._send(self.full_report)
+            return
         if data in (b'?', b'\x80'):
             self.written.append(data)
             if data == self.rt_byte:
@@ -1562,7 +1608,8 @@ class TestIOStatusMonitor(unittest.TestCase):
             self.assertTrue(self.read_status(tool).startswith('<Alarm'))
         self.assertEqual(tool._grbl_recovery, 'needs_home')
         self.assertEqual(tool._grbl_safety_generation, generation)
-        self.assertEqual([r['pins'] for r in self.reports(tool)], ['XP', 'Z', 'XP'])
+        # the queued report is published too (no pins), then the 3 answers
+        self.assertEqual([r.get('pins') for r in self.reports(tool)], [None, 'XP', 'Z', 'XP'])
         # the same polls through the timer slot
         tool._poll_idle_status()
         self.wait_idle(tool)
@@ -1804,6 +1851,55 @@ class TestIOTab(unittest.TestCase):
     def test_grblhal_activation_asks_for_a_full_report(self):
         tool, fake, io = self.make(hal=True)        # the discovery activates the visible IO tab
         self.assertIn(b'\x87', self.discovery_written)
+        # its reply reaches the page through the preparation of the next transaction, before any idle poll
+        io.pin_report = True
+        fake.full_report = '<Idle|MPos:0.000,0.000,0.000|Pn:X|A:F>'
+        tool.status_report_sig.emit.side_effect = io.on_status_report
+        io.request_full_report()
+        op = tool._grbl_reserve('read')
+        with tool._grbl_op_lock:
+            tool._grbl_prepare_locked(op, fake)
+        tool._grbl_release(op)
+        self.assertEqual([self.shown(self.page, n) for n in ('Flood', 'Mist', 'Spindle CW')], [True, False, False])
+        self.assertIs(self.shown(self.page, 'X Limit'), True)
+
+    def test_a_status_report_drained_before_a_guarded_write_sets_the_owner_and_blocks_it(self):
+        tool, fake, io = self.make()
+        io.evaluate()
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Ov:100,100,100>')
+        fake.rx.append(b'<Idle|MPos:0.000,0.000,0.000|MPG:1>\r\n')
+        io.on_output_requested('Spindle CW', True)
+        self.assertTrue(tool._grbl_mpg_owned)
+        self.assertEqual(fake.commands(), [])
+
+    def test_a_replaced_page_drops_its_queued_request(self):
+        for replace in (lambda io: (io.detach(), io.new_page()), lambda io: io.new_page()):
+            tool, fake, io = self.make()
+            io.evaluate()
+            self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Ov:100,100,100>')
+            tasks = []
+            tool._grbl_start_op = lambda name, task, **kwargs: tasks.append(task) or True
+            io.on_output_requested('Spindle CW', True)
+            replace(io)
+            self.assertIsNone(io.pending)
+            op = tool._grbl_reserve('IO output', motion=True)
+            tasks[0](op)
+            tool._grbl_release(op)
+            self.assertEqual(fake.written, [])
+
+    def test_an_unread_grblhal_reporting_mode_is_unknown_not_off(self):
+        tool, fake, io = self.make(hal=True)
+        io.pin_report = True                                        # the value of an older connection
+        fake.replies = {'$$': ['error:3']}
+        op = tool._grbl_reserve('units')
+        tool._grbl_read_report_units(op)
+        tool._grbl_release(op)
+        self.assertIsNone(io.pin_report)
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000>')
+        self.assertIsNone(self.shown(self.page, 'X Limit'))
+        self.assertIn('unknown', self.page.inputs['X Limit'].toolTip())
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Pn:XP>')
+        self.assertEqual([self.shown(self.page, n) for n in ('X Limit', 'Y Limit', 'Probe')], [True, False, True])
 
     def test_coolant_sends_one_toggle_and_an_unconfirmed_change_is_not_retried(self):
         tool, fake, io = self.make()

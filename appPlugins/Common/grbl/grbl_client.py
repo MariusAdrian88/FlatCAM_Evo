@@ -900,6 +900,10 @@ class GrblClientMixin:
             lines = self._grbl_rx_buffer.split(b'\n')
             self._grbl_rx_buffer = lines.pop()
             text = '\n'.join(line.decode('utf-8', errors='replace').strip() for line in lines)
+            # a drained status report is a report: ownership and the GUI know it before any write guard runs
+            for line in text.splitlines():
+                if line.startswith('<'):
+                    self._grbl_publish_status(line, op)
             self._grbl_failure_locked(op, 'error', text, observe=observe)
             if op.failed:
                 return text, 'error'

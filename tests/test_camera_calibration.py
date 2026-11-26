@@ -888,7 +888,7 @@ class TestCameraPane(unittest.TestCase):
         self.app = SimpleNamespace(
             options={}, ui=SimpleNamespace(plot_tab_area=self.area, plot_tab=self.plot_tab, right_lay=self.right_lay))
         self.stops = []
-        self.pane = CameraPane(self.app, self.view, self.dock_layout, lambda: self.stops.append(True))
+        self.pane = CameraPane(self.app, self.view, lambda: self.stops.append(True))
         self.addCleanup(self.cleanup)
 
     def cleanup(self):
@@ -912,8 +912,25 @@ class TestCameraPane(unittest.TestCase):
         self.assertEqual(self.right_lay.indexOf(self.area), 1)
         self.assertEqual(self.right_lay.stretch(1), 1)
         self.assertIs(self.area.parentWidget(), self.host)
-        self.assertEqual(self.dock_layout.indexOf(self.view), 1)
+        # the view is never put back into the dock: the pane keeps it, hidden
+        self.assertEqual(self.dock_layout.indexOf(self.view), -1)
+        self.assertFalse(self.view.isVisible())
         self.assertEqual(self.stops, [True])
+
+    def test_the_first_open_gives_the_pane_half_of_the_width_and_it_fills_it(self):
+        self.pane.open()
+        QtWidgets.QApplication.processEvents()
+        sizes = self.pane.splitter.sizes()
+        self.assertAlmostEqual(sizes[1] / sum(sizes), 0.5, delta=0.05)
+        self.assertEqual(self.pane.pane.sizePolicy().horizontalPolicy(), QtWidgets.QSizePolicy.Policy.Expanding)
+        self.assertGreaterEqual(self.view.width(), sizes[1] - 40)
+        self.pane.splitter.setSizes([100, 900])    # a saved width wider than the splitter is clamped
+        self.pane.close()
+        self.app.options['global_camera_pane_width'] = 5000
+        self.pane.open()
+        QtWidgets.QApplication.processEvents()
+        self.assertLess(self.pane.splitter.sizes()[1], self.pane.splitter.width())
+        self.assertGreater(self.pane.splitter.sizes()[0], 0)
 
     def test_two_opens_make_one_pane(self):
         self.pane.open()
@@ -955,7 +972,7 @@ class TestCameraPane(unittest.TestCase):
         self.pane.close()
         self.assertFalse(window.isVisible())
         self.assertIsNone(self.pane.splitter)
-        self.assertEqual(self.dock_layout.indexOf(self.view), 1)
+        self.assertEqual(self.dock_layout.indexOf(self.view), -1)
         self.assertEqual(self.stops, [True])
 
     def test_the_pane_tab_close_button_closes_the_pane(self):

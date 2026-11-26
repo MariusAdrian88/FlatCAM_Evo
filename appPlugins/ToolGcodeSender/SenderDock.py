@@ -11,6 +11,7 @@ import re
 from PyQt6 import QtWidgets, QtCore, QtGui
 
 from appEditors.text_editor.code_edit import CodeEdit
+from appPlugins.ToolGcodeSender.SenderCameraUI import CurrentPageTabWidget
 
 import gettext
 import appTranslation as fcTranslate
@@ -322,6 +323,7 @@ class GrblConsole(QtWidgets.QWidget):
 
     program_line_selected = QtCore.pyqtSignal(object)
     page_changed = QtCore.pyqtSignal(str)
+    TEXT_MIN_HEIGHT = 150   # a short dock scrolls instead of squashing the Program and Console text
 
     def __init__(self, tool, parent=None):
         super().__init__(parent)
@@ -329,7 +331,18 @@ class GrblConsole(QtWidgets.QWidget):
         self._selected_lines = set()
         self._selection_anchor = None
         self._progress_selections = []
-        lay = QtWidgets.QVBoxLayout(self)
+        # the whole dock content (header, jog block, pages) scrolls as one under a short dock
+        outer = QtWidgets.QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.scroll_area = QtWidgets.QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        self.scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll_area.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        outer.addWidget(self.scroll_area)
+        self._content = QtWidgets.QWidget()
+        self.scroll_area.setWidget(self._content)
+        lay = QtWidgets.QVBoxLayout(self._content)
         lay.setContentsMargins(0, 0, 0, 0)
         self._pages = {}
         self._header_widget = None
@@ -360,11 +373,11 @@ class GrblConsole(QtWidgets.QWidget):
         self._jog_body_lay.setContentsMargins(0, 0, 0, 0)
         jog_block_lay.addWidget(self._jog_body)
         lay.addWidget(self._jog_block)
-        self.tabs = QtWidgets.QTabWidget()
+        self.tabs = CurrentPageTabWidget()
         self.tabs.tabBar().hide()
         self._tab_strip = _TabStrip(self.tabs)
         lay.addWidget(self._tab_strip)
-        lay.addWidget(self.tabs)
+        lay.addWidget(self.tabs, 1)
         program_tab = QtWidgets.QWidget()
         program_lay = QtWidgets.QVBoxLayout(program_tab)
         program_lay.setContentsMargins(0, 0, 0, 0)
@@ -380,6 +393,7 @@ class GrblConsole(QtWidgets.QWidget):
         self.program_view = CodeEdit(theme=tool.app.options.get('global_theme', 'default'))
         self.program_area = self.program_view
         self.program_view.setReadOnly(True)
+        self.program_view.setMinimumHeight(self.TEXT_MIN_HEIGHT)
         self.program_view.setUndoRedoEnabled(False)
         self.program_view.setLineWrapMode(QtWidgets.QPlainTextEdit.LineWrapMode.NoWrap)
         self.program_view.setFont(QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont))
@@ -398,6 +412,7 @@ class GrblConsole(QtWidgets.QWidget):
         console_lay.setContentsMargins(0, 0, 0, 0)
         self.log_view = QtWidgets.QPlainTextEdit()
         self.log_view.setReadOnly(True)
+        self.log_view.setMinimumHeight(self.TEXT_MIN_HEIGHT)
         self.log_view.setMaximumBlockCount(5000)
         console_lay.addWidget(self.log_view)
         self._console_lay = console_lay
@@ -409,6 +424,13 @@ class GrblConsole(QtWidgets.QWidget):
         self.program_line_selected.connect(lambda index: self.tool.on_program_line_selected(index))
         self.set_program([])
         self.sync_event_filter()
+
+    def minimumSizeHint(self):
+        """The scroll area alone would let the dock get narrower than its content (the tab strip)."""
+        hint = super().minimumSizeHint()
+        bar = self.scroll_area.verticalScrollBar()
+        width = self._content.minimumSizeHint().width() + (bar.sizeHint().width() if bar.isVisible() else 0)
+        return QtCore.QSize(max(hint.width(), width), hint.height())
 
     def set_tool(self, tool):
         """A new project makes a new Sender plugin; the dock keeps this console: it then works for the new plugin."""
@@ -496,7 +518,8 @@ class GrblConsole(QtWidgets.QWidget):
         self.jog_collapse_button.setChecked(True)
 
     def set_page(self, key, title, widget):
-        """Mount a page under its key; a page with the same key is replaced at its position (and stays current)."""
+        """Mount a page under its key; a page with the same key is replaced at its position (and stays current).
+        The whole dock content scrolls as one, so a page is a plain tab."""
         if widget is None:
             return
         old = self._pages.get(key)
@@ -519,14 +542,23 @@ class GrblConsole(QtWidgets.QWidget):
             self.tabs.setCurrentWidget(widget)
         self._tab_strip.rebuild()
 
+    def tab_index(self, key):
+        """The index of the tab of a page in the tab widget, or -1."""
+        page = self._pages.get(key)
+        return self.tabs.indexOf(page) if page is not None else -1
+
+    def is_page_current(self, widget):
+        """True if the page widget is on the current tab."""
+        return widget is not None and self.tabs.currentWidget() is widget and self._page_key(widget) != ''
+
     PAGE_ORDER = ['camera', 'program', 'console', 'io', 'overrides']
 
     def _insert_index(self, key):
         """The tab position of a new page: before the first mounted page that comes later in the fixed order."""
         rank = self.PAGE_ORDER.index(key) if key in self.PAGE_ORDER else len(self.PAGE_ORDER)
-        for other, widget in self._pages.items():
+        for other in self._pages:
             other_rank = self.PAGE_ORDER.index(other) if other in self.PAGE_ORDER else len(self.PAGE_ORDER)
-            index = self.tabs.indexOf(widget)
+            index = self.tab_index(other)
             if other != key and other_rank > rank and index >= 0:
                 return index
         return self.tabs.count()
@@ -536,8 +568,7 @@ class GrblConsole(QtWidgets.QWidget):
 
     def set_page_visible(self, key, visible):
         """Show or hide the tab of a page (a hidden page is not only disabled)."""
-        widget = self._pages.get(key)
-        index = self.tabs.indexOf(widget) if widget is not None else -1
+        index = self.tab_index(key)
         if index >= 0:
             self.tabs.setTabVisible(index, visible)
             self._tab_strip.sync()
@@ -555,11 +586,12 @@ class GrblConsole(QtWidgets.QWidget):
         self._console_lay.addWidget(widget)
 
     def show_page(self, key):
-        widget = self._pages.get(key)
-        if widget is not None:
-            self.tabs.setCurrentWidget(widget)
+        page = self._pages.get(key)
+        if page is not None:
+            self.tabs.setCurrentWidget(page)
 
     def _page_key(self, widget):
+        """The key of a page widget."""
         for key, page in self._pages.items():
             if page is widget:
                 return key
@@ -568,8 +600,7 @@ class GrblConsole(QtWidgets.QWidget):
     def set_page_enabled(self, key, enabled):
         """Enable or disable the tab of a page (the raw command entry is gated while the camera workflow owns the
         dock)."""
-        widget = self._pages.get(key)
-        index = self.tabs.indexOf(widget) if widget is not None else -1
+        index = self.tab_index(key)
         if index >= 0:
             self.tabs.setTabEnabled(index, enabled)
             self._tab_strip.sync()

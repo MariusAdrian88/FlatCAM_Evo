@@ -19,6 +19,7 @@ _qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
 from defaults import AppDefaults
 from appPlugins.ToolGcodeSender.Sender import ToolGCodeSender
+from appGUI.GUIElements import VerticalScrollArea
 
 
 class FakeCollection(QtGui.QStandardItemModel):
@@ -75,6 +76,12 @@ class TestGrblSenderConstruct(unittest.TestCase):
             _qapp.processEvents()
             self.assertTrue(button.isVisible())
             self.assertEqual(button.mapTo(workspace, QtCore.QPoint()), position)
+            for width in (300, 500):
+                workspace.resize(width, 400)
+                _qapp.processEvents()
+                margins = layout.contentsMargins()
+                # the button spans the whole panel width (inside the margins)
+                self.assertEqual(button.width(), width - margins.left() - margins.right())
         tool.hide()
         self.assertFalse(button.isVisible())
 

@@ -488,6 +488,7 @@ _CONTROL_ORDER = 'DHRSE'
 _GRBL_CONTROLS = 'DHRS'
 _ACCESSORY_LETTERS = (('S', 'Spindle CW'), ('C', 'Spindle CCW'), ('F', 'Flood'), ('M', 'Mist'))
 PIN_REPORT_OFF_REASON = 'pin reporting off ($10)'
+PIN_REPORT_UNKNOWN_REASON = 'pin reporting unknown ($10 not read)'
 
 
 def grbl_io_signals(caps):
@@ -534,6 +535,8 @@ def decode_grbl_pins(report_or_line, signals, pin_report):
         return {name: name in on for name in signals}, None
     if pin_report:
         return {name: False for name in signals}, None
+    if pin_report is None:
+        return {name: None for name in signals}, PIN_REPORT_UNKNOWN_REASON
     return {name: None for name in signals}, PIN_REPORT_OFF_REASON
 
 

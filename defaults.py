@@ -779,7 +779,7 @@ class AppDefaults:
         "tools_camera_alignment_tolerance": 0.1,
         "tools_camera_alignment_tolerance_units": 'MM',
         # width of the camera pane beside the plot, in pixels (set by the splitter handle)
-        "global_camera_pane_width": 400,
+        "global_camera_pane_width": 0,
 
         # NCC Plugin
         "tools_ncc_tools": "0.5",

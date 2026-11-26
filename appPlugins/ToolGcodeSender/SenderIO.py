@@ -77,7 +77,8 @@ class SenderIOController:
         self.generation = 0
         self.port = None
         self.kind = None                # None (not discovered), 'grbl' or 'ecut'
-        self.pin_report = True
+        # True or False once $$ was read (the controller reports the pins or not); None = not read
+        self.pin_report = None
         self.active = False
         self._timer = None
         self._reset_state()
@@ -109,12 +110,19 @@ class SenderIOController:
         from appPlugins.ToolGcodeSender.SenderIOUI import IOPage
         page = IOPage()
         page.output_requested.connect(self.on_output_requested)
+        self._drop_requests()
         self.page = page
         self._build_page()
         return page
 
+    def _drop_requests(self):
+        """A request of an older page, queued or running, fails the generation check: nothing is written."""
+        self.generation += 1
+        self._clear_pending()
+
     def detach(self):
         """The dock removed its pages (a new project): the page is gone."""
+        self._drop_requests()
         self.page = None
         self.evaluate()
 
@@ -186,13 +194,25 @@ class SenderIOController:
                 name = 'Aux %d' % number
                 self.outputs_spec.append((name, 'A%d' % number, _("Digital output %d") % number))
 
-    def _discover_ecut(self, port):
-        self.kind = 'ecut'
+    def on_ecut_config_saved(self, port, revision):
+        """The E-Cut settings were saved: the signal maps and the revision of the new config replace the old pair."""
+        if self.kind != 'ecut' or port is not self.port:
+            return
+        self._drop_requests()
+        self._read_ecut_maps(port)
+        self.revision = revision
+        self._build_page()
+
+    def _read_ecut_maps(self, port):
         self.ecut_inputs = port.effective_inputs()
         self.ecut_outputs = port.effective_outputs()
         self.inputs_spec = [(entry['name'], entry['name'][:3], entry['name']) for entry in self.ecut_inputs]
         self.outputs_spec = [(entry['names'][0], 'O%d' % entry['pin'], ' / '.join(entry['names']))
                              for entry in self.ecut_outputs]
+
+    def _discover_ecut(self, port):
+        self.kind = 'ecut'
+        self._read_ecut_maps(port)
         self.request_revision()
 
     def on_disconnect(self):
@@ -214,7 +234,7 @@ class SenderIOController:
         try:
             dock = self.tool.app.ui.grbl_console_dock
             console = dock.widget()
-            return bool(dock.isVisible() and console.tabs.currentWidget() is page)
+            return bool(dock.isVisible() and console.is_page_current(page))
         except (AttributeError, RuntimeError):
             return False
 

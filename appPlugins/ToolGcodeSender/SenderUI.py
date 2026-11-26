@@ -14,7 +14,7 @@ from appGUI.GUIElements import (
     VerticalScrollArea)
 from appCommon.machine_profile.facts import active_profile_of
 from appPlugins.Common.levelling_ui import build_probe_points_ui
-from appPlugins.ToolGcodeSender.SenderCameraUI import SenderCameraUI, CameraView
+from appPlugins.ToolGcodeSender.SenderCameraUI import SenderCameraUI, CameraView, CurrentPageTabWidget
 from appPlugins.ToolGcodeSender.SenderRegistrationUI import SenderRegistrationUI
 from appPlugins.ToolGcodeSender.SenderToolChangeUI import SenderToolChangeUI
 from appPlugins.ToolGcodeSender.SenderStatusUI import SenderStatusStrip
@@ -76,6 +76,7 @@ class GcodeSenderUI:
         )
 
         self.title_box.addWidget(title_label)
+        self.title_box.addStretch()
 
         # App Level label
         self.level = QtWidgets.QToolButton()
@@ -97,14 +98,11 @@ class GcodeSenderUI:
         self.console_cb = FCCheckBox(_("Machine panel"))
         self.console_cb.setToolTip(
             _("Show the panel of the machine at the right: state, job buttons, jog, program and console."))
+        self.title_box.addWidget(self.console_cb)
 
         self.fit_view_cb = FCCheckBox(_("Fit View"))
         self.fit_view_cb.setToolTip(_("Fit the GCode bounds in isometric view after loading the source object."))
 
-        obj_hlay = QtWidgets.QHBoxLayout()
-        obj_hlay.addStretch()
-        obj_hlay.addWidget(self.console_cb)
-        self.tools_box.addLayout(obj_hlay)
 
         # #############################################################################################################
         # ################################ The CNCJob object to send ###################################################
@@ -152,12 +150,13 @@ class GcodeSenderUI:
         self.camera_page.setObjectName("camera_page")
         self.camera_page_layout = QtWidgets.QVBoxLayout(self.camera_page)
         self.camera_page_layout.setContentsMargins(2, 2, 2, 2)
-        self.camera_tabs = QtWidgets.QTabWidget()
+        self.camera_tabs = CurrentPageTabWidget()
+        # the camera view is never in the dock: it lives in the camera pane (SenderCameraPane); hidden until then
         self.camera_view = CameraView(self.camera_page)
+        self.camera_view.hide()
         self.camera_widget = SenderCameraUI(self.app, self.camera_tabs, view=self.camera_view)
         self.camera_page_layout.addWidget(self.camera_widget.preview_controls)
-        self.camera_page_layout.addWidget(self.camera_view, stretch=1)
-        self.camera_page_layout.addWidget(self.camera_tabs)
+        self.camera_page_layout.addWidget(self.camera_tabs, stretch=1)
         self.camera_tabs.addTab(self.camera_widget, _("Calibration"))
         self.registration_widget = SenderRegistrationUI(self.app, self.camera_tabs)
         self.camera_tabs.addTab(self.registration_widget, _("Board registration"))
@@ -325,13 +324,8 @@ class GcodeSenderUI:
         self.ctrl_grbl_frame2.setLayout(grbl_ctrl2_grid)
 
         self.jog_wdg = FCJog(self.app)
-        self.jog_wdg.setStyleSheet("""
-                            FCJog
-                            {
-                                border: 1px solid lightgray;
-                                border-radius: 5px;
-                            }
-                            """)
+        # one frame only: the ctrl_grbl_frame around it
+        self.jog_wdg.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
         grbl_ctrl_grid.addWidget(self.jog_wdg, 0, 0)
 
         # STOP
@@ -342,6 +336,8 @@ class GcodeSenderUI:
               "Use Reset on Connect, then Home on Jog, before more motion.")
         )
         self.jog_stop_button.setStyleSheet("QPushButton {background-color: red; color: white;}")
+        self.jog_stop_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding,
+                                           QtWidgets.QSizePolicy.Policy.Fixed)
         grbl_ctrl2_grid.addWidget(self.jog_stop_button, 3, 0, 1, 2)
 
         # JOG Step
@@ -546,7 +542,10 @@ class GcodeSenderUI:
               "Use Reset on Connect, then Home on Jog, before more motion.")
         )
         self.stop_probing_button.setStyleSheet("QPushButton {background-color: red; color: white;}")
-        hm_lay.addWidget(self.stop_probing_button)
+        # its own row, over the full width of the panel
+        self.stop_probing_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding,
+                                               QtWidgets.QSizePolicy.Policy.Fixed)
+        heightmap_box.addWidget(self.stop_probing_button)
 
         self.grbl_save_height_map_button = QtWidgets.QToolButton()
         self.grbl_save_height_map_button.setIcon(QtGui.QIcon(self.app.resource_location + '/save_as.png'))
@@ -579,7 +578,8 @@ class GcodeSenderUI:
         job_lay = QtWidgets.QHBoxLayout(self.job_row)
         job_lay.setContentsMargins(0, 0, 0, 0)
         for button in (self.start_button, self.hold_button, self.resume_button, self.stop_button):
-            job_lay.addWidget(button)
+            button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed)
+            job_lay.addWidget(button, 1)
         header_box.addWidget(self.job_row)
 
         self.unlock_button = FCButton(_("Unlock"))
