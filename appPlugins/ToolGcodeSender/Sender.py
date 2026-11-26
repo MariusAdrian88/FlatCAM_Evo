@@ -40,7 +40,7 @@ from appPlugins.Common.grbl.grbl_protocol import (
     parse_grbl_probe_output, parse_grbl_offsets, grbl_wcs_p_number, parse_grbl_modal, parse_grbl_work_offset)
 from appPlugins.Common.gcode_segment import split_long_moves, parse_toolpath, _words, _g_key
 from appPlugins.Common.levelling_interp import build_bilinear_grid
-from appPlugins.ToolGcodeSender import SenderGen, SenderKeys, SenderEstimate, SenderMacros
+from appPlugins.ToolGcodeSender import SenderGen, SenderKeys, SenderEstimate, SenderMacros, SenderPendant
 from appPlugins.Common.grbl.grbl_client import (
     GrblClientMixin, STATUS_POLL, IO_STATUS, IO_STATUS_PERIOD, MONITOR_OPS, is_controller_banner, is_grblhal_banner, is_native_jog_banner,
     stream_lines, StepGate, validate_stream_lines, _GrblProbeAbort, GRBL_RX_BUFFER, GRBL_MAX_LINE)
@@ -222,6 +222,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     stream_progress_sig = QtCore.pyqtSignal(int, int)
     # a parsed status report (dict) from a worker
     status_report_sig = QtCore.pyqtSignal(object)
+    # a request of the web pendant (action, plain args), from the server thread
+    pendant_request_sig = QtCore.pyqtSignal(str, object)
+    # the web pendant server (None: off) and its state for the server thread, kept under the lock
+    _pendant = None
+    _pendant_data = None
+    _pendant_lock = threading.Lock()
     # a port operation (not a monitor operation) was reserved or released, from any thread
     op_changed_sig = QtCore.pyqtSignal()
     # the spindle runs (True) or stopped (False): an accepted M3/M4/M5 line, from a worker
@@ -316,13 +322,15 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._grbl_shutdown()
         except Exception:
             log.exception('ToolGcodeSender.uninstall() -> the controller did not stop')
+        self._pendant_stop()
         MachineSafety.unregister(self._grbl_shutdown)
         qt_app = QtWidgets.QApplication.instance()
         if qt_app is not None:
-            try:
-                qt_app.aboutToQuit.disconnect(self._close_simulation)
-            except (TypeError, RuntimeError):
-                pass  # never connected
+            for slot in (self._close_simulation, self._pendant_stop):
+                try:
+                    qt_app.aboutToQuit.disconnect(slot)
+                except (TypeError, RuntimeError):
+                    pass  # never connected
 
     def machine_connected(self):
         """True while the controller is connected (idle, or a job runs or is held)."""
@@ -649,6 +657,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.show_probing_geo_sig.connect(self._on_show_probing_geo_sig)
             self.stream_progress_sig.connect(self._on_stream_progress)
             self.status_report_sig.connect(self._on_status_report)
+            self.pendant_request_sig.connect(self._on_pendant_request)
             self.op_changed_sig.connect(self._apply_machine_state)
             self.unlock_result_sig.connect(self._on_unlock_result)
             self.capabilities_applied_sig.connect(self._on_capabilities_applied)
@@ -681,6 +690,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             if qt_app is not None:
                 MachineSafety.connect_quit(qt_app)
                 qt_app.aboutToQuit.connect(self._close_simulation)
+                qt_app.aboutToQuit.connect(self._pendant_stop)
         if self.ui is None:
             return
         self.ui.level.toggled.connect(self.on_level_changed)
@@ -814,6 +824,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.start_button.clicked.connect(self.on_start)
         self.ui.hold_button.clicked.connect(self._on_hold_button)
         self.ui.resume_button.clicked.connect(self._on_resume_button)
+        self.ui.pendant_cb.toggled.connect(self._on_pendant_toggled)
+        self.ui.pendant_copy_button.clicked.connect(self._on_pendant_copy)
+        if self._pendant is None and self.app.options.get('tools_grbl_pendant_enabled', False):
+            self._pendant_start()
+        self._pendant_show()
         self.ui.stop_button.clicked.connect(self.on_stream_stop)
         self.ui.estop_button.clicked.connect(self.on_emergency_stop)
         self.ui.estop_dock_button.clicked.connect(self.on_emergency_stop)
@@ -1926,6 +1941,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         # no report yet: the default state is not evidence that the machine stands still
         self._controller_state_time = float('-inf')
         self._program_paused = False
+        self._pendant_set(connected=False, state='', alarm='', wpos=None, mpos=None, done=None, total=None,
+                          elapsed=None, remaining=None)
         self._on_spindle_state(False)
         self._camera_new_session('disconnect')
         self._toolchange_new_session('disconnect')
@@ -2754,7 +2771,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         dock.raise_()
         console.expand_jog()
 
-    def on_grbl_jog(self, direction=None):
+    def on_grbl_jog(self, direction=None, step=None):
+        """Jog by the step entry, or by `step` (the web pendant) in the display units; degrees for A."""
         if direction is None or not self._action_ok('jog'):
             return
 
@@ -2762,7 +2780,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         is_a = direction in ('aplus', 'aminus')
         if is_a and (self._grbl_caps or {}).get('axes') != 'XYZA':
             return
-        step = (self.ui.jog_a_step_entry if is_a else self.ui.jog_step_entry).get_value()
+        if step is None:
+            step = (self.ui.jog_a_step_entry if is_a else self.ui.jog_step_entry).get_value()
         feedrate = (self.ui.jog_a_fr_entry if is_a else self.ui.jog_fr_entry).get_value()
         units, port, session = self.units, self.grbl_ser_port, self._start_seq
         if (units not in ('MM', 'IN') or getattr(self.app, 'app_units', None) != units
@@ -6808,6 +6827,138 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if self._action_ok('hold'):
             self._grbl_realtime(b'!')
 
+    # #############################################################################################################
+    # Web pendant (SenderPendant.py): the server thread only reads the snapshot and emits pendant_request_sig
+    # #############################################################################################################
+    PENDANT_ACTIONS = {'hold': 'hold', 'resume': 'resume', 'stop': 'stop', 'estop': 'estop', 'feed_ov': 'override',
+                       'jog': 'jog', 'zero': 'zero', 'home': 'home'}
+    PENDANT_FEED_BYTES = {'+10': b'\x91', '-10': b'\x92', '100': b'\x90'}
+
+    def _pendant_set(self, **values):
+        """Update the snapshot of the pendant (GUI thread). No work while the server is off."""
+        if self._pendant is None:
+            return
+        with self._pendant_lock:
+            self._pendant_data.update(values)
+
+    def _pendant_snapshot(self):
+        with self._pendant_lock:
+            return dict(self._pendant_data)
+
+    def _pendant_report(self, report):
+        """Put a status report into the snapshot."""
+        if self._pendant is None:
+            return
+        state = report['state'].split(':')[0]
+        wco = report.get('wco', self._last_wco)
+        scale = self._report_scale()
+        work = work_position(report, wco)
+        machine = self._report_machine_position(report, wco)
+        ov = report.get('ov')
+        values = {
+            'connected': True, 'state': state, 'units': self.units, 'wcs': self._active_wcs,
+            'alarm': code_text('ALARM:' + report['substate'], self._grbl_grblhal)
+            if state == 'Alarm' and 'substate' in report else ('ALARM' if state == 'Alarm' else ''),
+            'wpos': None if work is None or scale is None else list(scale_position(work, scale)),
+            'mpos': None if machine is None or scale is None else list(scale_position(machine, scale)),
+            'motion': bool(self.app.options.get('tools_grbl_pendant_motion', False))}
+        if ov is not None:
+            values.update(feed_ov=ov[0], rapid_ov=ov[1], spindle_ov=ov[2])
+        self._pendant_set(**values)
+
+    def _on_pendant_request(self, action, args):
+        """GUI thread: a request of the pendant. The rules of the machine situation decide, like for a button."""
+        if action not in self.PENDANT_ACTIONS:
+            return
+        if action in SenderPendant.MOTION_ACTIONS and not self.app.options.get('tools_grbl_pendant_motion', False):
+            self.app.log.debug('Web pendant: %s dropped, motion is off.' % action)
+            return
+        reason = self.action_allowed(self.PENDANT_ACTIONS[action])
+        if reason is not None:
+            self.app.log.debug('Web pendant: %s dropped: %s' % (action, reason))
+            return
+        if self.__dict__.get('_kept_across_reset') and action not in ('hold', 'feed_ov', 'stop', 'estop'):
+            return      # the widgets of the old project are deleted: only the handlers without a widget run
+        if action == 'hold':
+            self._on_hold_button()
+        elif action == 'resume':
+            self._on_resume_button()
+        elif action == 'stop':
+            self.on_stream_stop()
+        elif action == 'estop':
+            self.on_emergency_stop()
+        elif action == 'feed_ov':
+            self.on_grbl_override(self.PENDANT_FEED_BYTES[args['value']])
+        elif action == 'jog':
+            self.on_grbl_jog(args['direction'], step=args['step'])
+        elif action == 'zero':
+            self.on_grbl_zero(args['axis'])
+        else:
+            self.on_grbl_homing()
+
+    def _pendant_show(self):
+        """Show the state of the server in the Connect tab (no signal)."""
+        server = self._pendant
+        ui = self.ui
+        if ui is None or self.__dict__.get('_kept_across_reset'):
+            return
+        try:
+            ui.pendant_cb.blockSignals(True)
+            ui.pendant_cb.setChecked(server is not None)
+            ui.pendant_cb.blockSignals(False)
+            ui.pendant_url_entry.setText(server.url() if server is not None else '')
+            ui.pendant_url_entry.setVisible(server is not None)
+            ui.pendant_copy_button.setVisible(server is not None)
+            ui.pendant_note_label.setVisible(server is not None and server.host == '0.0.0.0')
+        except RuntimeError:
+            pass    # the widgets are deleted
+
+    def _on_pendant_toggled(self, checked):
+        if checked:
+            self._pendant_start()
+        else:
+            self._pendant_stop()
+        self.app.options['tools_grbl_pendant_enabled'] = self._pendant is not None
+
+    def _pendant_start(self):
+        if self._pendant is not None:
+            return
+        options = self.app.options
+        token = options.get('tools_grbl_pendant_token')
+        if not token:
+            token = options['tools_grbl_pendant_token'] = SenderPendant.new_token()
+        port = int(options.get('tools_grbl_pendant_port', 8080))
+        server = SenderPendant.PendantServer(
+            self._pendant_snapshot, lambda action, args: self.pendant_request_sig.emit(action, args), token,
+            lambda: bool(self.app.options.get('tools_grbl_pendant_motion', False)),
+            lambda: 500.0 if self.units == 'MM' else 20.0,
+            host=str(options.get('tools_grbl_pendant_host', '127.0.0.1')), port=port)
+        try:
+            server.start()
+        except OSError:
+            options['tools_grbl_pendant_enabled'] = False
+            self.app.inform.emit('[ERROR_NOTCL] %s' % (_("The web pendant can not use port %d.") % port))
+            self._pendant_show()
+            return
+        self._pendant_data = {
+            'connected': self.machine_connected(), 'state': self._controller_state, 'alarm': '', 'wpos': None,
+            'mpos': None, 'units': self.units, 'wcs': self._active_wcs, 'done': None, 'total': None,
+            'elapsed': None, 'remaining': None, 'feed_ov': self._feed_override_pct, 'rapid_ov': None,
+            'spindle_ov': None, 'motion': bool(options.get('tools_grbl_pendant_motion', False))}
+        self._pendant = server
+        self._pendant_show()
+
+    def _pendant_stop(self):
+        """Stop the server (the box is unchecked, the plugin closes or the application ends)."""
+        server, self._pendant = self._pendant, None
+        if server is not None:
+            server.stop()
+            self._pendant_show()
+
+    def _on_pendant_copy(self):
+        if self._pendant is not None:
+            QtWidgets.QApplication.clipboard().setText(self._pendant.url())
+
     def on_program_line_selected(self, index):
         """Inspect selected moves while idle or held; running selection follows progress."""
         if self._grbl_op is not None and self.__dict__.get('_program_paused') is not True:
@@ -6821,6 +6972,13 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def _flush_stream_ui(self, drain=False):
         """Show the progress and the console lines that the stream worker stored (GUI thread, 100 ms timer)."""
         latest = self._progress_latest
+        if self._pendant is not None and latest is not None:
+            clock = self._stream_clock
+            cumulative = self.job_cumulative
+            self._pendant_set(
+                done=latest[0], total=latest[1], elapsed=None if clock is None else clock.elapsed() / 1000.0,
+                remaining=SenderEstimate.remaining(cumulative, latest[0], self._feed_override_pct)
+                if cumulative else None)
         if latest is not None and latest != self._progress_shown:
             self._progress_shown = latest
             self._on_stream_progress(*latest)
@@ -7306,6 +7464,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return
         self._controller_state = report['state'].split(':')[0]
         self._controller_state_time = time.monotonic()
+        self._pendant_report(report)
         if self.__dict__.get('_kept_across_reset'):
             return      # the UI of the old project is deleted: run() builds the next one
         self.sender_io.on_status_report(report)
@@ -7945,6 +8104,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def on_plugin_cleanup(self):
         """The plugin closes: stop and disconnect the controller, release the Plot 3D tab, hide the console."""
+        if not self.__dict__.get('_kept_across_reset'):
+            self._pendant_stop()
         self._unlock_execution_view()
         self._invalidate_coordinates()
         self._invalidate_configuration()

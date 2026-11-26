@@ -330,6 +330,29 @@ class ToolsGrblSenderPrefGroupUI(OptionsGroupUI):
         self.toolchange_plate_radio.activated_custom.connect(self._on_toolchange_mode)
         self._on_toolchange_mode(self.options.get('tools_grbl_toolchange_plate', 'disabled'))
 
+        # Web pendant (the switch and the token are on the Connect tab of the plugin)
+        self.pendant_label = FCLabel('%s' % _("Web pendant"), bold=True)
+        self.layout.addWidget(self.pendant_label)
+        pendant_frame = FCFrame()
+        self.layout.addWidget(pendant_frame)
+        pendant_grid = GLay(v_spacing=5, h_spacing=3)
+        pendant_frame.setLayout(pendant_grid)
+        self.pendant_host_entry = FCEntry()
+        self.pendant_host_entry.setToolTip(
+            _("The address that the pendant listens on. 127.0.0.1: only this computer.\n"
+              "0.0.0.0: every computer of the network (the token is always needed)."))
+        self.pendant_port_entry = FCSpinner()
+        self.pendant_port_entry.set_range(1024, 65535)
+        pendant_grid.addWidget(FCLabel('%s:' % _("Host")), 0, 0)
+        pendant_grid.addWidget(self.pendant_host_entry, 0, 1)
+        pendant_grid.addWidget(FCLabel('%s:' % _("Port")), 1, 0)
+        pendant_grid.addWidget(self.pendant_port_entry, 1, 1)
+        self.pendant_motion_cb = FCCheckBox(_("Allow jog, zero and home"))
+        self.pendant_motion_cb.setToolTip(
+            _("The pendant can jog by a step, set a zero and home the machine.\n"
+              "Off: the pendant shows the state and gives Hold, Resume, Stop, E-Stop and the feed override."))
+        pendant_grid.addWidget(self.pendant_motion_cb, 2, 0, 1, 2)
+
         self.layout.addStretch(1)
 
     def _on_toolchange_mode(self, mode=None, *args):

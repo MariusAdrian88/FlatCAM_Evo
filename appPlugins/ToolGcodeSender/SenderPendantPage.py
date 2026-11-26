@@ -1,4 +1,12 @@
-<!doctype html>
+# ##########################################################
+# FlatCAM Evo: 2D Post-processing for Manufacturing        #
+# File by:  Marius Adrian Stanciu (c)                      #
+# Date:     11/26/2026                                     #
+# License:  MIT Licence                                    #
+# ##########################################################
+
+# The page of the web pendant, a constant so that a frozen build needs no data file.
+PAGE_HTML = b"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -104,11 +112,14 @@ function show(s) {
     (s.rapid_ov == null ? '-' : s.rapid_ov) + '%  Spindle ' + (s.spindle_ov == null ? '-' : s.spindle_ov) + '%';
   $('motion').style.display = s.motion === true ? 'block' : 'none';
 }
+var polling = false;
 function poll() {
+  if (polling) { return; }
+  polling = true;
   api('/state').then(show).catch(function () {
     $('offline').style.display = 'block';
     $('state').textContent = 'Not connected';
-  });
+  }).then(function () { polling = false; });
 }
 document.addEventListener('click', function (e) {
   var b = e.target.closest('button');
@@ -121,7 +132,8 @@ document.addEventListener('click', function (e) {
   } else if (b.dataset.z) { send({ action: 'zero', axis: b.dataset.z }); }
 });
 poll();
-setInterval(poll, 500);
+setInterval(poll, 250);
 </script>
 </body>
 </html>
+"""

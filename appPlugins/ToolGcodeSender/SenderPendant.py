@@ -8,13 +8,13 @@
 import hmac
 import json
 import math
-import os
 import secrets
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit, parse_qs
 
-PAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pendant.html')
+from appPlugins.ToolGcodeSender.SenderPendantPage import PAGE_HTML
+
 MAX_BODY = 4096
 
 JOG_DIRECTIONS = ('xplus', 'xminus', 'yplus', 'yminus', 'zplus', 'zminus', 'aplus', 'aminus',
@@ -131,12 +131,7 @@ class PendantServer:
                 if not self._authorized(parse_qs(parts.query)):
                     return self._json(403, {'error': 'forbidden'})
                 if parts.path == '/':
-                    try:
-                        with open(PAGE, 'rb') as handle:
-                            page = handle.read()
-                    except OSError:
-                        return self._json(404, {'error': 'no page'})
-                    return self._send(200, page, 'text/html; charset=utf-8')
+                    return self._send(200, PAGE_HTML, 'text/html; charset=utf-8')
                 if parts.path == '/state':
                     return self._json(200, server.snapshot())
                 self._json(404, {'error': 'not found'})

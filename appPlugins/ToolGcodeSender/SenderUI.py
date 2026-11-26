@@ -292,9 +292,28 @@ class GcodeSenderUI:
         self.com_connect_button.setStyleSheet("QPushButton {background-color: red;}")
         ctrl_h_lay.addWidget(self.com_connect_button)
 
-        grbl_conn_grid.addWidget(FCLabel(""), 9, 0, 1, 3)
-        grbl_conn_grid.setRowStretch(9, 1)
-        grbl_conn_grid.addLayout(ctrl_h_lay, 10, 0, 1, 3)
+        # Web pendant: the switch, the address with the token and a Copy button
+        self.pendant_cb = FCCheckBox(_("Web pendant"))
+        self.pendant_cb.setToolTip(
+            _("Serve a web page that shows the state of the machine and gives Hold, Resume, Stop and E-Stop.\n"
+              "The address and the port are in the preferences. The token in the address is always needed."))
+        self.pendant_url_entry = FCEntry()
+        self.pendant_url_entry.setReadOnly(True)
+        self.pendant_copy_button = FCButton(_("Copy"))
+        self.pendant_copy_button.setToolTip(_("Copy the address of the pendant."))
+        self.pendant_note_label = FCLabel(_("Open the address of this computer on the network."))
+        self.pendant_note_label.setWordWrap(True)
+        self.pendant_url_entry.setVisible(False)
+        self.pendant_copy_button.setVisible(False)
+        self.pendant_note_label.setVisible(False)
+        grbl_conn_grid.addWidget(self.pendant_cb, 9, 0)
+        grbl_conn_grid.addWidget(self.pendant_url_entry, 9, 1)
+        grbl_conn_grid.addWidget(self.pendant_copy_button, 9, 2)
+        grbl_conn_grid.addWidget(self.pendant_note_label, 10, 0, 1, 3)
+
+        grbl_conn_grid.addWidget(FCLabel(""), 11, 0, 1, 3)
+        grbl_conn_grid.setRowStretch(11, 1)
+        grbl_conn_grid.addLayout(ctrl_h_lay, 12, 0, 1, 3)
         self.controller_combo.currentIndexChanged.connect(lambda _index: self.update_connection_controls())
         self.connection_combo.currentIndexChanged.connect(lambda _index: self.update_connection_controls())
         self.update_connection_controls()

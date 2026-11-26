@@ -1395,9 +1395,28 @@ class TestDockedJogPage(unittest.TestCase):
         self.tool._on_stream_ended('done')
         self.tool._on_capabilities_applied()
         self.tool._set_estop_enabled(True)
+        # Stop and E-Stop (the pendant, the status bar button) still reach the controller
+        port = self.tool.grbl_ser_port
+        self.tool._on_pendant_request('stop', {})
+        self.assertIn(b'!', port.written)
+        del port.written[:]
+        self.tool.on_emergency_stop()
+        self.assertIn(b'!', port.written)
         self.tool.grbl_ser_port = None
         self.tool._on_grbl_port_closed()
         self.full_mode()    # run() builds the UI again
+
+    def test_enabled_pendant_starts_with_the_ui(self):
+        options = self.tool.app.options
+        options.update(tools_grbl_pendant_enabled=True, tools_grbl_pendant_port=0, tools_grbl_pendant_token='')
+        self.addCleanup(self.tool._pendant_stop)
+        self.full_mode()
+        self.assertIsNotNone(self.tool._pendant)
+        self.assertTrue(self.tool.ui.pendant_cb.isChecked())
+        self.assertTrue(options['tools_grbl_pendant_token'])
+        self.tool.ui.pendant_cb.setChecked(False)
+        self.assertIsNone(self.tool._pendant)
+        self.assertFalse(options['tools_grbl_pendant_enabled'])
 
     def test_abort_banner_stays_until_recovery_ends(self):
         self.connect(DockJogFake())
@@ -2278,6 +2297,43 @@ class TestActionRules(unittest.TestCase):
                         self.assertEqual(tool._last_wco is None, accepted)
                     if accepted:
                         self.assertEqual(threads, [threading.main_thread()])
+
+    PENDANT_REQUESTS = (
+        ('hold', {}), ('resume', {}), ('stop', {}), ('estop', {}), ('feed_ov', {'value': '+10'}),
+        ('jog', {'direction': 'xplus', 'step': 1.0}), ('zero', {'axis': 'x'}), ('home', {}))
+
+    def test_pendant_requests_follow_action_rules(self):
+        """The pendant has no policy of its own: a request writes exactly when the S7 rules allow its action."""
+        names = {'feed_ov': 'override'}
+        for situation in ('idle', 'stream_run', 'held', 'alarm', 'needs_home'):
+            for action, args in self.PENDANT_REQUESTS:
+                with self.subTest(situation=situation, action=action):
+                    tool, fake = self.make()
+                    tool.app.options['tools_grbl_pendant_motion'] = True
+                    tool.app.app_units = tool.units = 'MM'
+                    tool.ui.jog_fr_entry.get_value.return_value = 100.0
+                    self.situation(tool, situation)
+                    allowed = tool.action_allowed(names.get(action, action)) is None
+                    tool._on_pendant_request(action, args)
+                    self.assertEqual(bool(fake.written), allowed)
+        # named cases
+        for situation, action, args, motion, expected in (
+                ('stream_run', 'home', {}, True, False),
+                ('needs_home', 'home', {}, True, True),
+                ('alarm', 'jog', {'direction': 'xplus', 'step': 1.0}, True, False),
+                ('stream_run', 'hold', {}, True, True),
+                ('stream_run', 'stop', {}, True, True),
+                ('idle', 'jog', {'direction': 'xplus', 'step': 1.0}, False, False)):
+            with self.subTest(situation=situation, action=action, motion=motion):
+                tool, fake = self.make()
+                tool.app.options['tools_grbl_pendant_motion'] = motion
+                tool.app.app_units = tool.units = 'MM'
+                tool.ui.jog_fr_entry.get_value.return_value = 100.0
+                self.situation(tool, situation)
+                tool._on_pendant_request(action, args)
+                self.assertEqual(bool(fake.written), expected)
+                if situation == 'needs_home' and action == 'home':
+                    self.assertIn('$H', fake.commands())
 
 
 class TestIOPage(unittest.TestCase):
