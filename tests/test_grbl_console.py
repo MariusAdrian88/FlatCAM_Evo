@@ -56,6 +56,7 @@ class TestGrblConfiguration(unittest.TestCase):
         port = SettingsPort()
         tool.grbl_ser_port = port
         tool._grbl_connected = True
+        tool._grbl_set_ui_connected(True)
         dock = QtWidgets.QDockWidget()
         self.addCleanup(dock.deleteLater)
         tool.app.ui.grbl_console_dock = dock
@@ -541,7 +542,7 @@ class TestGrblConsole(unittest.TestCase):
                 console.tabs.setCurrentIndex(1)
                 tool.on_object_changed()
                 self.assertEqual(console.program_view.toPlainText().splitlines(), expected)
-                self.assertEqual(console.tabs.currentIndex(), 0)
+                self.assertEqual(console.tabs.currentIndex(), 1)     # a new program does not change the page
                 self.assertEqual(self.selected_lines(console), [])
 
     def test_show_console_selects_program_and_focuses_gcode(self):
@@ -1764,6 +1765,50 @@ class TestActionRules(unittest.TestCase):
         self.situation(tool, 'probe')
         self.assertTrue(tool.action_allowed('start'))
         self.assertTrue(tool.action_allowed('jog'))
+
+    def test_ui_rebuild_keeps_machine_state(self):
+        from tests.test_grbl_sender_construct import make_app
+        from appPlugins.ToolGcodeSender.Sender import ToolGCodeSender
+        tool = ToolGCodeSender(make_app())
+        tool.build_ui()
+        self.addCleanup(drop_console_event_filters)
+        tool.grbl_ser_port = FakeGrbl()
+        tool._grbl_connected = True
+        tool._plugin_active = True
+        self.assertIsNotNone(tool._grbl_reserve('stream', motion=True))
+        tool.build_ui()
+        self.assertFalse(tool.ui.start_button.isEnabled())
+        self.assertFalse(tool.ui.jog_wdg.isEnabled())
+        self.assertTrue(tool.ui.estop_button.isEnabled())
+        self.assertFalse(tool.ui.reset_button.isEnabled())
+        # app.cleanup during the job does not rebuild the UI
+        ui = tool.ui
+        tool.on_reset_tool()
+        self.assertIs(tool.ui, ui)
+
+    def test_refused_zero_keeps_sessions(self):
+        import threading
+        for handler in ('zero', 'home'):
+            for accepted in (False, True):
+                with self.subTest(handler=handler, accepted=accepted):
+                    tool, _fake = self.make()
+                    threads = []
+                    tool._camera_new_session = MagicMock(side_effect=lambda *_a: threads.append(threading.current_thread()))
+                    tool._toolchange_new_session = MagicMock()
+                    tool._invalidate_coordinates = MagicMock()
+                    tool._grbl_start_op = MagicMock(return_value=accepted)
+                    tool._last_wco = (1.0, 2.0, 3.0)
+                    if handler == 'zero':
+                        tool.on_grbl_zero('x')
+                    else:
+                        tool.on_grbl_homing()
+                    self.assertEqual(tool._camera_new_session.called, accepted)
+                    self.assertEqual(tool._toolchange_new_session.called, accepted)
+                    self.assertEqual(tool._invalidate_coordinates.called, accepted)
+                    if handler == 'zero':
+                        self.assertEqual(tool._last_wco is None, accepted)
+                    if accepted:
+                        self.assertEqual(threads, [threading.main_thread()])
 
 
 class TestIOPage(unittest.TestCase):

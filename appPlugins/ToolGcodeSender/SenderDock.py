@@ -768,7 +768,6 @@ class GrblConsole(QtWidgets.QWidget):
         self.program_view.clear()
         self._load_next_block(self._program_generation)
         self.update_progress(0)
-        self.tabs.setCurrentIndex(0)
 
     def _load_next_block(self, generation):
         if generation != self._program_generation:

@@ -752,6 +752,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def on_reset_tool(self):
         if self.ui is None:
             return  # never run: there is nothing to reset, and a reset must not build the UI
+        if self._grbl_op is not None:
+            return  # a running operation owns the widgets: app.cleanup does not rebuild them
         self._probe_start_op = None
         self._clear_probe_data()
         self.set_tool_ui()
@@ -840,6 +842,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._console()
         if self.isVisible():
             self._mount_emergency_stop()
+        # the new widgets show the state of the machine, not their defaults
+        self._grbl_set_ui_connected(self._grbl_port_ready())
 
     def _set_estop_enabled(self, enabled):
         """Both E-Stop buttons (the Plugin tab footer and the dock header) share one state."""
@@ -1676,6 +1680,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.com_connect_button.setStyleSheet("QPushButton {background-color: %s;}" % color)
         # zero and Home sit in the jog block, outside the frames that are enabled above
         self.ui.zero_axs_wdg.setEnabled(connected)
+        # Reset Tool rebuilds the UI: not while a port is ready
+        self.ui.reset_button.setEnabled(not connected)
         self._apply_machine_state()
         self.ui.camera_widget.set_connected(connected)
         self.ui.registration_widget.set_connected(connected)
@@ -3720,12 +3726,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def on_grbl_zero(self, axis):
         if not self._action_ok('zero'):
             return
-        self._invalidate_coordinates()
         axes = {'x': 'X0', 'y': 'Y0', 'z': 'Z0'}.get(axis, 'X0 Y0 Z0')
-        # the work offset changes: the next status report that has no WCO must not use the old one
-        self._last_wco = None
-        self._camera_new_session('zero')
-        self._toolchange_new_session('zero')
 
         def task(op):
             text, status = self._grbl_transact(op, '$G', timeout=5.0, echo=False)
@@ -3752,15 +3753,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     _("Zero failed"), cmd, grbl_reply_error(text) or status))
 
         # the position is not trusted during recovery
-        self._grbl_start_op('zero', task, motion=True)
+        if self._grbl_start_op('zero', task, motion=True):
+            self._invalidate_coordinates()
+            # the work offset changes: the next status report that has no WCO must not use the old one
+            self._last_wco = None
+            self._camera_new_session('zero')
+            self._toolchange_new_session('zero')
 
     def on_grbl_homing(self):
         if not self._action_ok('home'):
             return
-        self._invalidate_coordinates()
         self._stop_continuous_jog()
-        self._camera_new_session('home')
-        self._toolchange_new_session('home')
 
         def task(op):
             with self._grbl_op_lock:
@@ -3784,6 +3787,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         # A pending-reset home reservation only reads confirmation before permitting $H.
         if self._grbl_start_op('home', task, motion=True, allow_in_recovery=True):
+            self._invalidate_coordinates()
+            self._camera_new_session('home')
+            self._toolchange_new_session('home')
             self.app.inform.emit("%s" % _("The controller is doing a home cycle."))
 
     def _action_ok(self, action):
@@ -5473,6 +5479,19 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 re.search(r'G\s*38\.[2345](?!\d)', line, re.IGNORECASE) for line in lines):
             self.app.inform.emit('[ERROR_NOTCL] %s' % _("The controller has no probe input. Probing is unavailable."))
             return 'rejected'
+        # the final lines (after the corrections, the arc split and the restart preamble): a long line writes
+        # nothing, so no $C, no dirty flag and no recovery latch
+        preamble, start_index, resumed = restart if restart is not None else ([], 0, lines)
+        bad_index = validate_stream_lines(preamble + resumed, *self._line_limits())
+        if bad_index is not None:
+            if bad_index < len(preamble):
+                message = _("The restart preparation exceeds the GRBL line length limit.")
+            else:
+                position = start_index + bad_index - len(preamble)
+                message = _("Line %d of the G-code is longer than GRBL accepts. The job was not started.") % (
+                    numbers[position] if 0 <= position < len(numbers) else position + 1)
+            self.app.inform.emit('[ERROR_NOTCL] %s' % message)
+            return 'rejected'
 
         # A8.3 step 4.1: the request must be current when the worker starts
         if req is not None:
@@ -5534,7 +5553,6 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         # 4. stream
         write, readline = self._grbl_stream_io(op, req)
-        preamble, start_index, resumed = restart if restart is not None else ([], 0, lines)
         prefix_count = len(preamble)
 
         def program_done(done):

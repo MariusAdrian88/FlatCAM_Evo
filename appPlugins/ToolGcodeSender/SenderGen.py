@@ -309,6 +309,11 @@ def prepare_job(inputs, profile_compute, limits=(GRBL_RX_BUFFER, GRBL_MAX_LINE))
             return prepared
         if numbers:
             numbers = [numbers[i] for i in source_index]
+        bad_index = validate_stream_lines(lines, *limits)
+        if bad_index is not None:
+            prepared.error = _("Line %d of the G-code is longer than GRBL accepts. The job was not made.") % (
+                numbers[bad_index] if numbers else bad_index + 1)
+            return prepared
         prepared.split_count = count
     prepared.lines = lines
     prepared.numbers = numbers

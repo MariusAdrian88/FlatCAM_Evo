@@ -588,6 +588,36 @@ class TestStreamAbort(unittest.TestCase):
         self.assertEqual(tool._grbl_recovery, 'needs_reset')
         self.assertFalse(has_success(tool))
 
+    def test_long_line_is_refused_before_start(self):
+        # a line that the corrections made too long reaches the stream start: nothing is written, no latch
+        fake = FakeGrbl()
+        tool = make_stream_tool(fake)
+        op = tool._grbl_reserve('stream', motion=True)
+        long_line = 'G1 X1.0 ' + 'Y1.0 ' * 20
+        self.assertGreater(len(long_line), 80)
+        how = tool._grbl_stream_run(op, ['G21', long_line], [1, 2], False, 0.02)
+        self.assertEqual(how, 'rejected')
+        self.assertEqual(fake.written, [])
+        self.assertFalse(tool._grbl_stream_dirty)
+        self.assertIsNone(tool._grbl_recovery)
+        self.assertTrue(any('Line 2' in text for text in emitted(tool)))
+        # the restart: the profile corrected preamble + resumed part is checked as well
+        how = tool._grbl_stream_run(op, ['G21'], [1], False, 0.02, restart=(['G21'], 1, [long_line]))
+        self.assertEqual(how, 'rejected')
+        self.assertEqual(fake.written, [])
+        self.assertIsNone(tool._grbl_recovery)
+
+    def test_split_arc_that_gets_too_long_is_refused_in_prepare(self):
+        from appPlugins.ToolGcodeSender import SenderGen
+        long_line = 'G1 X1.0 ' + 'Y1.0 ' * 20
+        inputs = SenderGen._StartInputs(
+            op=None, target=None, source='G21\nG2 X1 Y1 I1 J0\n', check_mode=False, autolevel=False,
+            arc_mode='split', arc_segment=0.5, units='MM', decimals=4, profile=None, poll_ms=20, seq=0, generation=0)
+        with patch.object(SenderGen, 'split_arcs', return_value=(['G21', long_line], 1, [0, 1], [])):
+            prepared = SenderGen.prepare_job(inputs, None)
+        self.assertIsNotNone(prepared.error)
+        self.assertEqual(prepared.lines, [])
+
 
 # ---- merged from test_grbl_restart.py ----
 """Restart uses the preceding program position, never the selected move's endpoint."""
