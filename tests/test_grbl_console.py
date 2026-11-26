@@ -89,6 +89,27 @@ class TestGrblConfiguration(unittest.TestCase):
         self.assertEqual(page.table.item(2, 2).text(), '250')
         self.assertIn('error:3', page.table.item(2, 4).text())
 
+    def test_configuration_file_round_trip(self):
+        import tempfile
+        tool, port, page = self.make_configuration()
+        page.refresh_button.click()
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        path = os.path.join(folder.name, 'settings.txt')
+        page.save_to_file(path)
+        with open(path, encoding='utf-8') as handle:
+            text = handle.read()
+        self.assertIn('$100=250', text)
+        self.assertIn('$700=router.local', text)
+        with open(path, 'w', encoding='utf-8') as handle:
+            handle.write(text.replace('$100=250', '$100=300').replace('$13=0', '$13=1'))
+        port.written.clear()
+        page.load_from_file(path)
+        differing = {page.table.item(row, 0).text() for row in range(page.table.rowCount())
+                     if page.table.item(row, 3).text() != page.table.item(row, 2).text()}
+        self.assertEqual(differing, {'$100', '$13'})
+        self.assertEqual(port.written, [])
+
     def test_busy_injection_and_replaced_connection_cannot_write(self):
         tool, port, page = self.make_configuration()
         page.refresh_button.click()

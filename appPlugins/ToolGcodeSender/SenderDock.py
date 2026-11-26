@@ -12,6 +12,7 @@ from PyQt6 import QtWidgets, QtCore, QtGui
 
 from appEditors.text_editor.code_edit import CodeEdit
 from appPlugins.ToolGcodeSender import SenderKeys
+from appPlugins.Common.grbl.grbl_messages import setting_text
 from appPlugins.ToolGcodeSender.SenderCameraUI import CurrentPageTabWidget
 
 import gettext
@@ -59,11 +60,6 @@ class CommandHistory(QtCore.QObject):
 
 class GrblConfiguration(QtWidgets.QWidget):
     """Controller-confirmed values and explicit pending edits; editing never sends commands."""
-    DESCRIPTIONS = {'0': 'Step pulse (microseconds)', '1': 'Step idle delay (milliseconds)',
-                    '10': 'Status report mask', '13': 'Report in inches', '20': 'Soft limits',
-                    '21': 'Hard limits', '22': 'Homing enabled', '30': 'Maximum spindle speed',
-                    '31': 'Minimum spindle speed', '32': 'Laser mode',
-                    '100': 'X steps/unit', '101': 'Y steps/unit', '102': 'Z steps/unit'}
 
     def __init__(self, tool, parent=None):
         super().__init__(parent)
@@ -85,6 +81,10 @@ class GrblConfiguration(QtWidgets.QWidget):
         self.apply_button = QtWidgets.QPushButton(_('Apply changes'))
         buttons.addWidget(self.refresh_button)
         buttons.addWidget(self.apply_button)
+        self.save_button = QtWidgets.QPushButton(_('Save to file'))
+        self.load_button = QtWidgets.QPushButton(_('Load from file'))
+        buttons.addWidget(self.save_button)
+        buttons.addWidget(self.load_button)
         layout.addLayout(buttons)
         note = QtWidgets.QLabel(_(
             'Firmware validates supported values and read-only settings. Some settings require reset; '
@@ -93,6 +93,8 @@ class GrblConfiguration(QtWidgets.QWidget):
         layout.addWidget(note)
         self.refresh_button.clicked.connect(lambda: self.tool._configuration_request(self))
         self.apply_button.clicked.connect(self.apply_changes)
+        self.save_button.clicked.connect(self._save_clicked)
+        self.load_button.clicked.connect(self._load_clicked)
         self.table.cellChanged.connect(self._edited)
         self._timer = QtCore.QTimer(self)
         self._timer.setInterval(250)
@@ -112,6 +114,8 @@ class GrblConfiguration(QtWidgets.QWidget):
         recovery = self.tool.__dict__.get('_grbl_recovery') is not None
         self.refresh_button.setEnabled(supported and not busy)
         self.apply_button.setEnabled(supported and not busy and not recovery and self.identity is not None)
+        self.save_button.setEnabled(bool(self.values))
+        self.load_button.setEnabled(bool(self.values))
         self.table.setToolTip(_('Cached values; reads and writes require an idle controller.') if busy else '')
 
     def _edited(self, row, column):
@@ -127,6 +131,34 @@ class GrblConfiguration(QtWidgets.QWidget):
                    if self.table.item(row, 3).text() != self.table.item(row, 2).text()}
         if changes:
             self.tool._configuration_request(self, changes)
+
+    def _save_clicked(self):
+        path, _filter = QtWidgets.QFileDialog.getSaveFileName(self, _('Save settings'), '', _('Text (*.txt)'))
+        if path:
+            self.save_to_file(path)
+
+    def _load_clicked(self):
+        path, _filter = QtWidgets.QFileDialog.getOpenFileName(self, _('Load settings'), '', _('Text (*.txt)'))
+        if path:
+            self.load_from_file(path)
+
+    def save_to_file(self, path):
+        """Write the confirmed values as '$n=v' lines."""
+        with open(path, 'w', encoding='utf-8') as handle:
+            for number, value in sorted(self.values.items(), key=lambda item: int(item[0])):
+                handle.write('$%s=%s\n' % (number, value))
+
+    def load_from_file(self, path):
+        """Fill the Pending column of the rows that the file names; nothing is sent before Apply."""
+        with open(path, encoding='utf-8') as handle:
+            loaded = self.parse_settings(handle.read())
+        rows = {self.table.item(row, 0).text()[1:]: row for row in range(self.table.rowCount())}
+        skipped = [number for number in loaded if number not in rows]
+        for number, value in loaded.items():
+            if number in rows:
+                self.table.item(rows[number], 3).setText(value)
+        if skipped:
+            self.status.setText(_('Not in the controller, skipped:') + ' $' + ', $'.join(skipped))
 
     @staticmethod
     def parse_settings(text):
@@ -174,7 +206,10 @@ class GrblConfiguration(QtWidgets.QWidget):
                 outcome += ' · ' + _('Readback failed; previous value shown')
             if status == 'ok' and re.search(r'reset|reboot', reply, re.IGNORECASE):
                 outcome += ' · ' + reply
-            for column, text in enumerate(('$' + number, self.DESCRIPTIONS.get(number, _('Firmware setting')),
+            description, units = setting_text(number)
+            if description and units:
+                description += ' (' + units + ')'
+            for column, text in enumerate(('$' + number, description or _('Firmware setting'),
                                             value, edited, outcome)):
                 item = QtWidgets.QTableWidgetItem(text)
                 if column != 3:

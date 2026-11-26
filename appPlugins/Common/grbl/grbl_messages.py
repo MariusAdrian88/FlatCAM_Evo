@@ -146,6 +146,90 @@ GRBLHAL_ALARM_TEXTS = {
 }
 
 
+# setting number -> (description, units): GRBL 1.1 from github.com/gnea/grbl doc/csv/setting_codes_en_US.csv
+# ("Setting" and "Units" columns); the grblHAL ids are listed in github.com/grblHAL/core settings.h (no units)
+SETTING_TEXTS = {
+    0: (N_("Step pulse time"), N_("microseconds")),
+    1: (N_("Step idle delay"), N_("milliseconds")),
+    2: (N_("Step pulse invert"), N_("mask")),
+    3: (N_("Step direction invert"), N_("mask")),
+    4: (N_("Invert step enable pin"), N_("boolean")),
+    5: (N_("Invert limit pins"), N_("boolean")),
+    6: (N_("Invert probe pin"), N_("boolean")),
+    10: (N_("Status report options"), N_("mask")),
+    11: (N_("Junction deviation"), N_("millimeters")),
+    12: (N_("Arc tolerance"), N_("millimeters")),
+    13: (N_("Report in inches"), N_("boolean")),
+    20: (N_("Soft limits enable"), N_("boolean")),
+    21: (N_("Hard limits enable"), N_("boolean")),
+    22: (N_("Homing cycle enable"), N_("boolean")),
+    23: (N_("Homing direction invert"), N_("mask")),
+    24: (N_("Homing locate feed rate"), N_("mm/min")),
+    25: (N_("Homing search seek rate"), N_("mm/min")),
+    26: (N_("Homing switch debounce delay"), N_("milliseconds")),
+    27: (N_("Homing switch pull-off distance"), N_("millimeters")),
+    30: (N_("Maximum spindle speed"), N_("RPM")),
+    31: (N_("Minimum spindle speed"), N_("RPM")),
+    32: (N_("Laser-mode enable"), N_("boolean")),
+    100: (N_("X-axis travel resolution"), N_("step/mm")),
+    101: (N_("Y-axis travel resolution"), N_("step/mm")),
+    102: (N_("Z-axis travel resolution"), N_("step/mm")),
+    110: (N_("X-axis maximum rate"), N_("mm/min")),
+    111: (N_("Y-axis maximum rate"), N_("mm/min")),
+    112: (N_("Z-axis maximum rate"), N_("mm/min")),
+    120: (N_("X-axis acceleration"), N_("mm/sec^2")),
+    121: (N_("Y-axis acceleration"), N_("mm/sec^2")),
+    122: (N_("Z-axis acceleration"), N_("mm/sec^2")),
+    130: (N_("X-axis maximum travel"), N_("millimeters")),
+    131: (N_("Y-axis maximum travel"), N_("millimeters")),
+    132: (N_("Z-axis maximum travel"), N_("millimeters")),
+    # grblHAL (names of the Setting_ ids of settings.h)
+    7: (N_("Spindle PWM behaviour"), ""),
+    8: (N_("Ganged direction invert"), N_("mask")),
+    9: (N_("Spindle PWM options"), ""),
+    14: (N_("Control signals invert"), N_("mask")),
+    15: (N_("Coolant invert"), N_("mask")),
+    16: (N_("Spindle invert"), N_("mask")),
+    17: (N_("Control signals pull-up disable"), N_("mask")),
+    18: (N_("Limit pins pull-up disable"), N_("mask")),
+    19: (N_("Probe pull-up disable"), N_("boolean")),
+    28: (N_("G73 retract"), ""),
+    29: (N_("Pulse delay"), N_("microseconds")),
+    33: (N_("Spindle PWM frequency"), ""),
+    34: (N_("Spindle PWM off value"), ""),
+    35: (N_("Spindle PWM min value"), ""),
+    36: (N_("Spindle PWM max value"), ""),
+    37: (N_("Steppers deenergize mask"), N_("mask")),
+    38: (N_("Spindle pulses per revolution"), ""),
+    39: (N_("Enable legacy realtime commands"), N_("boolean")),
+    40: (N_("Jog soft limited"), N_("boolean")),
+    41: (N_("Parking enable"), ""),
+    42: (N_("Parking axis"), ""),
+    43: (N_("Homing locate cycles"), ""),
+    60: (N_("Restore overrides"), ""),
+    61: (N_("Safety door options"), ""),
+    62: (N_("Sleep enable"), N_("boolean")),
+    63: (N_("Feed hold actions"), ""),
+    64: (N_("Force init alarm"), N_("boolean")),
+    65: (N_("Probing flags"), ""),
+}
+
+
+def setting_text(number):
+    """
+    Description and units of a setting, translated.
+
+    :param number: the setting number, int or str.
+    :return: (description, units); ('', '') if the number is not known.
+    """
+    try:
+        description, units = SETTING_TEXTS[int(number)]
+    except (KeyError, ValueError):
+        return '', ''
+    translate = builtins.__dict__.get('_', gettext.gettext)
+    return translate(description), (translate(units) if units else '')
+
+
 def code_text(reply, grblhal=False):
     """
     The reply of a controller with the text of its code.
