@@ -152,6 +152,24 @@ def test_config_persistence(tmp_path):
     assert api2.config.output_labels[0] == 'Vacuum'
 
 
+def test_config_load_refuses_a_quoted_bool_in_the_unverified_section(tmp_path):
+    import json
+    api = EcutAPI()
+    path = tmp_path / 'machine.json'
+    api.save_config(path)
+    data = json.loads(path.read_text(encoding='utf-8'))
+    data['unverified']['probing'] = 'false'
+    path.write_text(json.dumps(data), encoding='utf-8')
+    loaded = EcutAPI()
+    with pytest.raises(ValueError, match='probing'):
+        loaded.load_config(path)
+    assert not any(loaded.config.unverified.to_dict().values())
+    data['unverified']['probing'] = False
+    path.write_text(json.dumps(data), encoding='utf-8')
+    loaded.load_config(path)
+    assert loaded.config.unverified.probing is False
+
+
 def test_config_save_refuses_an_invalid_profile(tmp_path):
     api = EcutAPI()
     api.config.motion_period_s = 0.005

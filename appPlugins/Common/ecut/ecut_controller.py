@@ -1381,6 +1381,7 @@ class EcutAPI:
             hit = None
             seek_speed = cfg.fast_velocity_mm_s if speed is None else speed
             sign = 1 if delta > 0 else -1
+            start_logical = origin[axis] - self._backlash_offset[axis]
             for speed in (seek_speed, min(seek_speed, cfg.slow_velocity_mm_s)):
                 # a native move reverses the axis like a planned one, but takes up the lash by itself
                 self._travel(axis, sign)
@@ -1389,9 +1390,14 @@ class EcutAPI:
                 self._wait_switch('PROBE', True, target, self._sensor_timeout(axis, cfg.max_travel_mm, speed))
                 self._stop_native_axis(axis)
                 hit = tuple(self._acc.steps)
-                retract = list(hit)
-                retract[axis] -= sign * round(cfg.retract_mm * abs(self._axis_scale(axis)))
+                # the retract reverses the axis (its lash take-up changes the motor offset) and never passes
+                # the probe start, the only path known to be free; if the switch holds there, the probe fails
                 self._travel(axis, -sign)
+                free = hit[axis] - hit_offset - sign * round(cfg.retract_mm * abs(self._axis_scale(axis)))
+                if sign * free < sign * start_logical:
+                    free = start_logical
+                retract = list(hit)
+                retract[axis] = free + self._backlash_offset[axis]
                 self._native_move(Cmd.PROBE, retract, axis, cfg.retract_velocity_mm_s, 0)
                 self._wait_switch('PROBE', False, retract, self._sensor_timeout(axis, cfg.retract_mm, cfg.retract_velocity_mm_s))
                 self._usb.cmd(Cmd.PROBE_FINISH)

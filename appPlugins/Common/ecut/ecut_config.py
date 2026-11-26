@@ -332,7 +332,10 @@ class UnverifiedConfig:
 
     @classmethod
     def from_dict(cls, d: dict) -> UnverifiedConfig:
-        return cls(**{k: bool(v) for k, v in d.items() if k in cls.__dataclass_fields__})
+        for key, value in d.items():
+            if key in cls.__dataclass_fields__ and not isinstance(value, bool):
+                raise EcutConfigError(f'unverified.{key} must be true or false, got {value!r}')
+        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
 
 @dataclass

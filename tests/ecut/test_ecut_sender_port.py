@@ -1490,5 +1490,3 @@ def test_feed_override_reaches_the_engine_while_a_prepared_program_runs(connecti
     lines = []
     wait_for(lambda: lines.extend(port.readlines()) or any(x.startswith(b'[MSG:E-Cut real-time command refused') for x in lines))
     assert 0x95 not in engine.controls
-
-

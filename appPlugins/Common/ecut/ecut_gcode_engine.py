@@ -39,6 +39,7 @@ class _Parser:
     feed_mode: int = 94
     wcs: int = 0
     feed: float = 0.0
+    angular_feed: float = 0.0  # the F number as written (degrees/min of a rotary move), independent of G20/G21
     speed: float = 0.0
     spindle: int = 5
     coolant: set = field(default_factory=set)
@@ -104,6 +105,7 @@ class EcutGcodeEngine:
         self._homing = False
         self._preparing = False
         self._probe = None  # machine position of the last probe contact, for $#
+        self._probe_ok = False  # the last probe cycle found its contact (the $# PRB flag)
         self._check_snapshot = None
         self._parser = _Parser(position=self._measured_position())
         self._active_parser = None
@@ -642,7 +644,7 @@ class EcutGcodeEngine:
             group = _GROUPS[g]
             if group in ('motion', 'plane', 'units', 'distance', 'feed_mode'):
                 if group == 'feed_mode' and g != parser.feed_mode:
-                    parser.feed = 0
+                    parser.feed = parser.angular_feed = 0
                 setattr(parser, group, g if g == 38.2 else int(g))
             elif group == 'wcs':
                 parser.wcs = int(g - 54)
@@ -651,6 +653,7 @@ class EcutGcodeEngine:
         scale = 25.4 if parser.units == 20 else 1
         if 'F' in values:
             parser.feed = values['F'] * (scale if parser.feed_mode == 94 else 1)
+            parser.angular_feed = values['F']
         if 'S' in values:
             parser.speed = values['S']
         if 'T' in values:
@@ -744,10 +747,10 @@ class EcutGcodeEngine:
             else:
                 points = [target]
                 length = math.dist(parser.position, target)
-            # G94 feed is stored in mm/min of the linear part; a pure rotary move keeps degrees/min, so the
-            # G20 scale is taken off again. A mixed move keeps the inch feed of its linear part.
+            # G94 feed is stored in mm/min of the linear part; a pure rotary move uses the modal angular feed
+            # (degrees/min as written). A mixed move keeps the inch feed of its linear part.
             pure_rotary = bool(axes) and set(axes) == {3} and not arc
-            feed = (parser.feed / scale if pure_rotary else parser.feed) if parser.feed_mode == 94 else length * parser.feed
+            feed = (parser.angular_feed if pure_rotary else parser.feed) if parser.feed_mode == 94 else length * parser.feed
             # Path control: only the end of the programmed move gets the mode's corner limit. G61's 0 would
             # stop at every chord vertex of an arc, so interior vertices keep the junction setting, or the
             # G64 P tolerance, which bounds how far the chords may leave the programmed arc.
@@ -947,10 +950,13 @@ class EcutGcodeEngine:
             self.api.set_output(name, on)
         if lines:
             probed = any(line.startswith('G21 G90 G38.2 ') for line in lines)
+            if probed:
+                self._probe_ok = False  # a probe cycle starts: the old result is gone, like GRBL does
             self.api.run_gcode(lines)
             if probed:
                 point = self.api.last_probe_result['position_mm']
                 self._probe = list(point[:self._axis_count()])
+                self._probe_ok = True
 
     def _system(self, text):
         if text == '$':
@@ -976,7 +982,7 @@ class EcutGcodeEngine:
             rows += [f'[G{28+i*2}:{self._coordinates(v)}]' for i, v in enumerate(self._stored)]
             return rows + [f'[G92:{self._coordinates(self._parser.g92)}]',
                            f'[TLO:{self._report_value(self._parser.tlo):.3f}]',
-                           f'[PRB:{self._coordinates(self._probe or [0.0] * 4)}:{int(self._probe is not None)}]',
+                           f'[PRB:{self._coordinates(self._probe or [0.0] * 4)}:{int(self._probe_ok)}]',
                            'ok']
         if text == '$C':
             if not self.check_mode:
@@ -1186,6 +1192,7 @@ class EcutGcodeEngine:
             _, self._wcs, self._stored = self._check_snapshot
         self.check_mode = False
         self._check_snapshot = None
+        self._probe, self._probe_ok = None, False  # a reset clears the probe record
         self._rapid_override = self._spindle_override = 100
         self.api.feed_override = 1
         self.api.rate_limit = 1

@@ -493,7 +493,8 @@ def test_g38_reports_contact(monkeypatch):
     assert engine.execute_line('G91 G38.2 Z-2 F6') == ['[PRB:0.000,0.000,-1.200:1]', 'ok']
     assert '[PRB:0.000,0.000,-1.200:1]' in engine.execute_line('$#')
     assert api.state == State.IDLE
-    # G31 answers the same way
+    # G31 answers the same way, probing from the start again (the retract stays on the free path)
+    engine.execute_line('G90 G1 Z0 F600')
     api._usb.contact_at = -30720
     assert engine.execute_line('G31 Z-1 F6') == ['[PRB:0.000,0.000,-0.600:1]', 'ok']
     # the switch is off: the refusal stays and nothing moves
@@ -520,3 +521,83 @@ def test_g38_reports_contact(monkeypatch):
         port.close()
     assert [x for x in lines if x.startswith(b'ALARM')] == [b'ALARM:5\r\n']
     assert b'ok\r\n' not in lines
+
+
+def test_probe_record_after_a_failed_probe_and_after_a_reset_reports_no_hit():
+    from appPlugins.Common.ecut.ecut_gcode_engine import EcutGcodeEngine
+    api = sensor_api()
+    api.config.probe.max_travel_mm = 5
+    api.push_config()
+    engine = EcutGcodeEngine(api)
+    assert engine.execute_line('G91 G38.2 Z-.004 F6')[0].endswith(':1]')
+    api._usb.contact = False
+    with pytest.raises(EcutError):
+        engine.execute_line('G91 G38.2 Z-.004 F6')
+    assert [x for x in engine.execute_line('$#') if x.startswith('[PRB')][0].endswith(':0]')
+    api = sensor_api()
+    api.config.probe.max_travel_mm = 5
+    api.push_config()
+    engine = EcutGcodeEngine(api)
+    engine.execute_line('G91 G38.2 Z-.004 F6')
+    engine.realtime(0x18)
+    assert '[PRB:0.000,0.000,0.000:0]' in engine.execute_line('$#')
+
+
+class ContactBoard(SensorBoard):
+    """One probed axis: the switch closes at contact_at and opens again only at release_at."""
+    def __init__(self, axis, sign, contact_at, release_at=None):
+        super().__init__()
+        self.axis, self.sign, self.contact_at = axis, sign, contact_at
+        self.release_at = contact_at if release_at is None else release_at
+        self.reached = []
+    def cmd(self, opcode, params=b''):
+        IoBoard.cmd(self, opcode, params)
+        if int(opcode) in (0xae, 0xa6, 0xb4):
+            low, high = struct.unpack_from('>II', params, (4, 12, 20)[self.axis])
+            desired = (((high << 32) | low) - (1 << 64 if high >> 31 else 0)) // 65536
+            s, pos = self.sign, self.positions[self.axis]
+            new = self.contact_at if s * pos < s * self.contact_at <= s * desired else desired
+            self.positions[self.axis] = new
+            self.reached.append(new)
+            self.active = s * new >= s * self.release_at
+
+
+def contact_api(axis, sign, contact_mm, release_mm=None, start_mm=0.0, backlash_mm=0.0):
+    api = sensor_api()
+    scale = api._axis_scale(axis)
+    api.config.probe.max_travel_mm = .05
+    api.config.probe.retract_mm = .005
+    ax = api.config.axes[axis]
+    if backlash_mm:
+        ax.backlash_mm, ax.backlash_compensation_enabled = backlash_mm, True
+        api.config.unverified.backlash = True
+    api.push_config()
+    api._usb = ContactBoard(axis, sign, round(contact_mm * scale),
+                            None if release_mm is None else round(release_mm * scale))
+    api._usb.positions[axis] = round(start_mm * scale)
+    return api, scale
+
+
+@pytest.mark.parametrize('axis, sign, contact_mm', [(2, -1, -.0025), (0, 1, .0025)])
+def test_probe_retract_never_passes_the_probe_start(axis, sign, contact_mm):
+    api, scale = contact_api(axis, sign, contact_mm)
+    api.probe(axis, sign * .005)
+    assert api.last_probe_result['position_mm'][axis] == pytest.approx(contact_mm)
+    assert all(sign * counts >= 0 for counts in api._usb.reached)   # nothing behind the start (0)
+    assert sign * api._usb.positions[axis] >= 0
+    assert not api.read_inputs()['PROBE']
+
+
+def test_probe_retract_with_backlash_ends_at_contact_plus_retract():
+    api, scale = contact_api(2, -1, -.0025, start_mm=.02, backlash_mm=.010)
+    api.probe(2, -.03)
+    assert api.logical_position_mm()[2] == pytest.approx(-.0025 + .005, abs=1 / scale)
+
+
+def test_probe_that_stays_active_at_the_start_bound_fails_with_alarm_5():
+    api, scale = contact_api(2, -1, -.0025, release_mm=.00125)
+    with pytest.raises(EcutError):
+        api.probe(2, -.005)
+    assert api._fault_alarm == 5
+    assert api.last_probe_result is None
+    assert max(api._usb.reached) <= 0   # no move behind the start

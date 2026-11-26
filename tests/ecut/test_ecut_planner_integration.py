@@ -123,7 +123,7 @@ def test_synthetic_probe_defers_following_motion_until_measured_retract():
     assert type(prepared[2][1]) is _MoveAction
     api.run_gcode(program)
     assert api.last_probe_result['position_mm'][2] == -.0025
-    # SensorBoard reports -128 at contact, then retracts 256 counts to +128.
-    # The following relative move rounds +.001 mm from there to +179 counts.
-    assert api.position_steps[2] == 179
+    # SensorBoard reports -128 at contact; the retract (256 counts) stops at the probe start, 0, the only
+    # path known to be free. The following relative move rounds +.001 mm from there to +51 counts.
+    assert api.position_steps[2] == 51
     assert api.state == State.IDLE

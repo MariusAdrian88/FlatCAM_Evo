@@ -2,6 +2,7 @@
 import importlib
 import json
 import math
+import re
 import struct
 import pytest
 from appPlugins.Common.ecut.ecut_config import EcutBoardConfig
@@ -823,6 +824,17 @@ def test_stored_position_return_ends_at_stored_a_with_axes_and_bare():
 def test_inch_feed_scales_only_moves_with_a_linear_part(line, feed):
     engine, api = a_engine()
     assert _planned_moves(engine, line)[0][0] == pytest.approx(feed)
+
+
+@pytest.mark.parametrize('set_units, move_units', [('G20', 'G20'), ('G21', 'G21'), ('G20', 'G21'), ('G21', 'G20')])
+def test_rotary_feed_ignores_a_units_change_for_console_and_prepared_program(set_units, move_units):
+    engine, api = a_engine()
+    engine.execute_line(f'{set_units} F60')
+    assert _planned_moves(engine, f'{move_units} G1 A10')[0][0] == pytest.approx(60)
+    engine, api = a_engine()
+    job = engine.prepare_program([f'{set_units} F60', f'{move_units} G1 A10'])
+    lines = [line for batch in job.batches for line in batch.lines if ' G1 ' in line]
+    assert float(re.search(r'F(-?[\d.]+)', lines[-1]).group(1)) == pytest.approx(60)
 
 
 def test_retained_a_count_does_not_block_xyz_moves_when_a_is_disabled():
