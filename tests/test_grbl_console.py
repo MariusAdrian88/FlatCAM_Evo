@@ -2797,5 +2797,49 @@ class TestIOTab(unittest.TestCase):
         self.assertIsNone(io.pending)
 
 
+def test_pendant_rules():
+    import json
+    import urllib.error
+    import urllib.request
+    from appPlugins.ToolGcodeSender.SenderPendant import PendantServer
+
+    posted = []
+    motion = [False]
+    server = PendantServer(lambda: {'state': 'Idle', 'connected': True},
+                           lambda action, args: posted.append((action, args)),
+                           'tok', lambda: motion[0], lambda: 10.0, port=0)
+    server.start()
+
+    def call(path, body=None, token='tok'):
+        url = 'http://127.0.0.1:%d%s' % (server.port, path)
+        if token:
+            url += ('&' if '?' in url else '?') + 't=' + token
+        data = None if body is None else json.dumps(body).encode()
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, data=data), timeout=5) as reply:
+                return reply.status, reply.headers.get('Content-Type', ''), reply.read()
+        except urllib.error.HTTPError as err:
+            return err.code, '', b''
+
+    try:
+        assert call('/state', token='')[0] == 403
+        status, _kind, raw = call('/state')
+        assert status == 200 and 'state' in json.loads(raw)
+        status, kind, raw = call('/')
+        assert status == 200 and kind.startswith('text/html') and b'<html' in raw.lower()
+        assert call('/other')[0] == 404
+        assert call('/cmd', {'action': 'start'})[0] == 400
+        assert call('/cmd', {'action': 'jog', 'direction': 'xplus', 'step': 1})[0] == 403
+        motion[0] = True
+        assert call('/cmd', {'action': 'jog', 'direction': 'xplus', 'step': 1e9})[0] == 400
+        assert call('/cmd', {'action': 'jog', 'direction': 'up', 'step': 1})[0] == 400
+        assert call('/cmd', {'action': 'jog', 'direction': 'xplus', 'step': 1})[0] == 200
+        assert call('/cmd', {'action': 'stop'})[0] == 200
+        assert call('/cmd', {'action': 'feed_ov', 'value': '+50'})[0] == 400
+        assert posted == [('jog', {'direction': 'xplus', 'step': 1.0}), ('stop', {})]
+    finally:
+        server.stop()
+
+
 if __name__ == '__main__':
     unittest.main()
