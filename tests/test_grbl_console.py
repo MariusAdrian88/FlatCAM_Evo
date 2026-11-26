@@ -110,6 +110,26 @@ class TestGrblConfiguration(unittest.TestCase):
         self.assertEqual(differing, {'$100', '$13'})
         self.assertEqual(port.written, [])
 
+    def test_file_access_errors_keep_the_table(self):
+        import tempfile
+        tool, port, page = self.make_configuration()
+        page.refresh_button.click()
+        page.table.item(0, 3).setText('77')
+        before = [[page.table.item(row, col).text() for col in range(5)] for row in range(page.table.rowCount())]
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        bad = os.path.join(folder.name, 'bad.txt')
+        with open(bad, 'wb') as handle:
+            handle.write(b'$100=\xff\xfe\n')
+        with patch.object(QtWidgets.QMessageBox, 'warning') as warning:
+            with patch('builtins.open', side_effect=PermissionError('denied')):
+                page.save_to_file(os.path.join(folder.name, 'out.txt'))
+            page.load_from_file(bad)
+            page.load_from_file(os.path.join(folder.name, 'missing.txt'))
+        self.assertEqual(warning.call_count, 3)
+        after = [[page.table.item(row, col).text() for col in range(5)] for row in range(page.table.rowCount())]
+        self.assertEqual(before, after)
+
     def test_busy_injection_and_replaced_connection_cannot_write(self):
         tool, port, page = self.make_configuration()
         page.refresh_button.click()
@@ -1865,6 +1885,30 @@ class TestDockedJogPage(unittest.TestCase):
                 if exit_name != 'rebuild':
                     button.setDown(False)
 
+    def test_held_a_button_stays_enabled_and_refresh_keeps_the_jog(self):
+        from PyQt6 import QtTest
+
+        port = self.native_ready()
+        self.tool._grbl_caps = dict(self.tool._grbl_caps or {}, axes='XYZA')
+        button = self.tool.ui.jog_wdg.jog_a_plus_button
+        button.setVisible(True)
+        button.setDown(True)
+        button.pressed.emit()
+        self.wait_native(lambda: any(d.startswith(b'$J') for d in port.written))
+        self.assertEqual(self.tool._grbl_op.name, 'continuous jog')
+        self.tool._native_jog['until'] += 60     # a slow machine must not expire the lease in this test
+        self.tool._apply_machine_state()
+        self.assertTrue(button.isEnabled())
+        self.assertTrue(button.isDown())
+        self.assertFalse(self.tool.ui.zero_axs_wdg.grbl_zeroa_button.isEnabled())
+        self.tool._refresh_continuous_jog()
+        self.assertIsNotNone(self.tool._continuous_jog)     # the refresh did not stop the held jog
+        self.assertFalse(self.tool._native_jog['stopped'])
+        button.setDown(False)
+        self.tool._refresh_continuous_jog()
+        self.wait_native(lambda: self.tool._grbl_op is None)
+        self.assertIn(b'\x85', port.written)
+
     def test_native_alarm_and_lost_ack_latch_recovery(self):
         for alarm in (True, False):
             with self.subTest(alarm=alarm):
@@ -2263,7 +2307,7 @@ class TestActionRules(unittest.TestCase):
                                 tools_grbl_pendant_token='tok', tools_grbl_pendant_motion=True)
         posted = []
         tool.pendant_request_sig = MagicMock()
-        tool.pendant_request_sig.emit.side_effect = lambda action, args, generation: posted.append(
+        tool.pendant_request_sig.emit.side_effect = lambda action, args, generation, session: posted.append(
             (action, args, generation))
         tool._pendant_start()
         self.addCleanup(tool._pendant_stop)
@@ -2337,6 +2381,16 @@ class TestActionRules(unittest.TestCase):
                                     offsets=('0.000,0.000,0.000', '1.000,0.000,0.000'))
         tool.on_edge_set_zero()
         self.assertEqual(self.zero_writes(fake), [])
+
+    def test_edge_zero_refused_after_the_report_units_changed(self):
+        result = {'units': 'MM', 'safety_generation': 0, 'frame': ('G54', (0.0, 0.0, 0.0), False),
+                  'kind': 'edge', 'contacts': {'xplus': (10.0, 0.0, 0.0)}, 'contact': (10.0, 0.0, 0.0),
+                  'report_inches': False}
+        tool, fake = self.zero_tool(dict(result), mpos=(1.0, 0.0, 0.0))
+        tool._grbl_report_inches = True         # $13=1 after the probe: the machine reports X1 inch
+        tool.on_edge_set_zero()
+        self.assertEqual(self.zero_writes(fake), [])
+        self.assertIn('Probe again', str(tool.app.inform.emit.call_args))
 
     def test_handlers_refuse_without_widgets(self):
         for name in ('probe', 'stream_run', 'needs_reset'):
@@ -2494,6 +2548,26 @@ class TestActionRules(unittest.TestCase):
         tool._on_pendant_request('jog', {'direction': 'xplus', 'step': 1.0}, generation)
         self.assertEqual(fake.written, [])
         tool._grbl_start_op.assert_not_called()
+
+    def pendant_jog_tool(self):
+        tool, fake = self.make()
+        tool.app.options['tools_grbl_pendant_motion'] = True
+        tool.app.app_units = tool.units = 'MM'
+        tool.ui.jog_fr_entry.get_value.return_value = 100.0
+        self.situation(tool, 'idle')
+        tool._pendant = MagicMock()
+        tool._pendant_data = {}
+        return tool, fake
+
+    def test_pendant_request_of_an_older_machine_session_writes_nothing(self):
+        for change in (lambda tool: setattr(tool, 'grbl_ser_port', MagicMock()),
+                       lambda tool: setattr(tool, '_grbl_safety_generation', tool._grbl_safety_generation + 1)):
+            tool, fake = self.pendant_jog_tool()
+            session = tool._pendant_session()           # at the receipt of the request
+            change(tool)                                # a disconnect + new connection, or a Stop/reset
+            tool._on_pendant_request('jog', {'direction': 'xplus', 'step': 1.0}, tool._pendant_generation, session)
+            self.assertEqual(fake.written, [])
+
 
 
 class TestIOPage(unittest.TestCase):
@@ -2996,6 +3070,26 @@ class TestIOTab(unittest.TestCase):
             clear()
             self.assertIsNone(self.shown(self.page, 'Aux 0'))
 
+    def test_macro_with_an_output_word_clears_the_commanded_aux_state(self):
+        for line, clears in (('M64 P0', True), ('M064 P0', True), ('G4P0M64P0', True), ('G1X2M8', True),
+                             ('S1000M03', True), ('M30', False), ('M6', False), ('G0 X1 (M64)', False)):
+            with self.subTest(line=line):
+                tool, fake, io = self.make(ident=self.IDENT + ['[FIRMWARE:grblHAL]', '[AUX IO:0,1,0,0]'], hal=True)
+                io.evaluate()
+                self.feed(io, '<Idle|MPos:0.000,0.000,0.000|A:>')
+                tool._controller_state = 'Idle'
+                io.on_output_requested('Aux 0', False)
+                self.assertIs(self.shown(self.page, 'Aux 0'), False)
+                self.assertTrue(tool.run_macro([line]))
+                self.assertIs(self.shown(self.page, 'Aux 0'), None if clears else False)
+
+    def test_macro_that_sets_the_report_units_reads_them_back(self):
+        tool, fake, io = self.make()
+        tool._grbl_report_inches = False
+        fake.replies['$$'] = ['$13=1', 'ok']
+        self.assertTrue(tool.run_macro(['$13=1']))
+        self.assertIs(tool._grbl_report_inches, True)
+
     def test_outputs_are_disabled_and_write_nothing_during_a_job_a_pause_an_alarm_or_recovery(self):
         def running(tool):
             tool._grbl_op = SimpleNamespace(name='stream')
@@ -3082,6 +3176,79 @@ def test_pendant_rules():
         assert posted == [('jog', {'direction': 'xplus', 'step': 1.0}), ('stop', {})]
     finally:
         server.stop()
+
+
+def _pendant_server():
+    from appPlugins.ToolGcodeSender.SenderPendant import PendantServer
+    server = PendantServer(lambda: {'state': 'Idle'}, lambda action, args: None, 'tok',
+                           lambda: False, lambda: 10.0, port=0)
+    server.start()
+    return server
+
+
+def _incomplete(server):
+    import socket
+    sock = socket.create_connection(('127.0.0.1', server.port), timeout=5)
+    sock.sendall(b'GET /state HTTP/1.1\r\nHost: x\r\n')       # no blank line: the request never ends
+    return sock
+
+
+def _request_threads():
+    import threading
+    return [t for t in threading.enumerate() if 'process_request_thread' in t.name]
+
+
+def test_pendant_incomplete_requests_time_out():
+    import urllib.request
+    import appPlugins.ToolGcodeSender.SenderPendant as pendant
+    with patch.object(pendant, 'CLIENT_TIMEOUT', 0.3, create=True), \
+            patch.object(pendant, 'MAX_CONNECTIONS', 2, create=True):
+        server = _pendant_server()
+        socks = [_incomplete(server) for _n in range(2)]
+        try:
+            deadline = time.monotonic() + 8
+            while _request_threads() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            assert _request_threads() == []
+            url = 'http://127.0.0.1:%d/state?t=tok' % server.port
+            with urllib.request.urlopen(url, timeout=5) as reply:
+                assert reply.status == 200
+        finally:
+            for sock in socks:
+                sock.close()
+            server.stop()
+
+
+def test_pendant_closes_connections_over_the_limit():
+    import socket
+    import appPlugins.ToolGcodeSender.SenderPendant as pendant
+    with patch.object(pendant, 'MAX_CONNECTIONS', 2, create=True):
+        server = _pendant_server()
+        socks = [_incomplete(server) for _n in range(2)]
+        extra = None
+        try:
+            extra = socket.create_connection(('127.0.0.1', server.port), timeout=5)
+            extra.settimeout(3)
+            assert extra.recv(1) == b''                 # closed at once
+        finally:
+            for sock in socks + ([extra] if extra else []):
+                sock.close()
+            started = time.monotonic()
+            server.stop()
+            assert time.monotonic() - started < 2
+
+
+class TestMacroButtons(unittest.TestCase):
+    def test_import_and_export_clicks_open_the_dialog(self):
+        from appPlugins.ToolGcodeSender.SenderMacros import MacroPage
+        page = MacroPage(SimpleNamespace(app=SimpleNamespace(options={})))
+        self.addCleanup(page.deleteLater)
+        with patch.object(QtWidgets.QFileDialog, 'getOpenFileName', return_value=('', '')) as opened:
+            page.import_button.click()
+        self.assertEqual(opened.call_count, 1)
+        with patch.object(QtWidgets.QFileDialog, 'getSaveFileName', return_value=('', '')) as saved:
+            page.export_button.click()
+        self.assertEqual(saved.call_count, 1)
 
 
 if __name__ == '__main__':

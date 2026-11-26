@@ -188,9 +188,13 @@ def _code_of(line):
     return re.sub(r'\([^)]*\)', '', line).split(';')[0]
 
 
+# the one M6 word rule: M6, M06, M6.0, M06.0 in any case; not M60, M61 or M6.1. A word starts at its letter,
+# also after a number (T2M6, G1X2M6).
+M6_WORD_RE = re.compile(r'M\s*0*6(?:\.0*)?(?![0-9.])', re.IGNORECASE)
+
+
 def _has_m6_word(line):
-    # a word starts at its letter, also after a number (T2M6, G1X2M6)
-    return re.search(r'M\s*0*6(?![0-9.])', _code_of(line), re.IGNORECASE) is not None
+    return M6_WORD_RE.search(_code_of(line)) is not None
 
 
 def _is_m0_only(line):
@@ -797,6 +801,7 @@ class GrblClientMixin:
         The plugin closes: feed hold and soft reset (motion, spindle and outputs stop), then close the
         port. The next session starts clean; only a motion that the reset cut leaves 'needs_home'.
         """
+        self._reconnect_stop()      # no automatic reconnect after the close
         dialog = self.__dict__.get('_ecut_motion_dialog')
         if dialog is not None:
             self._ecut_motion_dialog = None

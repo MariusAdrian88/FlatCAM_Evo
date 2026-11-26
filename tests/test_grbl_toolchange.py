@@ -395,7 +395,7 @@ class TestToolChangeSender(unittest.TestCase):
             # The board contact and WCS both follow the tool-length change.
             board_machine_z = -49.8 + (contact - (-40.0))
             self.assertAlmostEqual(commanded_work_z + fake.wcs_z - board_machine_z, -0.1)
-            self.assertIsNone(tool.job_map_generation)
+            self.assertEqual(tool.job_map_generation, tool._al_generation)    # the job stays bound to the kept map
             self.assertNotEqual(tool._start_seq, 5)
             self.assertAlmostEqual(tool.toolchange.reference['offset_z'], expected_offset)
             self.assertAlmostEqual(tool.toolchange.reference['contact_machine_z'], contact)
@@ -841,6 +841,10 @@ class TestHostToolChangePreamble(unittest.TestCase):
         # '10.0000' -> '10'
         return [re.sub(r'(?<=\d)\.0+\b', '', line) for line in preamble], tail
 
+    def test_unknown_feed_before_an_inherited_feed_move_is_refused(self):
+        with self.assertRaisesRegex(ValueError, 'A positive feed rate is needed'):
+            self.resume(['X1', 'T2 M6', 'X2'], 1, 2, motion=1)
+
     def test_preamble_and_tail_of_the_cases(self):
         absolute = ['G21 G90', 'G0 X10 Y10', 'G1 Z-1 F300', 'G1 X20']
         cases = [
@@ -853,7 +857,8 @@ class TestHostToolChangePreamble(unittest.TestCase):
              ['G0 X110 Y0', 'M5 S0', 'G1 Z5 F300', 'G91', 'G1'], ['X5']),
             ('h M6 first block', ['T2 M6', 'G1 Z-1 F300', 'G1 X20'], 0, 1, dict(pos=(5.0, 5.0, 10.0)),
              ['G0 Z10', 'G0 X5 Y5', 'M5 S0', 'G90', 'G0'], ['G1 Z-1 F300', 'G1 X20']),
-            ('j G1 inherited', ['X1', 'T2 M6', 'X2'], 1, 2, dict(motion=1), ['G90', 'G1'], ['X2']),
+            ('j G1 inherited, F word first', ['X1', 'T2 M6', 'F300 X2'], 1, 2, dict(motion=1), ['G90', 'G1'],
+             ['F300 X2']),
             ('g G2 in the M6 block', ['G17', 'G0 X10 Y0 Z5', 'G1 F300', 'G2 X0 Y10 I-10 J0',
                                       'T2 M6 X0 Y0 I-5 J0', 'M0', 'G1 X1'], 4, 6, {},
              ['G1 Z5 F300', 'G90', 'G2 X0 Y0 I-5 J0'], ['G1 X1']),
@@ -1077,6 +1082,37 @@ class TestHostToolChangePolicy(unittest.TestCase):
                     self.assertTrue(moves, written)
                     self.assertIsNone(tool._tool_pause)
 
+    def test_fixed_plate_apply_keeps_the_levelled_job_resumable(self):
+        from appPlugins.ToolGcodeSender.ToolChange import PLATE_FIXED
+        from tests.grbl_stream_helpers import make_levelled_stream_tool
+        text = ('G21\nG90\nG94\nG00 Z2.0000\nG00 X1.0000 Y1.0000\nG01 Z-0.1000 F300.0000\nG01 X3.0000 Y1.0000\n'
+                'T2 M6\nM0\nG01 X5.0000 Y2.0000\nM05\nM2\n')
+        for name, later_change in (('apply', None), ('apply then new map', 'map'), ('apply then clear', 'clear')):
+            with self.subTest(name):
+                fake = ToolPauseFake()
+                tool, target = make_levelled_stream_tool(fake, text=text)
+                target.z_move = 5.0
+                tool.app.options['tools_grbl_m6_policy'] = 'pause'
+                tool.on_start()
+                self.assertIsNotNone(tool._tool_pause, [str(c) for c in tool.app.inform.emit.call_args_list])
+                tool.al_voronoi_geo_storage = {1: {'height': 0.1}}
+                tool._toolchange_mode = MagicMock(return_value=PLATE_FIXED)
+                tool._update_3d_height_map = MagicMock()
+                self.assertTrue(tool._toolchange_reconcile_map(10.0, 12.0))
+                self.assertTrue(tool.al_heights_valid)
+                if later_change == 'map':
+                    tool._al_on_height_map_ready(target)
+                elif later_change == 'clear':
+                    tool._toolchange_invalidate_map()
+                written = self.resume(tool, fake)
+                moves = [c for c in written if c.startswith(('G0', 'G1', 'X'))]
+                if later_change is None:
+                    self.assertTrue(moves, written)
+                    self.assertIsNone(tool._tool_pause)
+                else:
+                    self.assertEqual(moves, [], written)
+                    self.assertIsNotNone(tool._tool_pause)
+
     def test_host_tool_change_cases(self):
         spindle_on = 'G21 G90\nG0 X10 Y10\nM3 S10000\nG1 Z-1 F300\nG1 X20\nT2 M6\nM0\nX30\n'
         probe = 'G21 G90\nG0 X10 Y10\nG38.2 Z-5 F50\nG1 X20\nT2 M6\nM0\nX30\n'
@@ -1122,6 +1158,70 @@ class TestHostToolChangePolicy(unittest.TestCase):
                 at =commands.index(expected[0])
                 self.assertEqual(commands[at:at + 2], expected)
                 self.assertIsNone(tool._tool_pause)
+
+    def test_resume_restores_the_initial_a_position(self):
+        class FourAxisFake(ToolPauseFake):
+            def _answer(self, cmd):
+                if cmd == '$#':
+                    self._send('[G54:0.000,0.000,0.000,0.000]', '[G92:0.000,0.000,0.000,0.000]', '[TLO:0.000]', 'ok')
+                elif cmd == '?':
+                    self._send('<%s|MPos:%.3f,%.3f,%.3f,%.3f|FS:0,0>' % ((self.state,) + self.mpos))
+                else:
+                    super()._answer(cmd)
+
+        from tests.grbl_stream_helpers import make_stream_tool
+        for name, extra, expected in (('plain', '', 'G0 X20.0000 Y10.0000 A90.0000'),
+                                      ('relative', 'G91\nG0 A10\nG90\n', 'G0 X20.0000 Y10.0000 A100.0000')):
+            with self.subTest(name):
+                fake = FourAxisFake()
+                fake.mpos = (0.0, 0.0, 0.0, 90.0)
+                tool = make_stream_tool(fake, source='G21 G90\nG0 X10 Y10\nG1 Z-1 F300\n' + extra + 'G1 X20\nT2 M6\nX30\n')
+                tool._grbl_caps = {'axes': 'XYZA'}
+                tool.app.collection.get_by_name.return_value.z_move = 5.0
+                tool.app.options['tools_grbl_m6_policy'] = 'pause'
+                tool.on_start()
+                self.assertIsNotNone(tool._tool_pause, [str(c) for c in tool.app.inform.emit.call_args_list])
+                fake.mpos = (100.0, 100.0, 0.0, 180.0)      # the operator jogged during the pause
+                written = self.resume(tool, fake)
+                self.assertIn(expected, written)
+
+    def test_live_f0_needs_a_feed_only_where_the_re_entry_has_a_feed_move(self):
+        program = 'G21 G90\nT2 M6\nG0 X10 Y10\nG1 Z-1 F300\nX20\n'
+        for name, mpos, starts in (('travel z', (0.0, 0.0, 5.0), True), ('plunge needed', (0.0, 0.0, 0.0), False)):
+            with self.subTest(name):
+                fake = ToolPauseFake()
+                fake.gc = '[GC:G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0]'
+                fake.mpos = mpos
+                tool, fake = self.start('pause', program, fake)
+                if starts:
+                    self.assertIsNotNone(tool._tool_pause, [str(c) for c in tool.app.inform.emit.call_args_list])
+                    written = self.resume(tool, fake)
+                    self.assertFalse([c for c in written if 'F0' in c.split()])
+                    self.assertIn('G1 Z-1 F300', written)
+                else:
+                    self.assertIsNone(tool._tool_pause)
+                    self.assertIn('A positive feed rate is needed', str(tool.app.inform.emit.call_args_list))
+
+    def test_m6_number_forms_follow_the_policy(self):
+        for word in ('M6.0', 'M06.0', 'm6.0', 'M06'):
+            program = 'G21 G90\nG0 X10 Y10\nG1 Z-1 F300\nG1 X20\nT2 %s\nX30\n' % word
+            with self.subTest(word=word, policy='pause'):
+                tool, fake = self.start('pause', program)
+                commands = [c for c in fake.commands() if c != '?']
+                self.assertFalse([c for c in commands if 'M6' in c.upper() or 'M06' in c.upper()])
+                self.assertIsNotNone(tool._tool_pause)
+            with self.subTest(word=word, policy='skip'):
+                tool, fake = self.start('skip', program)
+                commands = [c for c in fake.commands() if c != '?']
+                self.assertFalse([c for c in commands if 'M6' in c.upper() or 'M06' in c.upper()])
+                self.assertIn('T2', commands)
+                self.assertIsNone(tool._tool_pause)
+        # M60 and M61 are other codes
+        from appPlugins.Common.grbl.grbl_client import is_tool_change_line
+        for word in ('M60', 'M61', 'M6.1', 'M16'):
+            self.assertFalse(is_tool_change_line('G1 X1 %s' % word))
+        for word in ('M6', 'M06', 'M6.0', 'M06.0', 'm6.0'):
+            self.assertTrue(is_tool_change_line('G1 X1 %s' % word))
 
 
 if __name__ == '__main__':

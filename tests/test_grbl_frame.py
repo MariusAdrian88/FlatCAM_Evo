@@ -725,6 +725,36 @@ class TestFirstJobWrite(unittest.TestCase):
             tool._reconnect_tick()
             self.assertEqual(tool.on_grbl_connect.call_count, 1)
 
+    def test_close_uninstall_and_shutdown_cancel_the_reconnect(self):
+        from unittest.mock import MagicMock, patch
+
+        def lost_tool():
+            tool, _target = make_levelled_stream_tool(CheckFake())
+            tool.app.options = {'tools_grbl_auto_reconnect': True}
+            tool.on_grbl_connect = MagicMock()
+            tool.grbl_ser_port = None
+            tool._reconnect_start()
+            self.addCleanup(tool._reconnect_stop)
+            self.assertTrue(tool._reconnect_active())
+            return tool
+
+        def assert_cancelled(tool):
+            self.assertFalse(tool._reconnect_active())
+            tool._reconnect_tick()          # a tick that was already queued
+            tool.on_grbl_connect.assert_not_called()
+
+        tool = lost_tool()
+        tool._grbl_shutdown()
+        assert_cancelled(tool)
+        tool = lost_tool()
+        tool.machine_connected = MagicMock(return_value=False)
+        tool.on_plugin_cleanup()
+        assert_cancelled(tool)
+        tool = lost_tool()
+        with patch('appPlugins.ToolGcodeSender.Sender.AppTool.uninstall'):
+            tool.uninstall()
+        assert_cancelled(tool)
+
     def test_not_levelled_write_has_no_request_check(self):
         tool, fake, op, _req = self.make()
         write, _readline = tool._grbl_stream_io(op)

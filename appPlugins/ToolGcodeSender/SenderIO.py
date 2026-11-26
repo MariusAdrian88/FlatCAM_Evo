@@ -516,6 +516,9 @@ class SenderIOController:
     def on_result(self, result):
         """Slot of io_result_sig: the answer of a GRBL command."""
         pending, status, text = result
+        if pending is None:         # a console command or a macro wrote an output word
+            self.clear_commanded()
+            return
         if not self._current(pending):
             return
         if status == 'ok':

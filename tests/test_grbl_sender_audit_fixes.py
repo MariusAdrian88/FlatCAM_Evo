@@ -235,9 +235,11 @@ class TestStopResets(unittest.TestCase):
         self.assertIsNotNone(op)
         with patch('appPlugins.ToolGcodeSender.Sender.QtCore.QTimer.singleShot') as timer:
             tool.on_stream_stop()
-        self.assertEqual(timer.call_args.args[0], 50)  # waits for the port, then for the end of the feed hold
+        # waits for the port, then for the end of the feed hold (the GUI watchdog timers have other delays)
+        retries = [call.args[1] for call in timer.call_args_list if call.args[0] == 50]
+        self.assertEqual(len(retries), 1)
         tool._grbl_release(op)
-        timer.call_args.args[1]()
+        retries[0]()
         self.assertIn(b'\x18', fake.written)
         self.assertEqual(tool._grbl_recovery, 'needs_home')
 

@@ -144,14 +144,21 @@ class GrblConfiguration(QtWidgets.QWidget):
 
     def save_to_file(self, path):
         """Write the confirmed values as '$n=v' lines."""
-        with open(path, 'w', encoding='utf-8') as handle:
-            for number, value in sorted(self.values.items(), key=lambda item: int(item[0])):
-                handle.write('$%s=%s\n' % (number, value))
+        try:
+            with open(path, 'w', encoding='utf-8') as handle:
+                for number, value in sorted(self.values.items(), key=lambda item: int(item[0])):
+                    handle.write('$%s=%s\n' % (number, value))
+        except (OSError, ValueError) as err:
+            QtWidgets.QMessageBox.warning(self, _('Save settings'), '%s\n%s' % (_('The file could not be written.'), err))
 
     def load_from_file(self, path):
         """Fill the Pending column of the rows that the file names; nothing is sent before Apply."""
-        with open(path, encoding='utf-8') as handle:
-            loaded = self.parse_settings(handle.read())
+        try:
+            with open(path, encoding='utf-8') as handle:
+                loaded = self.parse_settings(handle.read())
+        except (OSError, UnicodeDecodeError, ValueError) as err:
+            QtWidgets.QMessageBox.warning(self, _('Load settings'), '%s\n%s' % (_('The file could not be read.'), err))
+            return
         rows = {self.table.item(row, 0).text()[1:]: row for row in range(self.table.rowCount())}
         skipped = [number for number in loaded if number not in rows]
         for number, value in loaded.items():

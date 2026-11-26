@@ -14,7 +14,7 @@ import builtins
 from types import SimpleNamespace
 
 from appCommon.machine_profile.correct import MARKER_RE
-from appPlugins.Common.grbl.grbl_client import validate_stream_lines, GRBL_RX_BUFFER, GRBL_MAX_LINE
+from appPlugins.Common.grbl.grbl_client import validate_stream_lines, GRBL_RX_BUFFER, GRBL_MAX_LINE, M6_WORD_RE
 from appPlugins.ToolGcodeSender import SenderEstimate
 from appPlugins.Common.gcode_arcs import split_arcs
 from appPlugins.Common.gcode_segment import _ModalState, _WORD_RE, _words, _fmt, split_long_moves
@@ -129,7 +129,13 @@ def _split_comments(line):
     return re.split(r'(\([^)]*\)|;.*$)', line)
 
 
-_M6_WORD_RE = re.compile(r'M\s*0*6(?![0-9.])', re.IGNORECASE)
+_M6_WORD_RE = M6_WORD_RE
+
+
+def has_output_word(line):
+    """True if the line has an M word of a spindle, coolant or aux output (M3-M5, M7-M9, M62-M65)."""
+    code = ''.join(_split_comments(line)[0::2]).upper()
+    return any(k == 'M' and v in (3, 4, 5, 7, 8, 9, 62, 63, 64, 65) for k, v in _words(code))
 
 
 def _has_m6(line):
@@ -137,7 +143,7 @@ def _has_m6(line):
     return any(k == 'M' and v == 6 for k, v in _words(code))
 
 
-_M6_T_RE = re.compile(r'(?:M\s*0*6(?![0-9.])|T\s*[+-]?\d+\.?\d*)', re.IGNORECASE)
+_M6_T_RE = re.compile('(?:%s|T\\s*[+-]?\\d+\\.?\\d*)' % M6_WORD_RE.pattern, re.IGNORECASE)
 
 
 def _strip_m6_block(line):
@@ -146,6 +152,20 @@ def _strip_m6_block(line):
     parts[0::2] = [_M6_T_RE.sub('', part) for part in parts[0::2]]
     text = ' '.join(''.join(parts).split())
     return text if _words(''.join(parts[0::2]).upper()) else ''
+
+
+def _feed_motion_before_f(lines, motion):
+    """True if a G1/G2/G3 move (also inherited from `motion`) comes before any F word of `lines`."""
+    for line in lines:
+        words = _words(_COMMENT_PAREN_RE.sub('', line).split(';', 1)[0].upper())
+        if any(k == 'F' for k, _v in words):
+            return False
+        for k, value in words:
+            if k == 'G' and value in (0, 1, 2, 3, 80):
+                motion = int(value)
+        if motion in (1, 2, 3) and any(k in 'XYZAIJKR' for k, _v in words):
+            return True
+    return False
 
 
 def restart_preamble(lines, start_line, travel_z, units, decimals=4, spindle_dwell=0.0, tool_change=False,
@@ -268,8 +288,14 @@ def restart_preamble(lines, start_line, travel_z, units, decimals=4, spindle_dwe
     x, y, z = (float(state.pos[k]) for k in 'XYZ')
     # Never lower to travel Z if the preceding position was above it.
     clearance = max(travel, z)
-    if (feed is None and z < clearance) or (feed is not None and feed <= 0):
+    resumed = list(lines[start_line - 1:])
+    # a feed is needed only where the re-entry has a feed move: the plunge, or a feed motion before any F word
+    feed_known = feed is not None and feed > 0
+    # (an unknown feed is treated like a feed of 0: GRBL would use a leftover F, for example of a probe)
+    if not feed_known and (z < clearance or _feed_motion_before_f(resumed, state.motion)):
         raise ValueError(_("A positive feed rate is needed before the selected line."))
+    if not feed_known:
+        feed = None
     if speed < 0 or (spindle in (3, 4) and speed <= 0):
         raise ValueError(_("A positive spindle speed is needed before the selected line."))
     out = ['M5', 'M9', 'G%d' % state.units, 'G90', 'G94', 'G91.1', 'G40', 'G61']
@@ -292,7 +318,6 @@ def restart_preamble(lines, start_line, travel_z, units, decimals=4, spindle_dwe
     if feed is not None:
         out.append('G1 Z%s F%s' % (_fmt(z, decimals), _fmt(feed / scale, decimals)))
     out.append('G%d' % state.dist)
-    resumed = list(lines[start_line - 1:])
     if state.motion in (2, 3):
         # GRBL rejects a bare G2/G3. Restore it on the first inherited motion instead.
         for index, line in enumerate(resumed):

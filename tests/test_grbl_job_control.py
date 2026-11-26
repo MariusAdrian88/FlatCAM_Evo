@@ -450,6 +450,22 @@ class TestProgressCoalescing(unittest.TestCase):
         tool._flush_stream_ui()
         self.assertEqual(tool._on_stream_progress.call_count, 1)
 
+    def test_time_label_follows_the_clock_and_the_override_without_new_progress(self):
+        tool = make_stream_tool(CheckFake(), source=gcode(5))
+        self.console_of(tool)
+        now = [1000]
+        tool._stream_clock = MagicMock(elapsed=lambda: now[0])
+        tool.job_cumulative = [10.0, 100.0]
+        tool._feed_override_pct = 100
+        tool._progress_latest = (1, 2)
+        tool._progress_shown = None
+        tool._flush_stream_ui()
+        self.assertEqual(tool.ui.time_label.setText.call_args.args[0], '00:00:01  /  ≈ 00:01:30 left')
+        now[0] = 11000          # 10 s later, the feed override at 50 %: no new line was acknowledged
+        tool._feed_override_pct = 50
+        tool._flush_stream_ui()
+        self.assertEqual(tool.ui.time_label.setText.call_args.args[0], '00:00:11  /  ≈ 00:03:00 left')
+
     def pending_console_lines_are_all_shown_at_the_end(self):
         tool = make_stream_tool(CheckFake())
         shown = self.console_of(tool)
@@ -1355,8 +1371,12 @@ class TestStopResetsAfterHold(unittest.TestCase):
         patcher = patch('appPlugins.ToolGcodeSender.Sender.time', fake_time)
         patcher.start()
         self.addCleanup(patcher.stop)
-        patcher = patch('appPlugins.ToolGcodeSender.Sender.QtCore.QTimer.singleShot',
-                        side_effect=lambda delay, fn: self.queue.append((delay, fn)))
+        self.due = {}       # id(fn) -> the fake time at which a timer fires; the others are due at once
+
+        def single_shot(delay, fn):
+            self.due[id(fn)] = self.clock.now + delay / 1000.0
+            self.queue.append((delay, fn))
+        patcher = patch('appPlugins.ToolGcodeSender.Sender.QtCore.QTimer.singleShot', side_effect=single_shot)
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -1376,8 +1396,9 @@ class TestStopResetsAfterHold(unittest.TestCase):
             self.queue.append((0, lambda: self.tool._on_brake_ended(payload)))
 
     def step(self):
-        delay, fn = self.queue.pop(0)
-        self.clock.now += delay / 1000.0
+        index = min(range(len(self.queue)), key=lambda i: self.due.get(id(self.queue[i][1]), 0.0))
+        delay, fn = self.queue.pop(index)
+        self.clock.now = max(self.clock.now, self.due.pop(id(fn), 0.0))
         fn()
 
     def pump(self, limit=1000):
@@ -1485,6 +1506,61 @@ class TestStopResetsAfterHold(unittest.TestCase):
         self.pump()
         self.assertAlmostEqual(fake.reset_at, 2.0)
         self.assertNotIn(b'?', fake.written)    # no hold wait ran: it never held the port
+
+    def take(self, delay):
+        """Run the first queued item that was scheduled with this delay (a timer of the GUI thread)."""
+        index = [i for i, item in enumerate(self.queue) if item[0] == delay][0]
+        self.step_at(index)
+
+    def step_at(self, index):
+        delay, fn = self.queue.pop(index)
+        self.clock.now = max(self.clock.now, self.pressed_at + delay / 1000.0)
+        fn()
+
+    def test_stop_resets_at_2_s_when_the_worker_never_starts_the_brake_task(self):
+        fake = BrakeFake(self.clock, holds=float('inf'))
+        tool = self.make_tool(fake)
+        self.pressed_at = self.clock.now
+        tool.on_stream_stop()
+        self.assertEqual(fake.written, [b'!'])
+        held = self.queue.pop(0)[1]         # the worker queue is busy: the brake task does not start
+        self.take(2000)
+        self.assertEqual(fake.written, [b'!', b'\x18'])
+        self.assertAlmostEqual(fake.reset_at, self.pressed_at + 2.0)
+        held()                              # dispatch released: the task sees the reset and writes nothing
+        self.pump()
+        self.assertEqual(fake.written.count(b'\x18'), 1)
+        self.assertNotIn(b'?', fake.written)
+
+    def test_stop_resets_at_7_s_when_the_brake_task_never_ends_its_hold_wait(self):
+        import threading
+        fake = BrakeFake(self.clock, holds=float('inf'))
+        tool = self.make_tool(fake)
+        tool.brake_ended_sig = MagicMock()      # the task runs in a real thread
+        self.pressed_at = self.clock.now
+        started, release = threading.Event(), threading.Event()
+        real_query = tool._grbl_query_status
+
+        def blocked_query(op, timeout=0.5):
+            started.set()
+            release.wait(30)
+            return real_query(op, timeout=timeout)
+        tool._grbl_query_status = blocked_query
+        tool.on_stream_stop()
+        thread = threading.Thread(target=self.queue.pop(0)[1])
+        thread.start()
+        try:
+            self.assertTrue(started.wait(30))
+            self.take(2000)                     # the task holds the port: no reset yet
+            self.assertNotIn(b'\x18', fake.written)
+            self.take(7000)
+            self.assertEqual(fake.written.count(b'\x18'), 1)
+            self.assertLessEqual(fake.reset_at, self.pressed_at + 7.0)
+        finally:
+            release.set()
+            thread.join(30)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(fake.written.count(b'\x18'), 1)
 
     def test_old_brake_result_writes_nothing_after_reconnect_or_a_newer_reset(self):
         self.auto_deliver = False

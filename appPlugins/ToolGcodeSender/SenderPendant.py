@@ -16,6 +16,8 @@ from urllib.parse import urlsplit, parse_qs
 from appPlugins.ToolGcodeSender.SenderPendantPage import PAGE_HTML
 
 MAX_BODY = 4096
+CLIENT_TIMEOUT = 10         # s; the read timeout of a client socket
+MAX_CONNECTIONS = 16        # open connections; more are closed at once
 REPORT_FRESH_S = 3.0        # a report older than this is stale (the stale look of the position readout)
 
 JOG_DIRECTIONS = ('xplus', 'xminus', 'yplus', 'yminus', 'zplus', 'zminus', 'aplus', 'aminus',
@@ -32,6 +34,30 @@ def new_token():
 
 class _BadRequest(Exception):
     pass
+
+
+class _LimitedServer(ThreadingHTTPServer):
+    """A connection over the limit is closed at once, with no handler thread."""
+
+    def __init__(self, address, handler, limit):
+        super().__init__(address, handler)
+        self._slots = threading.BoundedSemaphore(limit)
+
+    def process_request(self, request, client_address):
+        if not self._slots.acquire(blocking=False):
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._slots.release()
 
 
 class PendantServer:
@@ -58,7 +84,7 @@ class PendantServer:
     def start(self):
         if self._httpd:
             return
-        self._httpd = ThreadingHTTPServer((self.host, self._port), self._handler())
+        self._httpd = _LimitedServer((self.host, self._port), self._handler(), MAX_CONNECTIONS)
         self._httpd.daemon_threads = True
         self._thread = threading.Thread(target=self._httpd.serve_forever, name='SenderPendant', daemon=True)
         self._thread.start()
@@ -113,6 +139,8 @@ class PendantServer:
         server = self
 
         class Handler(BaseHTTPRequestHandler):
+            timeout = CLIENT_TIMEOUT        # an incomplete request ends its thread
+
             def log_message(self, format, *args):
                 pass
 

@@ -83,8 +83,8 @@ class MacroPage(QtWidgets.QWidget):
         layout.addLayout(row)
         layout.addStretch()
         self.add_button.clicked.connect(self.add)
-        self.import_button.clicked.connect(self.import_file)
-        self.export_button.clicked.connect(self.export_file)
+        self.import_button.clicked.connect(lambda _checked=False: self.import_file())
+        self.export_button.clicked.connect(lambda _checked=False: self.export_file())
         self.rebuild()
 
     def buttons(self):
