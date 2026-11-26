@@ -1228,7 +1228,7 @@ class TestGrblHalController(unittest.TestCase):
         tool._grbl_release(op)
 
         self.assertTrue(tool._grbl_motion_blocked)
-        self.assertTrue(any('X, Y and Z' in text for text in emitted(tool)))
+        self.assertTrue(any('X, Y, Z and A' in text for text in emitted(tool)))
         self.assertIsNone(tool._grbl_reserve('stream', motion=True))
         self.assertIsNotNone(tool._grbl_reserve('status', motion=False))
 

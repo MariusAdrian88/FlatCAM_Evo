@@ -84,7 +84,18 @@ class TestStatusReport(unittest.TestCase):
         self.assertEqual((rep['spindle'], rep['spindle_actual']), (10000.0, 9800.0))
         rep = parse_grbl_status_report('<Alarm:4|MPos:0,0,0>')
         self.assertEqual((rep['state'], rep['substate']), ('Alarm', '4'))
-        self.assertIsNone(parse_grbl_status_report('<Idle|MPos:0,0,0,0>'))
+        self.assertIsNone(parse_grbl_status_report('<Idle|MPos:0,0,0,0,0>'))
+
+    def test_four_axis_status(self):
+        rep = parse_grbl_status_report('<Idle|MPos:1,2,3,4|WCO:0,0,0,1>')
+        self.assertEqual(work_position(rep), (1, 2, 3, 3))
+        self.assertEqual(parse_grbl_status_report('<Idle|WPos:1,2,3,4>')['wpos'], (1, 2, 3, 4))
+        offsets = parse_grbl_offsets('[G54:1,2,3,4]\n[TLO:0.000]')
+        self.assertEqual(offsets['G54'], (1, 2, 3, 4))
+        for text, blocked in (('[AXS:4:XYZA]\n', False), ('[AXS:3:XYZ]\n', False), ('[AXS:5:XYZAB]\n', True),
+                              ('[AXS:4:XYZB]\n', True)):
+            axes = grbl_capabilities(parse_grbl_identity(text))['axes']
+            self.assertEqual(axes not in ('XYZ', 'XYZA'), blocked, text)
 
 
 class TestGrblHalIdentity(unittest.TestCase):

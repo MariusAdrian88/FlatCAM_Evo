@@ -36,7 +36,7 @@ from camlib import CNCjob, flatten_shapely_geometry
 from appPlugins.Common.levelling_core import LevellingCoreMixin
 from appPlugins.Common.grbl.grbl_protocol import (
     parse_grbl_status_state, parse_grbl_setting, parse_grbl_active_wcs, grbl_reply_error, probe_timeout_s,
-    parse_grbl_status_report, work_position, grbl_report_scale, grbl_modes_confirmed,
+    parse_grbl_status_report, work_position, scale_position, grbl_report_scale, grbl_modes_confirmed,
     parse_grbl_probe_output, parse_grbl_offsets, grbl_wcs_p_number, parse_grbl_modal, parse_grbl_work_offset)
 from appPlugins.Common.gcode_segment import split_long_moves, parse_toolpath, _words, _g_key
 from appPlugins.Common.levelling_interp import build_bilinear_grid
@@ -1764,9 +1764,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         caps = self._grbl_caps or {}
         self._grbl_top_bit_realtime = caps.get('top_bit_realtime', False)
         blocked = None
-        if caps.get('xyz_only') is False:
-            blocked = _("This grblHAL controller has more than the X, Y and Z axes. "
-                        "Only XYZ machines are supported.")
+        if caps.get('axes') not in (None, 'XYZ', 'XYZA'):
+            blocked = _("This grblHAL controller has axes other than X, Y, Z and A. "
+                        "Only XYZ and XYZA machines are supported.")
         self._grbl_motion_blocked = blocked
         if blocked:
             self.app.inform.emit('[ERROR_NOTCL] %s' % blocked)
@@ -3764,7 +3764,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             wco = report.get('wco')
             if wco is None and 'mpos' in report and 'wpos' in report:
                 wco = tuple(m - w for m, w in zip(report['mpos'], report['wpos']))
-            if wco is not None and len(wco) == 3:
+            if wco is not None and len(wco) >= 3:
+                wco = wco[:3]
                 break
             if time.monotonic() >= end:
                 raise _GrblProbeAbort('?', '', 'no_report')
@@ -3772,7 +3773,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         machine = self._report_machine_position(report)
         if machine is None or any(abs(a * scale - b) > epsilon for a, b in zip(wco, offset)):
             raise _GrblProbeAbort('?', '', 'invalid_position')
-        machine = tuple(value * scale for value in machine)
+        machine = tuple(value * scale for value in machine[:3])
         if any(not math.isfinite(value) for value in machine):
             raise _GrblProbeAbort('?', '', 'invalid_position')
         if 'wpos' in report and any(abs(m - w * scale - o) > epsilon for m, w, o in
@@ -5416,7 +5417,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         # the positions and the feed of GRBL are in the report units ($13); the JobStart holds the program units
         scale = grbl_report_scale(inputs.units, self._grbl_report_inches)
         feed = None if modal['feed'] is None else modal['feed'] * scale
-        start = SenderGen.JobStart.from_live(tuple(v * scale for v in position), inputs.units, modal, feed=feed,
+        start = SenderGen.JobStart.from_live(tuple(v * scale for v in position[:3]), inputs.units, modal, feed=feed,
                                              spindle=modal['spindle'], speed=modal['speed'],
                                              coolant=modal['coolant'] or ())
         numbers = prepared.numbers or list(range(1, len(lines) + 1))
@@ -6761,7 +6762,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return True
         scale = self._report_scale()
         mpos = state['mpos']
-        start = None if mpos is None or scale is None else tuple(value * scale for value in mpos)
+        start = None if mpos is None or scale is None else tuple(value * scale for value in mpos[:3])
         if state['tlo'] is None:
             # $TPW / $TLR: the controller measured the tool length, so the controller tells it
             state['tlo'] = self._read_tool_tlo()
@@ -6834,7 +6835,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             factor = 1.0 if (units == 'inch') == bool(inches) else (25.4 if inches else 1.0 / 25.4)
 
         def scaled(value):
-            return None if value is None or factor is None else tuple(v * factor for v in value)
+            return None if value is None or factor is None else tuple(v * factor for v in value[:3])
 
         wcs_offsets = g92 = tlo = None
         if offsets_text:
@@ -7187,7 +7188,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 pos = None
                 text += '   %s' % _("position unknown (GRBL $13 not read)")
             else:
-                pos = tuple(value * scale for value in pos)
+                pos = scale_position(pos, scale)
                 try:
                     units = getattr(self._target(), 'units', None)
                 except Exception:
@@ -7196,7 +7197,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     units = self.units
                 strip_units = units
                 text += '   %s (%s): X %.3f  Y %.3f  Z %.3f' % (
-                    _("Work position"), units.lower(), *pos)
+                    _("Work position"), units.lower(), *pos[:3])
         if 'spindle_actual' in report:
             # the measured RPM that grblHAL adds to FS when the spindle has an encoder
             text += '   RPM %d' % round(report['spindle_actual'])
@@ -7236,8 +7237,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 work = machine = None
                 units = None
             else:
-                work = tuple(value * scale for value in work) if work is not None else None
-                machine = tuple(value * scale for value in machine) if machine is not None else None
+                work = scale_position(work, scale) if work is not None else None
+                machine = scale_position(machine, scale) if machine is not None else None
             # $22: bit 0 enables homing (grblHAL uses more bits of the same setting)
             not_homed = int((self._grbl_settings or {}).get(22) or 0) & 1 == 1 and not self._homed_this_session
             self.view3d.set_coordinates(work, machine, units, wcs=self._active_wcs, state=report['state'],

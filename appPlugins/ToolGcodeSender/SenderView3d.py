@@ -146,7 +146,7 @@ class SenderView3d:
         self.selected.visible = not self.selected.visible
 
     def set_tool_position(self, xyz):
-        self.tool.set_data(pos=np.array([xyz], dtype=np.float32), face_color=TOOL_COLOR, size=10)
+        self.tool.set_data(pos=np.array([tuple(xyz)[:3]], dtype=np.float32), face_color=TOOL_COLOR, size=10)
 
     def set_height_map(self, grid_data, z_scale=None):
         """

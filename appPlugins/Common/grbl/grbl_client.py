@@ -1783,12 +1783,12 @@ class GrblClientMixin:
                 raise ValueError('GRBL did not report a stationary position')
             if 'mpos' in report:
                 start = tuple((machine - origin) * scale
-                              for machine, origin in zip(report['mpos'], offset))
+                              for machine, origin in zip(report['mpos'][:3], offset[:3]))
             else:
                 work = work_position(report)
                 if work is None:
                     raise ValueError('GRBL did not report a work position')
-                start = tuple(value * scale for value in work)
+                start = tuple(value * scale for value in work[:3])
             if not all(math.isfinite(value) for value in start):
                 raise ValueError('the work position is not finite')
 
@@ -1993,7 +1993,7 @@ class GrblClientMixin:
             raise _GrblProbeAbort(command, text, 'probe_invalid')
 
         mx, my, mz = results[0]
-        ox, oy, oz = offset
+        ox, oy, oz = offset[:3]
         position = ((mx - ox) * scale, (my - oy) * scale, (mz - oz) * scale)
         if not all(math.isfinite(value) for value in position):
             raise _GrblProbeAbort(command, text, 'probe_invalid')

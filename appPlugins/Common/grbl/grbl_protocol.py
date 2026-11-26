@@ -140,7 +140,7 @@ def parse_grbl_offsets(text):
         if key in records or not val.startswith(':') or not val.endswith(']'):
             raise ValueError("Malformed or duplicate %s offset in $# output" % key)
         parts = [p.strip() for p in val[1:-1].split(',')]
-        if len(parts) not in ((1, 3) if key == 'TLO' else (3,)):
+        if len(parts) not in ((1, 3) if key == 'TLO' else (3, 4)):
             raise ValueError("Invalid %s offset field count in $# output" % key)
         try:
             values = tuple(float(p) for p in parts)
@@ -298,8 +298,8 @@ def parse_grbl_status_report(line):
 
     :param line: 1 line of text.
     :return: dict with 'state' (str), and if they are in the report: 'substate' (str, for example the alarm
-        code), 'mpos' and 'wpos' (tuples of 3 floats; a report with more axes is not accepted), 'wco'
-        (tuple of 3 floats), 'feed' and 'spindle' (floats), 'spindle_actual' (float, the measured RPM that
+        code), 'mpos' and 'wpos' (tuples of 3 floats, or 4 with the rotary A; a report with more axes is not accepted), 'wco'
+        (tuple of 3 or 4 floats), 'feed' and 'spindle' (floats), 'spindle_actual' (float, the measured RPM that
         grblHAL adds to FS), 'ov' (tuple of 3 ints: feed, rapid, spindle), 'buffer' (tuple of 2 ints: planner
         blocks, RX bytes available), 'line' (int), 'accessory' (str, for example 'SF': S = spindle CW,
         C = spindle CCW, F = flood, M = mist, T = tool change pending; GRBL sends it with 'Ov', and only
@@ -317,9 +317,10 @@ def parse_grbl_status_report(line):
     if ':' in fields[0]:
         report['substate'] = fields[0].split(':', 1)[1]
 
-    def floats(value, count):
+    def floats(value, count, rotary=False):
         parts = value.split(',')
-        if len(parts) != count:
+        # a position has 3 values, or 4 with the rotary A
+        if len(parts) != count and not (rotary and len(parts) == count + 1):
             raise ValueError(value)
         result = tuple(float(p) for p in parts)
         if not all(math.isfinite(v) for v in result):
@@ -330,11 +331,11 @@ def parse_grbl_status_report(line):
         for field in fields[1:]:
             key, _sep, value = field.partition(':')
             if key == 'MPos':
-                report['mpos'] = floats(value, 3)
+                report['mpos'] = floats(value, 3, True)
             elif key == 'WPos':
-                report['wpos'] = floats(value, 3)
+                report['wpos'] = floats(value, 3, True)
             elif key == 'WCO':
-                report['wco'] = floats(value, 3)
+                report['wco'] = floats(value, 3, True)
             elif key == 'FS':
                 # grblHAL adds the actual spindle RPM when the spindle has an encoder
                 parts = value.split(',')
@@ -372,11 +373,18 @@ def parse_grbl_status_report(line):
     return report
 
 
+def scale_position(position, scale):
+    """
+    Change a reported position into the job units: X, Y and Z are scaled, the rotary A (degrees) never.
+    """
+    return tuple(value * scale for value in position[:3]) + tuple(position[3:])
+
+
 def work_position(report, last_wco=None):
     """
     :param report:   a dict from parse_grbl_status_report().
     :param last_wco: the last WCO seen (GRBL sends WCO only in some reports).
-    :return: (x, y, z) work position, or None if it can not be computed.
+    :return: (x, y, z) work position (with the rotary A as 4th value when the report has it), or None if it can not be computed.
     """
     if report is None:
         return None
@@ -489,7 +497,8 @@ def grbl_capabilities(identity):
     What the controller of a ``$I+`` answer allows.
 
     :param identity: a dict from parse_grbl_identity(), or None.
-    :return: dict with 'grblhal' (bool), 'xyz_only' (True, False, or None for an older build that does not
+    :return: dict with 'grblhal' (bool), 'axes' (str, the axis letters, 'XYZ' for stock GRBL; None if not
+        reported; '?' for a letter that the answer did not give), 'xyz_only' (True, False, or None for an older build that does not
         report usable AXS or extended OPT), 'manual_tool_change' (bool: M6 waits in the Tool state for the sender),
         'automatic_tool_change' (bool: M6 is transparent to the sender), 'probe' (False if the controller reported no probe input, None
         if it did not report its options) and 'top_bit_realtime' (bool: the printable '?', '!' and '~' are
@@ -500,7 +509,7 @@ def grbl_capabilities(identity):
         longest line with its line end, GRBL_MAX_LINE or GRBLHAL_MAX_LINE).
     """
     if not identity:
-        return {'grblhal': False, 'xyz_only': None, 'manual_tool_change': False,
+        return {'grblhal': False, 'axes': None, 'xyz_only': None, 'manual_tool_change': False,
                 'automatic_tool_change': False, 'probe': None, 'top_bit_realtime': False,
                 'mist': None, 'spindle_dir': None, 'control_signals': None, 'aux_out': 0,
                 'rx_buffer': None, 'max_line': GRBL_MAX_LINE}
@@ -513,8 +522,15 @@ def grbl_capabilities(identity):
     else:
         xyz_only = axes == len(GRBL_XYZ_AXES) and (letters or GRBL_XYZ_AXES).upper() == GRBL_XYZ_AXES
     grblhal = (identity['firmware'] or '').lower() == 'grblhal'
+    if axes is None:
+        letters = None
+    elif letters and len(letters) == axes:
+        letters = letters.upper()
+    else:
+        letters = GRBL_XYZ_AXES if axes == len(GRBL_XYZ_AXES) and not letters else '?' * axes
     return {
         'grblhal': grblhal,
+        'axes': letters,
         'rx_buffer': identity.get('rx_buffer'),
         'max_line': GRBLHAL_MAX_LINE if grblhal else GRBL_MAX_LINE,
         'xyz_only': xyz_only,

@@ -193,11 +193,12 @@ class TestParseGrbl(unittest.TestCase):
 
     def test_work_offset_malformed_records_raise_value_error(self):
         for key in ('G54', 'G55', 'G92', 'TLO'):
-            payloads = ('', ' ', '0,', '0,,0', '0,0,0,0', 'bad', 'nan', 'inf', '-inf', '1e309')
+            payloads = ('', ' ', '0,', '0,,0', 'bad', 'nan', 'inf', '-inf', '1e309')
             if key != 'TLO':
-                payloads += ('0', '0,0', '0,0,0,', '0,0,nan', '0,inf,0', '1e309,0,0')
+                # 4 values are X, Y, Z and the rotary A
+                payloads += ('0', '0,0', '0,0,0,', '0,0,0,0,0', '0,0,nan', '0,inf,0', '1e309,0,0')
             else:
-                payloads += ('0,0', '0,nan')
+                payloads += ('0,0', '0,0,0,0', '0,nan')
             for payload in payloads:
                 with self.subTest(key=key, payload=payload):
                     prefix = '' if key == 'G54' else '[G54:0,0,0]\n'

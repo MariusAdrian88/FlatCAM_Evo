@@ -1244,6 +1244,18 @@ class TestDockedJogPage(unittest.TestCase):
         self.tool._on_status_report({'state': 'Idle', 'ov': (100, 100, 100)})
         self.assertEqual(self.tool.ui.spindle_button.text(), 'Spindle OFF')
 
+    def test_a_axis_is_not_scaled_in_inch_mode(self):
+        self.connect(DockJogFake())
+        self.tool._grbl_report_inches = True            # $13=1: X, Y, Z come in inches, the rotary A in degrees
+        self.tool._target = lambda: MagicMock(units='MM')
+        self.tool._on_status_report({'state': 'Idle', 'wpos': (1.0, 2.0, 3.0, 90.0)})
+        work = self.tool._last_work
+        self.assertEqual(len(work), 4)
+        self.assertAlmostEqual(work[0], 25.4)
+        self.assertAlmostEqual(work[2], 76.2)
+        self.assertEqual(work[3], 90.0)
+        self.assertIn('X 25.400', self.tool.ui.status_label.text())
+
     def test_abort_banner_stays_until_recovery_ends(self):
         self.connect(DockJogFake())
         strip = self.tool.ui.status_strip
