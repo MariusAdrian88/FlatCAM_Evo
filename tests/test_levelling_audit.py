@@ -39,6 +39,16 @@ from unittest.mock import ANY, patch
 import pytest
 
 
+# every console that a test dock gets stays alive to the end of the session: the garbage collector can run on a
+# worker thread, and a Qt widget deleted there corrupts the heap
+_LIVE_CONSOLES = []
+
+
+def _keep_console(holder, widget):
+    holder['w'] = widget
+    _LIVE_CONSOLES.append(widget)
+
+
 def make_audit_tool(units='MM', storage=None, heights_valid=False, cls=None):
     tool = (cls or ToolGCodeSender).__new__(cls or ToolGCodeSender)
     tool.app = MagicMock()
@@ -49,7 +59,7 @@ def make_audit_tool(units='MM', storage=None, heights_valid=False, cls=None):
     # the dock keeps the console that _console() sets: no new parentless console per call
     holder = {}
     dock = tool.app.ui.grbl_console_dock
-    dock.setWidget.side_effect = lambda w: holder.__setitem__('w', w)
+    dock.setWidget.side_effect = lambda w: _keep_console(holder, w)
     dock.widget.side_effect = lambda: holder.get('w')
     tool.ui = MagicMock()
     tool.ui.al_toolbar.indexOf.return_value = -1
@@ -608,7 +618,7 @@ class TestGrblRealtime(unittest.TestCase):
     def test_reset_during_operation_needs_home(self):
         tool = self._tool()
         op = tool._grbl_reserve('probe', motion=True)
-        tool.on_grbl_reset()
+        tool._reset_now()
         self.assertTrue(op.cancel.is_set())
         self.assertEqual(tool.grbl_ser_port.commands(), ['\x18'])
         self.assertEqual(tool._grbl_recovery, 'needs_reset')

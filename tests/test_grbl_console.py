@@ -1081,7 +1081,8 @@ class TestDockedJogPage(unittest.TestCase):
         self.assertTrue(page.isAncestorOf(ui.grbl_send_button))
         self.assertEqual(len(page.findChildren(QtWidgets.QLineEdit)), 1)
         # Send runs the typed command through the controller path and clears the entry
-        with patch.object(self.tool, '_grbl_start_op') as start_op:
+        with patch.object(self.tool, '_grbl_start_op') as start_op, \
+                patch.object(self.tool, 'action_allowed', return_value=None):
             ui.grbl_command_entry.set_value('  $G  ')
             ui.grbl_send_button.click()
         start_op.assert_called_once()
@@ -1417,7 +1418,7 @@ class TestDockedJogPage(unittest.TestCase):
                 elif exit_name == 'stop':
                     self.tool.on_grbl_stop()
                 elif exit_name == 'reset':
-                    self.tool.on_grbl_reset()
+                    self.tool._reset_now()      # the Reset button is refused during a jog: Stop is the way
                 elif exit_name == 'rebuild':
                     with patch('appPlugins.Common.levelling_core.ShapeCollection'), patch(
                             'appPlugins.ToolGcodeSender.SenderCameraUI.QMediaDevices.videoInputs',
@@ -1624,6 +1625,126 @@ class TestDockTabWrap(unittest.TestCase):
             QtTest.QTest.mouseClick(button, QtCore.Qt.MouseButton.LeftButton)
             self.assertEqual(self.console.tabs.currentIndex(), i)
             self.assertTrue(button.isChecked())
+
+
+ALL_ACTIONS = ('connect', 'start', 'hold', 'resume', 'next_block', 'stop', 'estop', 'reset', 'unlock', 'home', 'jog',
+               'zero', 'wcs', 'spindle', 'spindle_off', 'override', 'console', 'macro', 'probe', 'edit', 'config')
+IDLE_NO = ('resume', 'next_block', 'hold')
+
+
+class TestActionRules(unittest.TestCase):
+    """Which action the machine situation permits (the rows of ACTION_RULES)."""
+
+    def make(self):
+        fake = FakeGrbl()
+        tool = make_stream_tool(fake)
+        tool._plugin_active = True
+        fake.written.clear()
+        return tool, fake
+
+    def situation(self, tool, name):
+        if name == 'not_connected':
+            tool.grbl_ser_port = None
+            tool._grbl_connected = False
+        elif name == 'needs_reset':
+            tool._grbl_recovery = 'needs_reset'
+        elif name == 'braking':
+            tool._grbl_stop_phase = 'braking'
+        elif name == 'reset_pending':
+            tool._grbl_reset_pending = True
+        elif name == 'needs_home':
+            tool._grbl_recovery = 'needs_home'
+        elif name == 'alarm':
+            tool._controller_state = 'Alarm'
+        elif name == 'held':
+            tool._controller_state = 'Hold'
+        elif name == 'probe':
+            tool._grbl_reserve('probe', motion=True)
+        elif name == 'tool_pause':
+            tool._tool_pause = {}
+        elif name == 'tool_pause_probe':
+            tool._tool_pause = {}
+            tool._grbl_reserve('probe', motion=True)
+        elif name.startswith('stream'):
+            tool._grbl_reserve('stream', motion=True)
+            tool._controller_state = {'stream_check': 'Check', 'stream_hold': 'Hold', 'stream_door': 'Door',
+                                      'stream_tool': 'Tool', 'stream_step': 'Idle', 'stream_run': 'Run'}[name]
+            tool._step_waiting = name == 'stream_step'
+
+    ROWS = (
+        ('not_connected', ('connect', 'estop')),
+        ('needs_reset', ('reset', 'stop', 'estop', 'spindle_off')),
+        ('braking', ('reset', 'stop', 'estop', 'spindle_off')),
+        ('reset_pending', ('reset', 'stop', 'estop', 'spindle_off')),
+        ('held', ('resume', 'stop', 'estop', 'reset', 'spindle_off', 'console')),
+        ('needs_home', ('home', 'reset', 'unlock', 'estop', 'spindle_off')),
+        ('alarm', ('unlock', 'home', 'reset', 'stop', 'estop', 'console', 'spindle_off')),
+        ('probe', ('stop', 'estop')),
+        ('tool_pause_probe', ('stop', 'estop')),
+        ('tool_pause', ('resume', 'stop', 'estop', 'reset', 'jog', 'probe', 'zero', 'console', 'spindle',
+                        'macro', 'home', 'spindle_off')),
+        ('stream_check', ('stop', 'estop')),
+        ('stream_hold', ('resume', 'stop', 'estop', 'override')),
+        ('stream_door', ('resume', 'stop', 'estop', 'override')),
+        ('stream_tool', ('jog', 'console', 'resume', 'stop', 'estop')),
+        ('stream_step', ('next_block', 'hold', 'stop', 'estop', 'override')),
+        ('stream_run', ('hold', 'stop', 'estop', 'override')),
+        ('idle', tuple(name for name in ALL_ACTIONS if name not in IDLE_NO)),
+    )
+
+    def test_action_rules(self):
+        for name, allowed in self.ROWS:
+            with self.subTest(situation=name):
+                tool, _fake = self.make()
+                self.situation(tool, name)
+                for action in ALL_ACTIONS:
+                    reason = tool.action_allowed(action)
+                    if action in allowed:
+                        self.assertIsNone(reason, action)
+                    else:
+                        self.assertTrue(reason, action)
+
+    def test_handlers_refuse_without_widgets(self):
+        for name in ('probe', 'stream_run', 'needs_reset'):
+            with self.subTest(situation=name):
+                tool, fake = self.make()
+                self.situation(tool, name)
+                tool.app.worker_task.emit.reset_mock()
+                tool.on_grbl_homing()
+                tool.on_grbl_jog('xplus')
+                tool.on_grbl_zero('x')
+                tool.on_start()
+                self.assertEqual(tool.app.worker_task.emit.call_count, 0)
+                self.assertEqual(fake.written, [])
+
+    def test_operation_during_tool_pause_blocks_the_pause_actions(self):
+        tool, fake = self.make()
+        self.situation(tool, 'tool_pause_probe')
+        for action in ('resume', 'home', 'probe', 'macro'):
+            self.assertTrue(tool.action_allowed(action), action)
+        tool._on_resume_button()
+        tool.on_grbl_homing()
+        self.assertEqual(fake.written, [])
+        for action in ('stop', 'estop'):
+            self.assertIsNone(tool.action_allowed(action), action)
+
+    def test_status_poll_does_not_block_actions(self):
+        tool, fake = self.make()
+        tool.app.worker_task.emit.side_effect = lambda task: task['fcn'](*task['params'])
+        tool.app.app_units = tool.units = 'MM'
+        tool.ui.jog_step_entry.get_value.return_value = 1.0
+        tool.ui.jog_fr_entry.get_value.return_value = 100.0
+        poll = tool._grbl_reserve(grbl_client_module.STATUS_POLL, read_only=True)
+        self.assertIsNotNone(poll)
+        self.assertIsNone(tool.action_allowed('start'))
+        self.assertIsNone(tool.action_allowed('jog'))
+        tool._grbl_release(poll)
+        tool.on_grbl_jog('xplus')
+        self.assertEqual(sum(cmd.startswith('$J=') for cmd in fake.commands()), 1)
+        tool, fake = self.make()
+        self.situation(tool, 'probe')
+        self.assertTrue(tool.action_allowed('start'))
+        self.assertTrue(tool.action_allowed('jog'))
 
 
 class TestIOPage(unittest.TestCase):

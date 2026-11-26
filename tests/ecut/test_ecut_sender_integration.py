@@ -43,7 +43,7 @@ def test_manual_tool_dialog_confirms_matching_request_or_cancels_job(accept):
     token = object()
     port = SimpleNamespace(is_open=True,pending_tool_change=2,tool_change_token=token,
                            confirm_tool_change=MagicMock())
-    tool = SimpleNamespace(grbl_ser_port=port,app=SimpleNamespace(ui=None),on_grbl_reset=MagicMock())
+    tool = SimpleNamespace(grbl_ser_port=port,app=SimpleNamespace(ui=None),_reset_now=MagicMock())
     result = QtWidgets.QMessageBox.StandardButton.Yes if accept else QtWidgets.QMessageBox.StandardButton.Cancel
     with patch('appPlugins.ToolGcodeSender.Sender.QtWidgets.QMessageBox.question',return_value=result):
         ToolGCodeSender._on_ecut_tool_change(tool, port, 2, token)
@@ -51,7 +51,7 @@ def test_manual_tool_dialog_confirms_matching_request_or_cancels_job(accept):
         port.confirm_tool_change.assert_called_once_with(2,token=token)
     else:
         port.confirm_tool_change.assert_not_called()
-        tool.on_grbl_reset.assert_called_once()
+        tool._reset_now.assert_called_once()
 
 
 def test_stale_tool_confirmation_cannot_confirm_replacement_connection():

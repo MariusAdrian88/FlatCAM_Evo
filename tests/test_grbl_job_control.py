@@ -576,7 +576,7 @@ class TestStreamAbort(unittest.TestCase):
             if state['all_acknowledged'] and not state['reset']:
                 state['reset'] = True
                 state['generation'] = tool._grbl_safety_generation + 1
-                tool.on_grbl_reset()
+                tool._reset_now()
             return real_query(op, *args, **kwargs)
         tool._grbl_query_status = query
         tool.on_start()
@@ -960,6 +960,7 @@ class TestGrblHalController(unittest.TestCase):
         def operator():
             if (fake.tool_waiting and tool.__dict__.get('_grbl_tool_change_pending') and
                     not tool.__dict__.get('_grbl_tool_command_busy')):
+                tool._controller_state = 'Tool'
                 tool._on_resume_button()
         fake.read_hook = operator
         tool.on_start()
@@ -992,6 +993,7 @@ class TestGrblHalController(unittest.TestCase):
 
                 def try_resume():
                     before = len(fake.written)
+                    tool._controller_state = 'Tool'
                     tool._on_resume_button()
                     premature.extend(fake.written[before:])
 
@@ -1004,6 +1006,7 @@ class TestGrblHalController(unittest.TestCase):
                         stages.append(len(stages))
                         try_resume()
                     elif fake.tool_waiting and tool.__dict__.get('_grbl_tool_change_pending'):
+                        tool._controller_state = 'Tool'
                         tool._on_resume_button()
 
                 def reply(text):
@@ -1065,9 +1068,11 @@ class TestGrblHalController(unittest.TestCase):
         self.assertIsNotNone(op)
         tool._grbl_stream_dirty = True
         fake.state = 'Hold'
+        tool._controller_state = 'Hold'
         tool._on_resume_button()
         tool._grbl_release(op)
         tool._grbl_stream_dirty = False
+        # no stream any more, the controller is still on hold
         tool._on_resume_button()
         self.assertEqual(fake.written, [b'~', b'~'])
 
@@ -1299,6 +1304,27 @@ class TestStopResetsAfterHold(unittest.TestCase):
         self.assertEqual(fake.written[-1], b'\x18')
         self.assertEqual(tool._grbl_recovery, 'needs_home')
         self.assertIsNone(tool._grbl_stop_phase)
+
+
+class TestEstopEverywhere(unittest.TestCase):
+    def test_estop_works_in_every_recovery_phase(self):
+        from tests.grbl_stream_helpers import make_stream_tool
+        for name in ('needs_reset', 'braking', 'reset_sent', 'needs_home'):
+            with self.subTest(phase=name):
+                fake = FakeGrbl()
+                tool = make_stream_tool(fake)
+                fake.written.clear()
+                if name == 'needs_home':
+                    tool._grbl_recovery = 'needs_home'
+                elif name == 'needs_reset':
+                    tool._grbl_recovery = 'needs_reset'
+                else:
+                    tool._grbl_recovery = 'needs_reset'
+                    tool._grbl_stop_phase = name
+                    tool._grbl_reset_pending = name == 'reset_sent'
+                self.assertIsNone(tool.action_allowed('estop'))
+                tool.on_emergency_stop()
+                self.assertIn(b'!', fake.written)
 
 
 if __name__ == '__main__':

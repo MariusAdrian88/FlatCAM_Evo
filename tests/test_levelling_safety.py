@@ -54,7 +54,7 @@ def test_probe_cancel_inside_final_read(action):
 
     def cancel(line):
         if fake.probe_count == 2 and fake.commands()[-1] == 'G0 Z2.0000' and line == b'ok\r\n':
-            getattr(tool, 'on_grbl_' + action)()
+            tool._reset_now()   # the Reset button is refused during a probe: Stop is the way
 
     fake.on_line = cancel
     tool.on_grbl_autolevel()
@@ -269,7 +269,9 @@ def run_reset_home(tool):
             patch('appPlugins.Common.grbl.grbl_client.time.sleep'):
         if tool._grbl_op is not None and tool._grbl_op.name == 'reset':
             run_worker(tool)  # the reset worker reads the banner before Home
-    tool.on_grbl_homing()
+    # Home while the reset waits for its banner: the rules refuse it; the reservation layer under test does not
+    with patch.object(tool, 'action_allowed', return_value=None):
+        tool.on_grbl_homing()
     with patch('appPlugins.Common.grbl.grbl_client.time.monotonic', side_effect=lambda: next(ticks)), \
             patch('appPlugins.Common.grbl.grbl_client.time.sleep'):
         run_worker(tool)

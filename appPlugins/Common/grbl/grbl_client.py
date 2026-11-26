@@ -90,6 +90,8 @@ STATUS_POLL = 'status poll'
 IO_STATUS = 'IO status'
 # the seconds between the status requests of the IO monitor
 IO_STATUS_PERIOD = 0.5
+# the operations of the status monitor: they are not operator operations for the action rules
+MONITOR_OPS = (STATUS_POLL, IO_STATUS)
 
 
 def spindle_state_of_line(line):
@@ -707,7 +709,7 @@ class GrblClientMixin:
         # the idle status query takes milliseconds (its answer time limit is 0.5 s)
         with self._grbl_op_lock:
             busy = self._grbl_op
-        if name not in (STATUS_POLL, IO_STATUS) and busy is not None and busy.name in (STATUS_POLL, IO_STATUS):
+        if name not in MONITOR_OPS and busy is not None and busy.name in MONITOR_OPS:
             deadline = time.monotonic() + 0.7
             while self._grbl_op is busy and time.monotonic() < deadline:
                 time.sleep(0.005)

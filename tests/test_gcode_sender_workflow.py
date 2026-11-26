@@ -438,6 +438,7 @@ class SenderMachineProfileBlockTest(unittest.TestCase):
             if (not (fake.tool_waiting and tool.__dict__.get('_grbl_tool_change_pending')) or
                     tool.__dict__.get('_grbl_tool_command_busy')):
                 return
+            tool._controller_state = 'Tool'     # the controller reports the Tool state while it waits
             if state['thread'] is not None and state['thread'].is_alive():
                 return
             if not state['queued']:

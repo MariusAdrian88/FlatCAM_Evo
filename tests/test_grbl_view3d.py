@@ -370,8 +370,16 @@ class ConnectReadsReportUnitsTest(unittest.TestCase):
 class WcoResetTest(unittest.TestCase):
     OLD = (1.0, 2.0, 3.0)
 
-    def test_start(self):
+    @staticmethod
+    def connected_tool():
+        # the entry points need a connected, idle machine
         tool = status_tool()
+        tool.grbl_ser_port = FakeGrbl()
+        tool._grbl_connected = True
+        return tool
+
+    def test_start(self):
+        tool = self.connected_tool()
         tool._last_wco = self.OLD
         tool.build_stream_job = MagicMock(return_value=False)
         tool.ui.autolevel_cb.get_value.return_value = False
@@ -379,14 +387,14 @@ class WcoResetTest(unittest.TestCase):
         self.assertIsNone(tool._last_wco)
 
     def test_zero(self):
-        tool = status_tool()
+        tool = self.connected_tool()
         tool._last_wco = self.OLD
         tool._grbl_start_op = MagicMock()
         tool.on_grbl_zero('x')
         self.assertIsNone(tool._last_wco)
 
     def test_reset(self):
-        tool = status_tool()
+        tool = self.connected_tool()
         tool._last_wco = self.OLD
         tool.on_grbl_reset()
         self.assertIsNone(tool._last_wco)

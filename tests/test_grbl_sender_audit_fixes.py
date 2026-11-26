@@ -76,6 +76,7 @@ class TestResumeBypass(unittest.TestCase):
         self.assertIsNotNone(tool._grbl_reserve('stream', motion=True))
         tool._grbl_stream_dirty = True
         tool.ui.hold_button.click()
+        tool._controller_state = 'Hold'
         tool.ui.resume_button.click()
         self.assertEqual(fake.written, [b'!', b'~'])
 

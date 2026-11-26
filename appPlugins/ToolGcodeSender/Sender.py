@@ -41,7 +41,7 @@ from appPlugins.Common.gcode_segment import split_long_moves, parse_toolpath, _w
 from appPlugins.Common.levelling_interp import build_bilinear_grid
 from appPlugins.ToolGcodeSender import SenderGen
 from appPlugins.Common.grbl.grbl_client import (
-    GrblClientMixin, STATUS_POLL, IO_STATUS, IO_STATUS_PERIOD, is_controller_banner, is_grblhal_banner, is_native_jog_banner,
+    GrblClientMixin, STATUS_POLL, IO_STATUS, IO_STATUS_PERIOD, MONITOR_OPS, is_controller_banner, is_grblhal_banner, is_native_jog_banner,
     stream_lines, validate_stream_lines, _GrblProbeAbort)
 from appPlugins.Common.grbl.grbl_protocol import parse_grbl_identity, grbl_capabilities
 from appPlugins.Common.grbl.grbl_messages import code_text
@@ -83,6 +83,30 @@ SENDER_DEV_ENV = 'FLATCAM_SENDER_DEV'
 def sender_enabled():
     """:return: True if the G-code Sender can open (development switch FLATCAM_SENDER_DEV=1)."""
     return os.environ.get(SENDER_DEV_ENV) == '1'
+
+
+SENDER_ACTIONS = (
+    'connect', 'start', 'hold', 'resume', 'next_block', 'stop', 'estop', 'reset', 'unlock', 'home', 'jog', 'zero',
+    'wcs', 'spindle', 'spindle_off', 'override', 'console', 'macro', 'probe', 'edit', 'config')
+
+# The machine situations in order: the first row that matches is used (see ToolGCodeSender._machine_situation).
+# Row = (situation, allowed actions). Monitor operations (MONITOR_OPS) are no operation for these rules.
+ACTION_RULES = (
+    ('not_connected', ('connect', 'estop')),
+    ('needs_reset', ('reset', 'stop', 'estop', 'spindle_off')),
+    ('needs_home', ('home', 'reset', 'unlock', 'estop', 'spindle_off')),
+    ('alarm', ('unlock', 'home', 'reset', 'stop', 'estop', 'console', 'spindle_off')),
+    ('operation', ('stop', 'estop')),
+    ('tool_pause', ('resume', 'stop', 'estop', 'reset', 'jog', 'probe', 'zero', 'console', 'spindle', 'macro',
+                    'home', 'spindle_off')),
+    ('stream_check', ('stop', 'estop')),
+    ('stream_hold', ('resume', 'stop', 'estop', 'override')),
+    ('stream_tool', ('jog', 'console', 'resume', 'stop', 'estop')),
+    ('stream_step', ('next_block', 'hold', 'stop', 'estop', 'override')),
+    ('stream', ('hold', 'stop', 'estop', 'override')),
+    ('held', ('resume', 'stop', 'estop', 'reset', 'spindle_off', 'console')),
+    ('idle', tuple(name for name in SENDER_ACTIONS if name not in ('resume', 'next_block', 'hold'))),
+)
 
 
 def _qt_deleted(obj):
@@ -144,6 +168,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     grbl_port_closed_sig = QtCore.pyqtSignal()
     # the hash of the correction that the height map was probed under (None: no correction)
     _al_map_calibration = None
+    # the host tool change pause (T1) and the wait at the single block gate (F8): rows of ACTION_RULES
+    _tool_pause = None
+    _step_waiting = False
     # (request, {'frame': ...} or {'error': ...}) from the frame worker; emitted after the port is released
     frame_ready_sig = QtCore.pyqtSignal(object, object)
     al_result_ready_sig = QtCore.pyqtSignal(object)
@@ -710,7 +737,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def set_tool_ui(self):
         if self.__dict__.get('_toolchange_busy', False):
-            self.on_grbl_stop()
+            self._hold_now()
         self._toolchange_new_session('ui')
         self._stop_continuous_jog()
         self._camera_stop_preview()
@@ -1872,7 +1899,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if answer == QtWidgets.QMessageBox.StandardButton.Yes:
             port.confirm_tool_change(tool, token=token)
         else:
-            self.on_grbl_reset()
+            self._reset_now()
 
     def on_grbl_add_baudrate(self):
         new_bd = str(self.ui.new_baudrate_entry.get_value())
@@ -1903,7 +1930,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def on_grbl_send_command(self):
         cmd = str(self.ui.grbl_command_entry.get_value() or '').strip()
-        if not cmd:
+        if not cmd or not self._action_ok('console'):
             return
         # the dock entry cleared itself after a send: the one entry does it now
         self.ui.grbl_command_entry.clear()
@@ -1932,6 +1959,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         when the controller accepts the command (spindle_state_sig).
         """
         self.ui.spindle_button.setChecked(self.__dict__.get('_spindle_on', False))
+        if not self._action_ok('spindle' if checked else 'spindle_off'):
+            return
         cmd = 'M3 S%d' % self.ui.spindle_rpm_entry.get_value() if checked else 'M5'
 
         def task(op):
@@ -1993,6 +2022,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._grbl_start_op('report', task)
 
     def on_grbl_get_parameter(self, param):
+        if not self._action_ok('config'):
+            return
         try:
             number = int(str(param).replace('$', '').strip())
         except ValueError:
@@ -2020,6 +2051,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             configuration.invalidate()
 
     def _configuration_request(self, page, changes=None):
+        if not self._action_ok('config'):
+            return
         changes = dict(changes or {})
         identity = (self.grbl_ser_port, self._grbl_safety_generation)
         if not self._configuration_supported() or page.tool is not self:
@@ -2297,7 +2330,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         console.expand_jog()
 
     def on_grbl_jog(self, direction=None):
-        if direction is None:
+        if direction is None or not self._action_ok('jog'):
             return
 
         step = self.ui.jog_step_entry.get_value()
@@ -3133,7 +3166,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             changed = True
         if changed:
             if self.__dict__.get('_toolchange_busy', False):
-                self.on_grbl_stop()
+                self._hold_now()
             self._toolchange_new_session()
         message = ''
         if changed and measurement.session is not None:
@@ -3550,7 +3583,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def on_toolchange_clear(self):
         if self.__dict__.get('_toolchange_busy', False):
-            self.on_grbl_stop()
+            self._hold_now()
         self._toolchange_new_session()
         self._toolchange_refresh_ui(_("The tool-change reference was discarded."))
 
@@ -3653,6 +3686,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._toolchange_refresh_ui(text)
 
     def on_grbl_zero(self, axis):
+        if not self._action_ok('zero'):
+            return
         self._invalidate_coordinates()
         axes = {'x': 'X0', 'y': 'Y0', 'z': 'Z0'}.get(axis, 'X0 Y0 Z0')
         # the work offset changes: the next status report that has no WCO must not use the old one
@@ -3688,6 +3723,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._grbl_start_op('zero', task, motion=True)
 
     def on_grbl_homing(self):
+        if not self._action_ok('home'):
+            return
         self._invalidate_coordinates()
         self._stop_continuous_jog()
         self._camera_new_session('home')
@@ -3717,7 +3754,82 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if self._grbl_start_op('home', task, motion=True, allow_in_recovery=True):
             self.app.inform.emit("%s" % _("The controller is doing a home cycle."))
 
+    def _action_ok(self, action):
+        """:return: True if the action is allowed now; else the reason is shown and False."""
+        reason = self.action_allowed(action)
+        if reason is not None:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % reason)
+        return reason is None
+
+    def _machine_situation(self):
+        """:return: the name of the first ACTION_RULES row that matches the machine now."""
+        with self._grbl_op_lock:
+            op = self._grbl_op
+            reset_pending = self._grbl_reset_pending
+            recovery = self._grbl_recovery
+            phase = self._grbl_stop_phase
+        if op is not None and op.name in MONITOR_OPS:
+            op = None
+        state = self._controller_state
+        streaming = op is not None and op.name == 'stream'
+        if not self._grbl_port_ready():
+            return 'not_connected'
+        if recovery == 'needs_reset' or phase or reset_pending:
+            return 'needs_reset'
+        if recovery == 'needs_home':
+            return 'needs_home'
+        if state == 'Alarm':
+            return 'alarm'
+        if op is not None and not streaming:
+            return 'operation'
+        if self._tool_pause is not None:
+            return 'tool_pause'
+        if streaming:
+            if state == 'Check':
+                return 'stream_check'
+            if state in ('Hold', 'Door'):
+                return 'stream_hold'
+            if state == 'Tool':
+                return 'stream_tool'
+            if self._step_waiting and state == 'Idle':
+                return 'stream_step'
+            return 'stream'
+        if state in ('Hold', 'Door'):
+            return 'held'
+        return 'idle'
+
+    def action_allowed(self, action):
+        """:return: None if the action is allowed in the present machine situation, else the reason text."""
+        situation = self._machine_situation()
+        allowed = dict(ACTION_RULES)[situation]
+        if situation == 'not_connected' and self.__dict__.get('_simulation') is not None:
+            # a host-side simulation stays stoppable
+            allowed += ('stop', 'hold')
+        if action in allowed:
+            return None
+        reasons = {
+            'not_connected': _("Not connected to a controller."),
+            'needs_reset': _("The controller needs a reset first."),
+            'needs_home': _("The controller needs a home cycle first."),
+            'alarm': _("The controller is in alarm. Unlock or home it."),
+            'operation': _("The controller is busy. Wait, or press Stop."),
+            'tool_pause': _("The job waits for the tool change."),
+            'stream_check': _("The controller is in check mode."),
+            'stream_hold': _("The job is on hold."),
+            'stream_tool': _("The controller waits for the tool change."),
+            'stream_step': _("The job waits for the next block."),
+            'stream': _("A job is running."),
+            'held': _("The controller is on hold. Press Resume or Stop."),
+            'idle': _("Not available now."),
+        }
+        return reasons[situation]
+
     def on_grbl_stop(self):
+        """A Stop (also of the registration and tool change dialogs): see _hold_now()."""
+        if self._action_ok('stop'):
+            self._hold_now()
+
+    def _hold_now(self):
         """Stop the running operation at once: feed hold, and the machine needs recovery."""
         self._stop_continuous_jog()
         self._toolchange_new_session('stop')
@@ -3743,6 +3855,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             _("Stopped. The controller is in feed hold."), self._grbl_recovery_text()))
 
     def on_grbl_reset(self, keep_position=None, wait_hold=False):
+        """The Reset button and recovery button: see _reset_now()."""
+        if self._action_ok('reset'):
+            self._reset_now(keep_position, wait_hold)
+
+    def _reset_now(self, keep_position=None, wait_hold=False):
         """
         Soft reset of the controller; a worker then waits for the startup banner.
 
@@ -3906,7 +4023,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if (self.grbl_ser_port is port and self._grbl_safety_generation == generation
                 and self._grbl_brake_request == request and self._grbl_recovery == 'needs_reset'
                 and self._grbl_stop_phase is None and not self._grbl_reset_pending):
-            self.on_grbl_reset(keep_position=False)
+            self._reset_now(keep_position=False)
 
     def _grbl_confirm_reset_later(self, generation, keep_position, tries=40):
         """
@@ -3953,6 +4070,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         This is the one handler that resumes the stream (the Resume button):
         after a tool change it rechecks the rest of the program with the new TLO under an active machine profile.
         """
+        if not self._action_ok('resume'):
+            return False
         if not self._tool_change_recheck():
             return False
         with self._grbl_op_lock:
@@ -4053,7 +4172,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         return travel_z, depth, probe_fr
 
     def on_grbl_autolevel(self):
-        self._queue_probe(False)
+        if self._action_ok('probe'):
+            self._queue_probe(False)
 
     def _check_probe_moves(self, op, profile, commanded, travel_z, depth, units, feed=None):
         """
@@ -4137,10 +4257,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.app.worker_task.emit({'fcn': worker_task, 'params': []})
 
     def on_grbl_edge_probe(self):
-        self._queue_edge_probe(center=False)
+        if self._action_ok('probe'):
+            self._queue_edge_probe(center=False)
 
     def on_grbl_center_probe(self):
-        self._queue_edge_probe(center=True)
+        if self._action_ok('probe'):
+            self._queue_edge_probe(center=True)
 
     # the spelling used in the UI text
     on_grbl_centre_probe = on_grbl_center_probe
@@ -4637,6 +4759,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         return self._apply_prepared(SenderGen.prepare_job(inputs, self._profile_compute))
 
     def on_start(self):
+        if not self._action_ok('start'):
+            return
         # the WCO of an earlier session or job is not trusted
         self._last_wco = None
         if getattr(self, '_probe_start_op', None) is not None:
@@ -5613,33 +5737,43 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def on_emergency_stop(self):
         """The hardware stop remains available even while an offline simulation is open."""
+        if not self._action_ok('estop'):
+            return
         dialog = self.__dict__.get('_simulation')
         if dialog is not None:
             dialog.stop()
             self._simulation = None
-        self.on_stream_stop()
+        self._stop_now()
         if dialog is not None:
             dialog.close()
 
     def on_stream_stop(self):
+        """The Stop button: see _stop_now()."""
+        if self._action_ok('stop'):
+            self._stop_now()
+
+    def _stop_now(self):
         """
         Stop: feed hold now; the stream worker stops writing. Then a soft reset, which also stops
         the spindle. If no motion ran, the position is kept and the machine does not need Home.
         """
         if self.__dict__.get('_simulation') is not None:
-            self.on_grbl_stop()
+            self._hold_now()
             return
         with self._grbl_op_lock:
             op = self._grbl_op
             idle = ((op is None or not op.motion) and not self._grbl_stream_dirty and self._grbl_recovery is None
                     and self._reported_stationary())
-        self.on_grbl_stop()
+        self._hold_now()
         if not self._grbl_port_ready():
             return
         # a moving machine brakes in the feed hold; the reset byte waits until the hold is complete
-        self.on_grbl_reset(keep_position=idle, wait_hold=not idle)
+        self._reset_now(keep_position=idle, wait_hold=not idle)
 
     def on_unlock(self):
+        if not self._action_ok('unlock'):
+            return
+
         def task(op):
             text, status = self._grbl_transact(op, '$X', timeout=5.0)
             if status != 'ok':
@@ -5703,7 +5837,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         return written
 
     def _on_hold_button(self):
-        self._grbl_realtime(b'!')
+        if self._action_ok('hold'):
+            self._grbl_realtime(b'!')
 
     def on_program_line_selected(self, index):
         """Inspect selected moves while idle or held; running selection follows progress."""

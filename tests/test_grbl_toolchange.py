@@ -692,7 +692,8 @@ class TestToolChangeWidget(unittest.TestCase):
                 elif action == 'units':
                     tool.app.app_units = 'IN'
                 elif action == 'home':
-                    tool.on_grbl_homing()
+                    # Home is refused during an operation: its session change is tested directly
+                    tool._toolchange_new_session('home')
                 elif action == 'ui_reset':
                     with patch('appPlugins.Common.levelling_core.ShapeCollection'), \
                             patch('appPlugins.ToolGcodeSender.SenderCameraUI.QMediaDevices.videoInputs',
@@ -701,7 +702,7 @@ class TestToolChangeWidget(unittest.TestCase):
                 elif action == 'close':
                     tool.on_plugin_cleanup()
                 else:
-                    tool.on_grbl_reset()
+                    tool._reset_now()
                 self.run_job(jobs)
                 self.assertFalse(any(c.startswith(('G38', 'G10')) for c in fake.commands()))
                 self.assertIsNone(tool.toolchange.measurement)
