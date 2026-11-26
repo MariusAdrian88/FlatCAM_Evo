@@ -237,7 +237,7 @@ class TestCheckModeJob(unittest.TestCase):
                     thread.start()
                     thread.join()
                 tool.app.worker_task.emit.side_effect = run_in_thread
-                with patch.object(sender_module, 'active_profile_of', return_value=SimpleNamespace(name='P')), \
+                with patch.object(sender_module, 'active_profile_of', return_value=SimpleNamespace(name='P', rapid_max=None)), \
                         patch.object(sender_module, 'prepare_output', fake_output), \
                         patch.object(sender_module, 'report_gate',
                                      recorder('report_gate', lambda *a, **k: None)), \
@@ -293,7 +293,7 @@ class TestCheckModeJob(unittest.TestCase):
                 seen['prepare_output'].append(threading.current_thread())
                 return text, CheckResult(violations=[Violation(ViolationKind.FEED, 1, 'too fast')])
 
-            with patch.object(sender_module, 'active_profile_of', return_value=SimpleNamespace(name='P')), \
+            with patch.object(sender_module, 'active_profile_of', return_value=SimpleNamespace(name='P', rapid_max=None)), \
                     patch.object(sender_module, 'calibration_hash', return_value=tool._al_map_calibration), \
                     patch.object(sender_module, 'prepare_output', fake_output), \
                     patch.object(sender_module, 'report_gate', recorder('report_gate', lambda *a, **k: None)):
@@ -1417,6 +1417,36 @@ class TestEstopEverywhere(unittest.TestCase):
                 self.assertIsNone(tool.action_allowed('estop'))
                 tool.on_emergency_stop()
                 self.assertIn(b'!', fake.written)
+
+
+class TestJobEstimate(unittest.TestCase):
+    def test_line_seconds(self):
+        from appPlugins.ToolGcodeSender.SenderEstimate import line_seconds
+        self.assertAlmostEqual(line_seconds(['G21', 'G1 X60 F600'], 3000, 'MM')[1], 6.0)
+        self.assertAlmostEqual(line_seconds(['G21', 'G1 X60 F600', 'G0 X0'], 3000, 'MM')[2], 1.2)
+        self.assertAlmostEqual(line_seconds(['G4 P2'], 3000, 'MM')[0], 2.0)
+        self.assertAlmostEqual(line_seconds(['G20', 'G1 X1 F10'], 3000, 'MM')[1], 6.0)
+        self.assertAlmostEqual(line_seconds(['G21', 'G2 X20 I10 F600'], 3000, 'MM')[1], 3.14159, delta=0.01)
+
+    def test_a_word_gives_no_estimate(self):
+        from appPlugins.ToolGcodeSender.SenderEstimate import line_seconds
+        self.assertIsNone(line_seconds(['G21', 'G1 X10 F600', 'G1 A90 F600'], 3000, 'MM'))
+
+    def test_time_label_and_end_message(self):
+        tool = make_stream_tool(CheckFake(), source=gcode(5))
+        tool._console = lambda: MagicMock()
+        tool.on_start()
+        self.assertEqual(ended_how(tool), 'finished')
+        texts = [call.args[0] for call in tool.ui.time_label.setText.call_args_list]
+        self.assertTrue(any('left' in text and '≈' in text for text in texts))
+        self.assertTrue(any('Time elapsed' in text for text in emitted(tool)))
+
+    def test_remaining_and_clock(self):
+        from appPlugins.ToolGcodeSender.SenderEstimate import remaining, clock_text
+        self.assertAlmostEqual(remaining([1.0, 3.0, 6.0], 1, 100), 5.0)
+        self.assertAlmostEqual(remaining([1.0, 3.0, 6.0], 1, 200), 2.5)
+        self.assertEqual(clock_text(3723), '01:02:03')
+        self.assertEqual(clock_text(None), '--:--:--')
 
 
 if __name__ == '__main__':

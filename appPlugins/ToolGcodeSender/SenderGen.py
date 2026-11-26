@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 from appCommon.machine_profile.correct import MARKER_RE
 from appPlugins.Common.grbl.grbl_client import validate_stream_lines, GRBL_RX_BUFFER, GRBL_MAX_LINE
+from appPlugins.ToolGcodeSender import SenderEstimate
 from appPlugins.Common.gcode_arcs import split_arcs
 from appPlugins.Common.gcode_segment import _ModalState, _WORD_RE, _words, _fmt, split_long_moves
 
@@ -242,6 +243,7 @@ class _StartInputs:
     level: object = None        # a _LevelInput for a levelled job, else None
     optional_stop: bool = False  # M1 stops the job
     block_delete: bool = True   # the lines that start with '/' are skipped
+    rapid_mm_min: float = 3000.0  # the rapid rate for the time estimate
 
 
 @dataclasses.dataclass
@@ -267,6 +269,7 @@ class _PreparedJob:
     error: str = None
     profile: _ProfileOutcome = None
     split_count: int = 0
+    cumulative: list = None     # the running total of the line durations (s), None: no estimate
 
 
 @dataclasses.dataclass
@@ -277,6 +280,10 @@ class _PreparedRestart:
     error: str = None
     outcome: _ProfileOutcome = None
     context: object = None
+
+
+def _cumulative(lines, inputs):
+    return SenderEstimate.cumulative(SenderEstimate.line_seconds(lines, inputs.rapid_mm_min, inputs.units))
 
 
 def prepare_job(inputs, profile_compute, limits=(GRBL_RX_BUFFER, GRBL_MAX_LINE)):
@@ -327,6 +334,7 @@ def prepare_job(inputs, profile_compute, limits=(GRBL_RX_BUFFER, GRBL_MAX_LINE))
         prepared.split_count = count
     prepared.lines = lines
     prepared.numbers = numbers
+    prepared.cumulative = _cumulative(lines, inputs)
     return prepared
 
 
@@ -378,6 +386,7 @@ def prepare_levelled_job(inputs, profile_compute, autolevell, tlo_line, limits=(
                          (bad_index + 1)
         return prepared
     prepared.lines = job_lines
+    prepared.cumulative = _cumulative(job_lines, inputs)
     return prepared
 
 

@@ -40,7 +40,7 @@ from appPlugins.Common.grbl.grbl_protocol import (
     parse_grbl_probe_output, parse_grbl_offsets, grbl_wcs_p_number)
 from appPlugins.Common.gcode_segment import split_long_moves, parse_toolpath, _words, _g_key
 from appPlugins.Common.levelling_interp import build_bilinear_grid
-from appPlugins.ToolGcodeSender import SenderGen, SenderKeys
+from appPlugins.ToolGcodeSender import SenderGen, SenderKeys, SenderEstimate
 from appPlugins.Common.grbl.grbl_client import (
     GrblClientMixin, STATUS_POLL, IO_STATUS, IO_STATUS_PERIOD, MONITOR_OPS, is_controller_banner, is_grblhal_banner, is_native_jog_banner,
     stream_lines, validate_stream_lines, _GrblProbeAbort, GRBL_RX_BUFFER, GRBL_MAX_LINE)
@@ -560,6 +560,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     # pages of the dock (keys) that are hidden, and that are disabled; the dock is not rebuilt with the UI, so
     # the full mode applies the same lists the other way round
     CAMERA_MODE_HIDDEN_PAGES = ('overrides',)
+    # the `$$` values of the controller ({110: v, 111: v}), the cumulative line durations of the job (s), the
+    # feed override of the last status report (%) and the clock of the stream
+    _grbl_settings = None
+    job_cumulative = None
+    _feed_override_pct = 100
+    _stream_clock = None
     CAMERA_MODE_DISABLED_PAGES = ('console',)
 
     def _apply_camera_public_mode(self):
@@ -1366,6 +1372,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         # a new controller session: the WCO and the report units of the old one do not apply
         self._last_wco = None
         self._grbl_report_inches = None
+        self._grbl_settings = None
         self._clear_connection_capabilities()
         self._grbl_set_ui_connected(False)
         if ecut:
@@ -1654,6 +1661,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         text, status = self._grbl_transact(op, '$$', timeout=5.0, echo=False)
         value = parse_grbl_setting(text, 13) if status == 'ok' else None
         self._grbl_report_inches = (value == 1.0) if value in (0.0, 1.0) else None
+        self._grbl_settings = ({number: parse_grbl_setting(text, number) for number in (110, 111)}
+                               if status == 'ok' else None)
         if status == 'ok':
             # GRBL 1.1 always reports the pins; grblHAL does it with $10 bit 4
             mask = parse_grbl_setting(text, 10)
@@ -5035,6 +5044,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.app.inform.emit(_("Preparing the job"))
         self.app.worker_task.emit({'fcn': prepare_task, 'params': []})
 
+    def _rapid_mm_min(self, profile):
+        """The rapid rate (mm/min) for the time estimate (GUI thread)."""
+        port = self.grbl_ser_port
+        if port is not None and self._ecut_settings_capable(port):
+            try:
+                axes = port.get_motion_settings()['axes']
+                return min(axes[0]['max_velocity_mm_s'], axes[1]['max_velocity_mm_s']) * 60.0
+            except (serial.SerialException, OSError, KeyError, IndexError, TypeError):
+                pass
+        return SenderEstimate.rapid_rate(self._grbl_settings, None if profile is None else profile.rapid_max)
+
     def _start_inputs(self, op, apply_profile=True):
         """
         Read the widgets and the options for the preparation of a stream job (GUI thread).
@@ -5057,7 +5077,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             arc_mode=self.app.options.get("tools_grbl_arc_mode", 'split'),
             arc_segment=float(self.app.options.get("tools_grbl_arc_segment", 0.5)), units=target.units,
             decimals=target.coords_decimals, profile=profile,
-            poll_ms=int(self.app.options.get("tools_grbl_status_ms", 200)), seq=seq, generation=generation)
+            poll_ms=int(self.app.options.get("tools_grbl_status_ms", 200)), seq=seq, generation=generation,
+            rapid_mm_min=self._rapid_mm_min(active_profile_of(self.app)))
 
     def _apply_prepared(self, prepared):
         """
@@ -5079,6 +5100,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.app.inform.emit(message)
         self.job_lines = prepared.lines
         self.job_line_numbers = prepared.numbers
+        self.job_cumulative = prepared.cumulative
         self.job_target_name = inputs.target.obj_options['name']
         # the levelled lines have no 1:1 map to the lines of the G-code text
         self.job_map_generation = None if inputs.level is None else inputs.level.generation
@@ -5293,6 +5315,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def _choose_start_line(self, line_count, beginning_only=False):
         dialog = GrblStartDialog(line_count, self.app.ui)
+        cumulative = self.job_cumulative
+        dialog.layout().insertWidget(0, QtWidgets.QLabel('%s ≈ %s' % (
+            _("Estimated time"), SenderEstimate.clock_text(cumulative[-1] if cumulative else None))))
         if beginning_only:
             dialog.start_radio.setEnabled(False)
             reason = QtWidgets.QLabel(_("A new height map must start at the beginning.\n"
@@ -5464,6 +5489,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._console_pending.clear()
         self._progress_latest = None
         self._progress_shown = None
+        self._stream_clock = QtCore.QElapsedTimer()
+        self._stream_clock.start()
+        self._show_job_time(0, len(lines))
         self._stream_ui_timer.start()
         try:
             self._start_stream_thread(worker_task)
@@ -6086,8 +6114,20 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if batch:
             self._console().append('\n'.join(batch))
 
+    def _elapsed_text(self):
+        clock = self._stream_clock
+        return SenderEstimate.clock_text(0 if clock is None else clock.elapsed() / 1000.0)
+
+    def _show_job_time(self, done, total):
+        """The elapsed time and the estimated time that is left, under the progress bar."""
+        cumulative = self.job_cumulative
+        left = None if not cumulative else SenderEstimate.remaining(cumulative, done, self._feed_override_pct)
+        self.ui.time_label.setText('%s  /  ≈ %s %s' % (self._elapsed_text(), SenderEstimate.clock_text(left),
+                                                       _("left")))
+
     def _on_stream_progress(self, done, total):
         self.ui.progress_bar.setValue(int(done * 100 / total) if total else 0)
+        self._show_job_time(done, total)
         console = self.app.ui.grbl_console_dock.widget()
         if isinstance(console, GrblConsole):
             console.update_progress(done)
@@ -6602,6 +6642,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 code_text('ALARM:' + report['substate'], self._grbl_grblhal) if 'substate' in report else 'ALARM')
         self._apply_machine_state()
         if 'ov' in report:
+            self._feed_override_pct = report['ov'][0]
             self.ui.ov_values_label.setText(_('F: %d%%  R: %d%%  S: %d%%') % report['ov'])
             # the accessory field comes with 'Ov'; without it, no accessory is on
             accessory = report.get('accessory', '')
@@ -6983,7 +7024,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         if how == 'finished':
             self.ui.progress_bar.setValue(100)
-            self.app.inform.emit('[success] %s' % _("The job finished."))
+            self.app.inform.emit('[success] %s' % (_("Job done. Time elapsed: %s") % self._elapsed_text()))
         elif how == 'check_passed':
             self.ui.progress_bar.setValue(100)
             self.app.inform.emit('[success] %s' % _("Check mode: GRBL found no error."))

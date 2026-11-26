@@ -1159,7 +1159,7 @@ def test_start_profile_outcomes(outcome):
         severity = 'reject' if outcome == 'reject' else 'warn'
         return text, CheckResult(violations=[Violation(ViolationKind.FEED, 2, 'too fast', severity=severity)])
 
-    with patch.object(sender_module, 'active_profile_of', return_value=SimpleNamespace(name='P')), \
+    with patch.object(sender_module, 'active_profile_of', return_value=SimpleNamespace(name='P', rapid_max=None)), \
             patch.object(sender_module, 'prepare_output', fake_output), \
             patch.object(sender_module, 'report_gate') as report:
         tool.on_start()

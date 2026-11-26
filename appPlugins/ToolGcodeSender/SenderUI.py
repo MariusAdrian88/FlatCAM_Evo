@@ -638,6 +638,8 @@ class GcodeSenderUI:
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         header_box.addWidget(self.progress_bar)
+        self.time_label = FCLabel("")
+        header_box.addWidget(self.time_label)
         self.status_label = FCLabel(_("Idle"))
         self.status_label.setWordWrap(True)
         header_box.addWidget(self.status_label)
