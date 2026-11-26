@@ -428,6 +428,7 @@ class TestDeletedQtObjects(unittest.TestCase):
         try:
             tool._grbl_disconnect()
             self.assertIsNone(tool.grbl_ser_port)
+            tool.app.worker_task.emit.call_args.args[0]['fcn']()  # the worker closes the E-Cut port
             messages = [call.args[0] for call in tool.app.inform.emit.call_args_list]
             self.assertTrue(any(m.startswith('[ERROR_NOTCL]') for m in messages))
             self.assertFalse(any('Port disconnected' in m for m in messages))

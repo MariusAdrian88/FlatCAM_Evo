@@ -88,7 +88,7 @@ def sender_enabled():
 
 SENDER_ACTIONS = (
     'connect', 'start', 'hold', 'resume', 'next_block', 'stop', 'estop', 'reset', 'unlock', 'home', 'jog', 'zero',
-    'wcs', 'spindle', 'spindle_off', 'override', 'console', 'macro', 'probe', 'edit', 'config')
+    'wcs', 'spindle', 'spindle_off', 'override', 'rapid_override', 'console', 'macro', 'probe', 'edit', 'config')
 
 # The machine situations in order: the first row that matches is used (see ToolGCodeSender._machine_situation).
 # Row = (situation, allowed actions). Monitor operations (MONITOR_OPS) are no operation for these rules.
@@ -101,15 +101,18 @@ ACTION_RULES = (
     ('tool_pause', ('resume', 'stop', 'estop', 'reset', 'jog', 'probe', 'zero', 'console', 'spindle', 'macro',
                     'home', 'spindle_off')),
     ('stream_check', ('stop', 'estop')),
-    ('stream_hold', ('resume', 'stop', 'estop', 'override')),
+    ('stream_hold', ('resume', 'stop', 'estop', 'override', 'rapid_override')),
     ('stream_tool', ('jog', 'console', 'resume', 'stop', 'estop')),
-    ('stream_step', ('next_block', 'hold', 'stop', 'estop', 'override')),
-    ('stream', ('hold', 'stop', 'estop', 'override')),
+    ('stream_step', ('next_block', 'hold', 'stop', 'estop', 'override', 'rapid_override')),
+    ('stream', ('hold', 'stop', 'estop', 'override', 'rapid_override')),
     ('held', ('resume', 'stop', 'estop', 'reset', 'spindle_off', 'console')),
     ('idle', tuple(name for name in SENDER_ACTIONS if name not in ('resume', 'next_block', 'hold'))),
 )
 
 # The operator widgets of SenderUI (dotted attribute paths) and the action that enables each of them.
+# The real-time bytes of the Rapid override buttons: they take the action 'rapid_override', the others 'override'.
+RAPID_OVERRIDE_BYTES = (b'\x95', b'\x96', b'\x97')
+
 # The override buttons (ui.ov_buttons) take the action 'override'; ui.jog_wdg takes 'jog' (see _apply_machine_state).
 WIDGET_ACTIONS = {
     'start_button': 'start', 'hold_button': 'hold', 'resume_button': 'resume',
@@ -1257,7 +1260,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         # the previous connection did not close: it can still hold the device
         with self._grbl_op_lock:
+            closing = bool(self._grbl_closing_ports)
             unclosed = list(self._grbl_unclosed_ports)
+        if closing:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("The previous connection is still closing. Try again."))
+            return
         for unclosed_port in unclosed:
             try:
                 unclosed_port.close()
@@ -1568,6 +1575,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             # the UI reads the machine situation, which takes the operation lock: after the lock
             self._grbl_set_ui_connected(True)
             self.app.inform.emit("%s: %s" % (_("Port connected"), port_name))
+            if callable(getattr(port, 'prepare_program', None)) and not any(
+                    entry['readable'] and (entry['name'] == 'ESTOP' or 'LIMIT' in entry['name'])
+                    for entry in port.effective_inputs()):
+                self.app.inform.emit('[WARNING_NOTCL] %s' % _("E-Cut: no E-stop or limit input is enabled."))
             if self._grbl_recovery is not None:
                 self.app.inform.emit('[WARNING_NOTCL] %s' % self._grbl_recovery_text())
             self._camera_new_session('connect')
@@ -3882,6 +3893,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             # a host-side simulation stays stoppable
             allowed += ('stop', 'hold')
         if action in allowed:
+            if (action == 'rapid_override' and situation.startswith('stream')
+                    and callable(getattr(self.grbl_ser_port, 'prepare_program', None))):
+                return _("Rapid override is not available during an E-Cut program.")
             return None
         reasons = {
             'not_connected': _("Not connected to a controller."),
@@ -3912,8 +3926,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         for path, action in WIDGET_ACTIONS.items():
             widget = operator.attrgetter(path)(ui)
             widget.setEnabled(allowed[action])
-        for button, _byte in ui.ov_buttons.values():
-            button.setEnabled(allowed['override'])
+        for button, byte in ui.ov_buttons.values():
+            button.setEnabled(allowed['rapid_override' if byte in RAPID_OVERRIDE_BYTES else 'override'])
         # a jog arrow that the operator holds must stay enabled, or its release never arrives
         op = self._grbl_op
         ui.jog_wdg.setEnabled(allowed['jog'] or (op is not None and op.name == 'continuous jog'))
@@ -3929,7 +3943,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def on_grbl_override(self, byte):
         """A feed, rapid or spindle override button: send its real-time byte."""
-        if self._action_ok('override'):
+        if self._action_ok('rapid_override' if byte in RAPID_OVERRIDE_BYTES else 'override'):
             self._grbl_realtime(byte)
 
     def on_grbl_stop(self):

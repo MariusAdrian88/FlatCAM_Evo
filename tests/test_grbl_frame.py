@@ -758,6 +758,25 @@ class TestInvalidationEvents(unittest.TestCase):
             workers[0].join(5.0)
         self.assertEqual(opened_in, [workers[0]])       # the port opens in the worker, not on the GUI thread
 
+    def test_no_connect_while_an_ecut_port_closes(self):
+        tool = self.make()[0]
+        ecut_port = MagicMock()                         # prepare_program: an E-Cut port
+        tool.grbl_ser_port = ecut_port
+        tool._grbl_connected = True
+        closes = []
+        tool.app.worker_task.emit.side_effect = closes.append   # the close waits in the worker queue
+        tool._grbl_close_port()
+        ecut_port.close.assert_not_called()             # not on the GUI thread
+        with patch.object(sender_module.serial, 'serial_for_url') as make_port:
+            tool.on_grbl_connect()
+            tool.app.worker_task.emit.side_effect = lambda task: task['fcn']()
+            closes[0]['fcn']()                          # the worker closes the old port
+            ecut_port.close.assert_called_once()
+            tool.ui.com_list_combo.currentText.return_value = 'COM9'
+            tool.ui.baudrates_list_combo.currentText.return_value = '115200'
+            tool.connect_result_sig = MagicMock()
+            tool.on_grbl_connect()
+        self.assertEqual(make_port.call_count, 1)       # refused while closing, accepted after the close
 
     def test_event_disconnect_during_an_operation(self):
         tool = self.make()[0]

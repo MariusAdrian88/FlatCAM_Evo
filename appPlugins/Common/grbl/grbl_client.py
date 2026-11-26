@@ -563,6 +563,8 @@ class GrblClientMixin:
         # ports whose close() raised: they can still hold the device, so no new connection starts until they close
         # (a list: a second failed close must not forget the first; guarded by _grbl_op_lock)
         self._grbl_unclosed_ports = []
+        # E-Cut ports that a worker closes now: no new connection starts until the close ended (_grbl_op_lock)
+        self._grbl_closing_ports = []
 
     @staticmethod
     def on_grbl_list_serial_ports():
@@ -574,8 +576,13 @@ class GrblClientMixin:
         """
         return [port_info.device for port_info in serial.tools.list_ports.comports()]
 
-    def _grbl_close_port(self, port=None, attempt=None):
-        """Close the serial port now. Safe in a worker thread (the UI changes through a signal)."""
+    def _grbl_close_port(self, port=None, attempt=None, closed_text=None):
+        """
+        Close the serial port now. Safe in a worker thread (the UI changes through a signal).
+
+        :param closed_text: the status text after a good close (an E-Cut port closes in a worker: the text
+            comes from there); a failed close shows its error instead.
+        """
         with self._grbl_op_lock:
             if attempt is not None and (self._grbl_connect_attempt is not attempt or (
                     port is not None and self.grbl_ser_port is not port)):
@@ -596,13 +603,36 @@ class GrblClientMixin:
                 self._grbl_rx_buffer = b''
                 self._grbl_reply_pending = False
         if port is not None:
-            try:
-                port.close()
-            except (serial.SerialException, OSError) as err:
+            ecut_port = callable(getattr(port, 'prepare_program', None))
+
+            # a worker close must catch every error: nothing else reports it
+            errors = (Exception,) if ecut_port else (serial.SerialException, OSError)
+
+            def close_port():
+                try:
+                    port.close()
+                except errors as err:
+                    with self._grbl_op_lock:
+                        self._grbl_unclosed_ports.append(port)
+                    self.app.log.error("ToolLevelling._grbl_close_port() -> %s" % str(err))
+                    self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("The port did not close"), str(err)))
+                else:
+                    if closed_text:
+                        self.app.inform.emit("%s" % closed_text)
+                finally:
+                    with self._grbl_op_lock:
+                        if port in self._grbl_closing_ports:
+                            self._grbl_closing_ports.remove(port)
+
+            if ecut_port and threading.current_thread() is threading.main_thread():
+                # the E-Cut close joins the port worker and can block the GUI
                 with self._grbl_op_lock:
-                    self._grbl_unclosed_ports.append(port)
-                self.app.log.error("ToolLevelling._grbl_close_port() -> %s" % str(err))
-                self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("The port did not close"), str(err)))
+                    self._grbl_closing_ports.append(port)
+                self.app.worker_task.emit({'fcn': close_port, 'params': []})
+            else:
+                close_port()
+        elif closed_text:
+            self.app.inform.emit("%s" % closed_text)
         try:
             self.grbl_port_closed_sig.emit()
         except RuntimeError:
@@ -631,9 +661,8 @@ class GrblClientMixin:
                 self.app.inform.emit('[WARNING_NOTCL] %s' % _("The port closes when the running operation stops."))
             return
 
-        self._grbl_close_port()
-        if not self._grbl_unclosed_ports:  # a failed close already told the user
-            self.app.inform.emit("%s" % _("Port disconnected."))
+        # the text comes after a good close (an E-Cut port closes in a worker); a failed close tells its error
+        self._grbl_close_port(closed_text=_("Port disconnected."))
 
     def _grbl_force_close(self):
         """Close the port now, also during an operation (the application ends)."""

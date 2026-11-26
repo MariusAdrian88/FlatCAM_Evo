@@ -1682,7 +1682,7 @@ class TestDockTabWrap(unittest.TestCase):
 
 
 ALL_ACTIONS = ('connect', 'start', 'hold', 'resume', 'next_block', 'stop', 'estop', 'reset', 'unlock', 'home', 'jog',
-               'zero', 'wcs', 'spindle', 'spindle_off', 'override', 'console', 'macro', 'probe', 'edit', 'config')
+               'zero', 'wcs', 'spindle', 'spindle_off', 'override', 'rapid_override', 'console', 'macro', 'probe', 'edit', 'config')
 IDLE_NO = ('resume', 'next_block', 'hold')
 
 
@@ -1739,11 +1739,11 @@ class TestActionRules(unittest.TestCase):
         ('tool_pause', ('resume', 'stop', 'estop', 'reset', 'jog', 'probe', 'zero', 'console', 'spindle',
                         'macro', 'home', 'spindle_off')),
         ('stream_check', ('stop', 'estop')),
-        ('stream_hold', ('resume', 'stop', 'estop', 'override')),
-        ('stream_door', ('resume', 'stop', 'estop', 'override')),
+        ('stream_hold', ('resume', 'stop', 'estop', 'override', 'rapid_override')),
+        ('stream_door', ('resume', 'stop', 'estop', 'override', 'rapid_override')),
         ('stream_tool', ('jog', 'console', 'resume', 'stop', 'estop')),
-        ('stream_step', ('next_block', 'hold', 'stop', 'estop', 'override')),
-        ('stream_run', ('hold', 'stop', 'estop', 'override')),
+        ('stream_step', ('next_block', 'hold', 'stop', 'estop', 'override', 'rapid_override')),
+        ('stream_run', ('hold', 'stop', 'estop', 'override', 'rapid_override')),
         ('idle', tuple(name for name in ALL_ACTIONS if name not in IDLE_NO)),
     )
 
@@ -1765,8 +1765,20 @@ class TestActionRules(unittest.TestCase):
                     widget = operator.attrgetter(path)(tool.ui)
                     self.assertEqual(widget.setEnabled.call_args.args[0], action in allowed, path)
                 self.assertEqual(tool.ui.jog_wdg.setEnabled.call_args.args[0], 'jog' in allowed)
-                for button, _byte in tool.ui.ov_buttons.values():
-                    self.assertEqual(button.setEnabled.call_args.args[0], 'override' in allowed)
+                for button, byte in tool.ui.ov_buttons.values():
+                    action = 'rapid_override' if byte in (b'\x95', b'\x96', b'\x97') else 'override'
+                    self.assertEqual(button.setEnabled.call_args.args[0], action in allowed)
+
+    def test_rapid_override_refused_for_an_ecut_stream(self):
+        tool, fake = self.make()
+        fake.prepare_program = MagicMock()
+        self.situation(tool, 'stream_run')
+        self.assertIsNone(tool.action_allowed('override'))
+        self.assertTrue(tool.action_allowed('rapid_override'))
+        tool.on_grbl_override(b'\x96')
+        tool.on_grbl_override(b'\x91')
+        self.assertNotIn(b'\x96', b''.join(fake.written))
+        self.assertIn(b'\x91', b''.join(fake.written))
 
     def test_handlers_refuse_without_widgets(self):
         for name in ('probe', 'stream_run', 'needs_reset'):
