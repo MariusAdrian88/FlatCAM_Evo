@@ -158,11 +158,38 @@ def dwell_seconds(line):
     return 0.0
 
 
+class StepGate:
+    """
+    Single block: the stream writes a job line only after a release. `release()` runs on the GUI thread,
+    `ready()` and `consume()` on the stream thread. `enabled` is set on the GUI thread; off, the gate lets
+    every line go.
+    """
+
+    def __init__(self):
+        self.enabled = True
+        self._tokens = 0
+        self._lock = threading.Lock()
+
+    def release(self):
+        with self._lock:
+            self._tokens += 1
+
+    def ready(self):
+        with self._lock:
+            return self._tokens > 0
+
+    def consume(self):
+        with self._lock:
+            if self._tokens > 0:
+                self._tokens -= 1
+
+
 def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_MAX_LINE, check_mode=False,
                  on_progress=None, on_line=None, poll_status=False, poll_interval=0.2,
                  on_status=None, clock=time.monotonic, stall_timeout=30.0,
                  status_request=b'?', write_control=None, tool_change_ack=False,
-                 on_tool_change=None, tool_command=None, on_tool_command_done=None, reply_timeout=5.0):
+                 on_tool_change=None, tool_command=None, on_tool_command_done=None, reply_timeout=5.0,
+                 step_gate=None, on_step_wait=None):
     """
     Send `lines` to GRBL with the character-counting protocol: a new line
     is written only while the bytes of the lines in flight (each line + '\\n')
@@ -210,6 +237,10 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
     :param on_tool_command_done: callable(text), only after a successful touch-off/jog acknowledgement.
         A temporary command/fence error returns 'error' with 'tool_command' and 'last_text', without
         unblocking the caller's busy state before it latches recovery.
+    :param step_gate:    a StepGate (single block, needs poll_status=True): a job line is written only when
+        nothing is in flight, an Idle report came after the last acknowledgement and the gate has a token.
+        The wait is no stall.
+    :param on_step_wait: callable(line index), 1 time per line, when the stream waits for a token.
     :return: dict: 'status' ('finished', 'error', 'alarm', 'timeout', 'port_error',
         'cancelled', 'stale', 'line_too_long' or 'unexpected_reset'), 'done' (acknowledged lines),
         'errors' (list of (line index, reply text)), 'last_text' (the last reply line),
@@ -237,6 +268,8 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
     tool_fence_marker = False
     tool_fence_deadline = None
     tool_status_requested = False
+    idle_since_ack = True   # single block: an Idle report came after the last acknowledgement
+    step_wait_index = None
     poll_pending = False
     poll_sent_at = None     # a lost status reply must not stop polling forever
     manual_command = None
@@ -271,12 +304,25 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
             data = (lines[sent] + '\n').encode('utf-8')
             if used + len(data) > rx_size:
                 break
+            stepping = step_gate is not None and step_gate.enabled and poll_status
+            if stepping:
+                if in_flight or not idle_since_ack:
+                    break
+                if not step_gate.ready():
+                    last_progress = clock()     # waiting for the operator is no stall
+                    if step_wait_index != sent:
+                        step_wait_index = sent
+                        if on_step_wait is not None:
+                            on_step_wait(sent)
+                    break
             try:
                 status = write(data)
             except (serial.SerialException, OSError):
                 return result('port_error')
             if status != 'ok':
                 return result(status)
+            if stepping:
+                step_gate.consume()
             in_flight.append((sent, len(data)))
             used += len(data)
             if on_line is not None:
@@ -359,6 +405,8 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
                     last_progress = clock()
                 elif state == 'Idle' and poll_status:
                     arm_dwell()
+                if state == 'Idle':
+                    idle_since_ack = True
                 if position is not None:
                     last_position = position
                 if state == 'Tool':
@@ -439,6 +487,7 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
                 index, size = in_flight.pop(0)
                 used -= size
                 done += 1
+                idle_since_ack = False
                 if index == tool_index:
                     tool_acked = True
                     if not poll_status:

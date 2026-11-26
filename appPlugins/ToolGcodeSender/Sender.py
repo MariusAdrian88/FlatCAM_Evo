@@ -43,7 +43,7 @@ from appPlugins.Common.levelling_interp import build_bilinear_grid
 from appPlugins.ToolGcodeSender import SenderGen, SenderKeys, SenderEstimate, SenderMacros
 from appPlugins.Common.grbl.grbl_client import (
     GrblClientMixin, STATUS_POLL, IO_STATUS, IO_STATUS_PERIOD, MONITOR_OPS, is_controller_banner, is_grblhal_banner, is_native_jog_banner,
-    stream_lines, validate_stream_lines, _GrblProbeAbort, GRBL_RX_BUFFER, GRBL_MAX_LINE)
+    stream_lines, StepGate, validate_stream_lines, _GrblProbeAbort, GRBL_RX_BUFFER, GRBL_MAX_LINE)
 from appPlugins.Common.grbl.grbl_protocol import parse_grbl_identity, grbl_capabilities
 from appPlugins.Common.grbl.grbl_messages import code_text
 from appCommon.machine_profile.correct import CorrectionRefused
@@ -115,7 +115,7 @@ RAPID_OVERRIDE_BYTES = (b'\x95', b'\x96', b'\x97')
 
 # The override buttons (ui.ov_buttons) take the action 'override'; ui.jog_wdg takes 'jog' (see _apply_machine_state).
 WIDGET_ACTIONS = {
-    'start_button': 'start', 'hold_button': 'hold', 'resume_button': 'resume',
+    'start_button': 'start', 'hold_button': 'hold', 'resume_button': 'resume', 'step_button': 'next_block',
     'stop_button': 'stop', 'jog_stop_button': 'stop', 'stop_probing_button': 'stop',
     'estop_button': 'estop', 'estop_dock_button': 'estop',
     'controller_reset_button': 'reset', 'unlock_button': 'unlock',
@@ -198,6 +198,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     # the host tool change pause (T1) and the wait at the single block gate (F8): rows of ACTION_RULES
     _tool_pause = None
     _step_waiting = False
+    _step_gate = None       # the StepGate of single block (created by the checkbox slot)
     macro_page = None       # the user buttons page of the dock (SenderMacros.MacroPage)
     # the active WCS as the controller reported it ('G54'..'G59', None: not read) and the last work position
     # shown (display units) for the typed work position
@@ -781,6 +782,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.fit_view_cb.toggled.connect(self.on_fit_view_toggled)
         self.ui.check_mode_cb.toggled.connect(self._show_check_mode)
         self._show_check_mode()
+        self.ui.single_block_cb.toggled.connect(self._on_single_block)
+        self._on_single_block(self.ui.single_block_cb.isChecked())
+        self.ui.step_button.clicked.connect(self.on_next_block)
         self.ui.start_button.clicked.connect(self.on_start)
         self.ui.hold_button.clicked.connect(self._on_hold_button)
         self.ui.resume_button.clicked.connect(self._on_resume_button)
@@ -1635,6 +1639,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 # grblHAL prints its own banner; its capabilities ($I+) belong to this session only
                 self._grbl_grblhal = any(is_grblhal_banner(text) for text in lines)
                 self._grbl_identity_pending = not callable(getattr(port, 'prepare_program', None))
+                # single block is not available for an E-Cut prepared program
+                self.ui.single_block_cb.setEnabled(self._grbl_identity_pending)
                 self._grbl_identity = None
                 self._grbl_caps = None
                 self._grbl_top_bit_realtime = False
@@ -6024,7 +6030,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             # the E-Cut adapter has its own M6 protocol: prepare_program() gives it the whole job
             tool_change_ack=tool_change_ack,
             on_tool_change=on_tool_change, tool_command=tool_command,
-            on_tool_command_done=tool_command_done)
+            on_tool_command_done=tool_command_done,
+            step_gate=None if callable(prepare_program) else self._step_gate, on_step_wait=self._on_step_wait)
+        self._step_waiting = False
         status = res['status']
 
         source_number = program_line
@@ -7144,6 +7152,31 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         checked = self.ui.check_mode_cb.isChecked()
         self.ui.check_badge.setVisible(checked)
         self.ui.start_button.setText(_("Start (check)") if checked else _("Start"))
+
+    def _on_single_block(self, checked):
+        """The Single block checkbox: the gate applies from the next line; the header shows the mode."""
+        if self._step_gate is None:
+            self._step_gate = StepGate()
+        self._step_gate.enabled = bool(checked)
+        if not checked:
+            self._step_waiting = False
+        self.ui.step_button.setVisible(bool(checked))
+        self.ui.step_badge.setVisible(bool(checked))
+        self.op_changed_sig.emit()
+
+    def _on_step_wait(self, index):
+        """The stream waits for Next block (the stream thread): the GUI thread applies the rules."""
+        self._step_waiting = True
+        self.op_changed_sig.emit()
+
+    def on_next_block(self):
+        """Next block: let the waiting stream write 1 line."""
+        if not self._action_ok('next_block'):
+            return False
+        self._step_waiting = False
+        self._step_gate.release()
+        self._apply_machine_state()
+        return True
 
     def on_fit_view(self):
         if self.view3d is None or not self.view3d._segments:

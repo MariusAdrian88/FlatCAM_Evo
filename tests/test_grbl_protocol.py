@@ -580,7 +580,7 @@ import unittest
 import serial
 
 from appPlugins.Common.grbl.grbl_client import (
-    stream_lines, validate_stream_lines, dwell_seconds, GRBL_RX_BUFFER, GRBL_MAX_LINE)
+    stream_lines, validate_stream_lines, dwell_seconds, GRBL_RX_BUFFER, GRBL_MAX_LINE, StepGate)
 
 
 class FakeStreamPort:
@@ -910,6 +910,55 @@ class TestStream(unittest.TestCase):
                            tool_change_ack=True, poll_status=True, clock=clock)
         self.assertEqual(res['status'], 'finished')
         self.assertEqual(written.count(b'\xa3'), 1)
+
+    def test_single_block(self):
+        lines = ['G0 X1', 'G0 X2', 'G0 X3']
+
+        def stream(gate, release_at, **kwargs):
+            clock = FakeClock()
+            times, waits = [], []
+
+            def report(now):
+                for moment in list(release_at):
+                    if now >= moment:
+                        release_at.remove(moment)
+                        gate.release()
+                return '<Idle|MPos:0.000,0.000,0.000|FS:0,0>'
+
+            port = TimedPort(clock, ack_at=0, report=report, step=1.0)
+            write = port.write
+
+            def timed_write(data):
+                if data != b'?':
+                    times.append(clock.now)
+                return write(data)
+
+            res = stream_lines(lines, timed_write, port.readline, poll_status=True, poll_interval=0.2,
+                               clock=clock, step_gate=gate, on_step_wait=waits.append, **kwargs)
+            return res, times, waits
+
+        # nothing is written for 100 s (no stall timeout); each release lets exactly 1 line go
+        gate = StepGate()
+        res, times, waits = stream(gate, [100.0, 120.0, 140.0])
+        self.assertEqual(res['status'], 'finished')
+        self.assertEqual(len(times), 3)
+        self.assertTrue(100.0 <= times[0] < 120.0 <= times[1] < 140.0 <= times[2])
+        self.assertEqual(waits, [0, 1, 2])
+
+        # a failed write keeps the token
+        gate = StepGate()
+        gate.release()
+        port = FakeStreamPort()
+        res = stream_lines(lines, lambda data: 'port_error' if data != b'?' else 'ok', port.readline,
+                           poll_status=True, step_gate=gate)
+        self.assertEqual(res['status'], 'port_error')
+        self.assertTrue(gate.ready())
+
+        # off: all the lines go without a release
+        gate = StepGate()
+        gate.enabled = False
+        res, times, waits = stream(gate, [])
+        self.assertEqual((res['status'], len(times), waits), ('finished', 3, []))
 
     def test_a_lost_status_reply_does_not_stop_polling(self):
         clock = FakeClock()

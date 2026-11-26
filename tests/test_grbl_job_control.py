@@ -1013,6 +1013,62 @@ class TestGrblHalController(unittest.TestCase):
         self.assertLess(start, motion)
         self.assertTrue(any('Cycle Start' in text for text in emitted(tool)))
 
+    def test_single_block_and_hold_are_separate(self):
+        # (a) Hold, then Next block: nothing is written; Resume writes ~; then Next block writes 1 line
+        # (b) an M0 line: the controller is in Hold; Resume writes ~, Next block writes the next line
+        for source in ('G1 X1\nG1 X2\n', 'M0\nG1 X1\n'):
+            with self.subTest(source=source):
+                fake = CheckFake()
+                tool = make_stream_tool(fake, source=source)
+                tool._on_single_block(True)
+                stage = [0]
+
+                def operator():
+                    if not tool._step_waiting:
+                        return
+                    if stage[0] > 0:
+                        tool.on_next_block()
+                        return
+                    stage[0] = 1
+                    tool._controller_state = 'Hold'
+                    written = len(fake.written)
+                    tool.on_next_block()
+                    self.assertEqual(len(fake.written), written)
+                    self.assertTrue(any('hold' in text.lower() for text in emitted(tool)))
+                    self.assertTrue(tool._on_resume_button())
+                    self.assertEqual(fake.written[-1], b'~')
+                    tool._controller_state = 'Idle'
+                    tool.on_next_block()
+                fake.read_hook = operator
+                tool.on_start()
+                self.assertEqual(ended_how(tool), 'finished')
+                self.assertEqual(fake.written.count(b'~'), 1)
+                self.assertEqual(sum(1 for data in fake.written if data.startswith((b'G1', b'M0'))),
+                                 len(source.split('\n')) - 1)
+
+        # (c) a native M6: the tool change runs as with single block off
+        fake = ToolChangeFake()
+        tool = make_stream_tool(fake, source='G21\nM6\nG1 X1.000 Y1.000\n')
+        tool._on_single_block(True)
+        releases = []
+
+        def operator_m6():
+            if fake.tool_waiting and tool.__dict__.get('_grbl_tool_change_pending') and \
+                    not tool.__dict__.get('_grbl_tool_command_busy'):
+                tool._controller_state = 'Tool'
+                tool._on_resume_button()
+                tool._controller_state = 'Idle'
+            elif tool._step_waiting:
+                releases.append(True)
+                tool.on_next_block()
+        fake.read_hook = operator_m6
+        tool.on_start()
+        self.assertEqual(ended_how(tool), 'finished')
+        written = fake.written
+        self.assertLess(written.index(b'M6\n'), written.index(b'\xa3'))
+        self.assertLess(written.index(b'~'), written.index(b'G1 X1.000 Y1.000\n'))
+        self.assertEqual(len(releases), 3)
+
     def test_line_limits_reach_the_stream(self):
         long_line = 'G1 X1.' + '0' * 114
         tool_command = '$J=G91 X' + '0' * 110

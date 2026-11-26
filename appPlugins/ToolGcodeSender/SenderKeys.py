@@ -76,6 +76,7 @@ def actions():
         sc('stop', _("Stop"), 'Esc', _pressed(lambda tool: tool.on_stream_stop())),
         sc('jog_block', _("Show or hide the jog block"), 'Tab', _pressed(lambda tool: tool.toggle_jog_page())),
         sc('start', _("Start"), '', _pressed(lambda tool: tool.on_start())),
+        sc('next_block', _("Next block"), '', _pressed(lambda tool: tool.on_next_block())),
         sc('home', _("Home"), '', _pressed(lambda tool: tool.on_grbl_homing())),
         sc('zero_x', _("Zero X"), '', _pressed(lambda tool: tool.on_grbl_zero('x'))),
         sc('zero_y', _("Zero Y"), '', _pressed(lambda tool: tool.on_grbl_zero('y'))),

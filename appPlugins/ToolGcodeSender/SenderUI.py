@@ -592,6 +592,15 @@ class GcodeSenderUI:
         self.check_badge.setToolTip(_("Check mode: Start validates the G-code without motion."))
         self.check_badge.setVisible(False)
         job_lay.addWidget(self.check_badge)
+        self.step_button = FCButton(_("Next block"))
+        self.step_button.setToolTip(_("Single block: write the next line of the G-code."))
+        self.step_button.setVisible(False)
+        job_lay.addWidget(self.step_button)
+        self.step_badge = FCLabel(_("STEP"))
+        self.step_badge.setStyleSheet("QLabel { color: orange; font-weight: bold; }")
+        self.step_badge.setToolTip(_("Single block: each line waits for Next block."))
+        self.step_badge.setVisible(False)
+        job_lay.addWidget(self.step_badge)
         header_box.addWidget(self.job_row)
 
         self.unlock_button = FCButton(_("Unlock"))
@@ -608,6 +617,9 @@ class GcodeSenderUI:
         self.block_delete_cb.setToolTip(_("Checked: the lines that start with '/' are skipped.\n"
                                           "Unchecked: they are sent without the '/'."))
         self.block_delete_cb.setChecked(True)
+        self.single_block_cb = FCCheckBox(_("Single block"))
+        self.single_block_cb.setToolTip(_("Checked: each line of the job waits for Next block.\n"
+                                          "Not available for an E-Cut program."))
         # Unlock sits at the right end of the alarm row; Alarm always sets an alarm text, so the row is shown
         self.status_strip.alarm_row.addWidget(self.unlock_button)
 
@@ -758,6 +770,7 @@ class GcodeSenderUI:
         self.job_tab_layout.addWidget(self.autolevel_cb)
         self.job_tab_layout.addWidget(self.optional_stop_cb)
         self.job_tab_layout.addWidget(self.block_delete_cb)
+        self.job_tab_layout.addWidget(self.single_block_cb)
         sim_row = QtWidgets.QHBoxLayout()
         sim_row.addWidget(self.sim_button)
         sim_row.addWidget(self.view3d_button)

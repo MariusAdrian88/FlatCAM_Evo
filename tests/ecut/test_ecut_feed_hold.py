@@ -204,9 +204,11 @@ def run_stop(monkeypatch, moment):
         first = board.events.index('record')
         events = board.events[first:]  # after the start-up; the close of the port is not part of it
         homed, stop_at = api.homed_axes, board.stop_at
+        # the close of the port interrupts the worker once more (by design), so count the raises before it
+        ended = list(raised)
     finally:
         port.close()
-    return types.SimpleNamespace(api=api, board=board, states=states, raised=raised, requested=requested[0],
+    return types.SimpleNamespace(api=api, board=board, states=states, raised=ended, requested=requested[0],
                                  events=events, homed=homed, stop_at=stop_at)
 
 
