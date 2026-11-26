@@ -227,6 +227,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     unlock_result_sig = QtCore.pyqtSignal(bool)
     # set by a 'port_error' failure (worker thread); the GUI slot closes the port
     _grbl_port_lost = False
+    # set when the lost port is closed: None, or 'job' (an operation was running) / 'idle'
+    _grbl_lost_close = None
+    # the timer of the automatic reconnect, and the state of the lost session
+    _reconnect_timer = None
+    _reconnect_job = False
+    _reconnect_ticking = False
     # a text line for the console, from any thread
     console_line_sig = QtCore.pyqtSignal(str)
     preview_ready_sig = QtCore.pyqtSignal(object)
@@ -1222,10 +1228,13 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             locked=self.grbl_ser_port is not None or self.__dict__.get('_grbl_connect_attempt') is not None)
         connected = self._grbl_connected
         pending = self.__dict__.get('_grbl_connect_attempt') is not None and not connected
+        reconnecting = not connected and self._reconnect_active()
         self.ui.com_connect_button.setText(
-            _("Connecting... Cancel") if pending else (_("Disconnect") if connected else _("Connect")))
+            _("Connecting... Cancel") if pending else
+            (_("Cancel reconnect") if reconnecting else (_("Disconnect") if connected else _("Connect"))))
         self.ui.com_connect_button.setToolTip(
             _("Cancel the pending connection attempt.") if pending else
+            _("Stop trying to reconnect.") if reconnecting else
             (_("Disconnect from the controller.") if connected else _("Connect to the selected controller.")))
 
     def _save_connection_settings(self, *_args):
@@ -1321,6 +1330,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def on_grbl_connect(self):
         if self.__dict__.get('_simulation') is not None:
+            return
+        # a press of the button ends the automatic reconnect
+        if not self._reconnect_ticking and self._reconnect_stop() and self.__dict__.get('_grbl_connect_attempt') is None:
+            self._connection_controls()
             return
         if self.__dict__.get('_grbl_connect_attempt') is not None and not self._grbl_connected:
             self._grbl_disconnect()
@@ -1659,6 +1672,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             # the UI reads the machine situation, which takes the operation lock: after the lock
             self._grbl_set_ui_connected(True)
             self.app.inform.emit("%s: %s" % (_("Port connected"), port_name))
+            self._reconnect_done()
             if callable(getattr(port, 'prepare_program', None)) and not any(
                     entry['readable'] and (entry['name'] == 'ESTOP' or 'LIMIT' in entry['name'])
                     for entry in port.effective_inputs()):
@@ -1841,11 +1855,61 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._toolchange_new_session('disconnect')
         self._clear_tool_pause()
         self.sender_io.on_disconnect()
+        lost, self._grbl_lost_close = self._grbl_lost_close, None
+        if lost is not None and self.app.options.get("tools_grbl_auto_reconnect", False):
+            self._reconnect_job = lost == 'job'
+            self._reconnect_start()
         try:
             self._grbl_set_ui_connected(False)
+            self._connection_controls()
         except (AttributeError, RuntimeError):
             # the UI can be already deleted when the application ends
             pass
+
+    def _reconnect_active(self):
+        return self._reconnect_timer is not None and self._reconnect_timer.isActive()
+
+    def _reconnect_start(self):
+        """Try to connect again every 2 s after a lost port, until it works or the user stops it."""
+        if self._reconnect_timer is None:
+            self._reconnect_timer = QtCore.QTimer()
+            self._reconnect_timer.setInterval(2000)
+            self._reconnect_timer.timeout.connect(self._reconnect_tick)
+        self._reconnect_timer.start()
+        self.app.inform.emit('[WARNING_NOTCL] %s' % _("Reconnecting..."))
+
+    def _reconnect_stop(self):
+        """:return: True if the reconnect was running."""
+        was = self._reconnect_active()
+        if was:
+            self._reconnect_timer.stop()
+        return was
+
+    def _reconnect_tick(self):
+        """Slot of the reconnect timer. It only connects; it never starts or resumes a job."""
+        if not self._reconnect_active():
+            return
+        if not self.app.options.get("tools_grbl_auto_reconnect", False) or self.grbl_ser_port is not None:
+            self._reconnect_stop()
+            self._connection_controls()
+            return
+        if self.__dict__.get('_grbl_connect_attempt') is not None:
+            return  # the last attempt still runs
+        self._reconnect_ticking = True
+        try:
+            self.on_grbl_connect()
+        finally:
+            self._reconnect_ticking = False
+
+    def _reconnect_done(self):
+        """A connect worked: end the reconnect."""
+        if not self._reconnect_stop():
+            return
+        if self._reconnect_job:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("Reconnected. The job was stopped."))
+        else:
+            self.app.inform.emit('[success] %s' % _("Reconnected."))
+        self._reconnect_job = False
 
     def _clear_connection_capabilities(self):
         self._invalidate_configuration()

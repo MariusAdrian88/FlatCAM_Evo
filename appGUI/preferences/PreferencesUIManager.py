@@ -509,6 +509,7 @@ class PreferencesUIManager(QtCore.QObject):
             "tools_grbl_spindle_dwell":  self.ui.plugin_eng_pref_form.tools_grbl_group.spindle_dwell_entry,
             "tools_grbl_m6_policy":  self.ui.plugin_eng_pref_form.tools_grbl_group.m6_policy_radio,
             "tools_grbl_keep_on_reset":  self.ui.plugin_eng_pref_form.tools_grbl_group.keep_on_reset_cb,
+            "tools_grbl_auto_reconnect":  self.ui.plugin_eng_pref_form.tools_grbl_group.auto_reconnect_cb,
             "tools_grbl_toolchange_plate": self.ui.plugin_eng_pref_form.tools_grbl_group.toolchange_plate_radio,
             "tools_grbl_toolchange_probe_distance":
                 self.ui.plugin_eng_pref_form.tools_grbl_group.toolchange_distance_entry,

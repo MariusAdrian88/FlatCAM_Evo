@@ -123,6 +123,21 @@ def test_duplicate_probe_records_require_recovery():
     assert not any(c.args[0]['kind'] == 'probe' for c in tool.al_result_ready_sig.emit.call_args_list)
 
 
+@pytest.mark.parametrize('report,reason', [
+    ('<Idle|MPos:0.000,0.000,5.000|WCO:0.000,0.000,0.000|Pn:P>', 'already_triggered'),
+    ('<Idle|MPos:0.000,0.000,-1.500|WCO:0.000,0.000,0.000>', 'below_depth'),
+])
+def test_probe_refused_when_pin_is_active(report, reason):
+    fake = SafetyGrbl(replies={'?': [report]})
+    tool = probe_tool(fake)
+    tool.on_grbl_autolevel()
+    run_worker(tool)
+    assert not any(c.startswith('G38.2') or c.startswith('G0') for c in fake.commands())
+    assert not any(c.args[0]['kind'] == 'probe' for c in tool.al_result_ready_sig.emit.call_args_list)
+    errors = ' '.join(c.args[0] for c in tool.app.inform.emit.call_args_list)
+    assert ('touching' if reason == 'already_triggered' else 'probe depth') in errors
+
+
 def test_captured_units_drive_probe_scaling():
     fake = SafetyGrbl(heights={(0.0, 0.0): 2.54, (10.0, 0.0): 2.54})
     tool = probe_tool(fake, units='IN')

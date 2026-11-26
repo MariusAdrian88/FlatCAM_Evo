@@ -887,6 +887,7 @@ class GrblClientMixin:
                 self._grbl_port_lost = False
                 if self.grbl_ser_port is op.port:
                     lost = op.port
+                    self._grbl_lost_close = 'idle' if op.name in MONITOR_OPS else 'job'
         if op.name not in MONITOR_OPS:
             self.op_changed_sig.emit()
         if close_now:
@@ -1566,9 +1567,13 @@ class GrblClientMixin:
                 raise
 
         try:
-            state = parse_grbl_status_state(self._grbl_query_status(op))
+            status_text = self._grbl_query_status(op)
+            state = parse_grbl_status_state(status_text)
             if state != 'Idle':
                 raise _GrblProbeAbort('?', state or _("no answer"), 'not_idle')
+            status = parse_grbl_status_report(status_text) or {}
+            if 'P' in status.get('pins', ''):
+                raise _GrblProbeAbort('?', '', 'already_triggered')
 
             report_setting = parse_grbl_setting(step('$$'), 13)
             if report_setting is None:
@@ -1576,6 +1581,9 @@ class GrblClientMixin:
             if precision and report_setting not in (0.0, 1.0):
                 raise _GrblProbeAbort('$$', _('GRBL $13 must report 0 or 1 before precision probing.'), 'error')
             scale = grbl_report_scale(context.units, report_setting == 1.0)
+            start = work_position(status)
+            if start is not None and start[2] * scale <= depth:
+                raise _GrblProbeAbort('?', '', 'below_depth')
             if precision and precision[1] <= 0.0001 * scale:
                 raise _GrblProbeAbort('precision retract', _(
                     'Increase the precision retract above the GRBL position report resolution.'), 'error')
@@ -2110,6 +2118,16 @@ class GrblClientMixin:
         if status == 'unknown_units':
             self.app.inform.emit('[ERROR_NOTCL] %s' % _(
                 "GRBL did not report setting $13 (report units). Probing was not started."))
+            return
+
+        if status == 'already_triggered':
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "The probe was already touching at the start. Raise the tool and try again."))
+            return
+
+        if status == 'below_depth':
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "The tool is at or below the probe depth. Raise it and try again."))
             return
 
         if status in ('timeout', 'probe_invalid', 'port_error'):

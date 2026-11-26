@@ -683,6 +683,42 @@ class TestFirstJobWrite(unittest.TestCase):
         self.assertIsNone(tool.grbl_ser_port)
         self.assertFalse(tool._grbl_port_ready())
 
+    def test_auto_reconnect_never_resumes(self):
+        from unittest.mock import MagicMock
+
+        class LostFake(CheckFake):
+            lost = False
+
+            def write(self, data):
+                if data[:1] not in (b'$', b'?'):
+                    self.lost = True
+                return super().write(data)
+
+            def readline(self):
+                if self.lost:
+                    raise OSError('device lost')
+                return super().readline()
+
+        for option in (True, False):
+            tool, _target = make_levelled_stream_tool(LostFake())
+            tool.app.options = {'tools_grbl_auto_reconnect': option}
+            tool.on_grbl_connect = MagicMock()
+            tool.on_start()
+            self.assertEqual(ended_how(tool), 'port_error')
+            tool._on_grbl_port_closed()
+            tool._reconnect_tick()   # the timer slot: no real wait
+            self.assertEqual(tool.on_grbl_connect.call_count, 1 if option else 0)
+            if not option:
+                continue
+            new_port = CheckFake()
+            tool.grbl_ser_port = new_port
+            tool._reconnect_done()
+            self.assertEqual(new_port.written, [])
+            self.assertIn('Reconnected. The job was stopped.',
+                          ' '.join(c.args[0] for c in tool.app.inform.emit.call_args_list))
+            tool._reconnect_tick()
+            self.assertEqual(tool.on_grbl_connect.call_count, 1)
+
     def test_not_levelled_write_has_no_request_check(self):
         tool, fake, op, _req = self.make()
         write, _readline = tool._grbl_stream_io(op)

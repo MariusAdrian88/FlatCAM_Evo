@@ -54,6 +54,11 @@ class ToolsGrblSenderPrefGroupUI(OptionsGroupUI):
             _("A new project, a project open or Close All keep a connected machine and its job running.\n"
               "Off: ask what to do."))
         connection_grid.addWidget(self.keep_on_reset_cb, 5, 0, 1, 2)
+        self.auto_reconnect_cb = FCCheckBox(_("Reconnect automatically"))
+        self.auto_reconnect_cb.setToolTip(
+            _("After a lost connection, try to connect again every 2 seconds.\n"
+              "A job is never started or resumed."))
+        connection_grid.addWidget(self.auto_reconnect_cb, 6, 0, 1, 2)
 
         self.grbl_label = FCLabel('%s' % _("Parameters"), bold=True)
         self.grbl_label.setToolTip(
