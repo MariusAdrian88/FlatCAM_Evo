@@ -3316,11 +3316,16 @@ class MainGUI(QtWidgets.QMainWindow):
         :return:
         """
         if (event.type() == QtCore.QEvent.Type.KeyPress and
-                isinstance(obj, QtWidgets.QWidget) and (obj is self or self.isAncestorOf(obj))):
+                isinstance(obj, QtWidgets.QWidget)):
             # the keys of the 'global' context of the shortcuts (the View toggles): caught before the canvas, the
             # editor or the plugin handlers can consume them
             action = shortcuts.registry().global_action(event.key(), event.modifiers())
-            if action is not None and (action.id == 'global.sender_estop' or not self.app_focus_in_text()):
+            # a detached tab is a parentless window: only the E-Stop key works there
+            in_window = obj is self or self.isAncestorOf(obj) or (
+                action is not None and action.id == 'global.sender_estop'
+                and isinstance(obj.window(), FCDetachableTab.FCDetachedTab))
+            if in_window and action is not None and (
+                    action.id == 'global.sender_estop' or not self.app_focus_in_text()):
                 if not event.isAutoRepeat():
                     action.run(self, event.key())
                 event.accept()

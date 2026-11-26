@@ -20,7 +20,8 @@ from appPlugins.Common.gcode_arcs import split_arcs
 from appPlugins.Common.gcode_segment import _ModalState, _WORD_RE, _words, _fmt, split_long_moves
 
 _COMMENT_PAREN_RE = re.compile(r'\([^)]*\)')
-_OPTIONAL_STOP_RE = re.compile(r'(?<![A-Za-z0-9.])M0*1(?![0-9.])', re.IGNORECASE)
+# a word starts at its letter, also after a number (N10M1, G1X2M01), as in _words()
+_OPTIONAL_STOP_RE = re.compile(r'M\s*0*1(?![0-9.])', re.IGNORECASE)
 _ = builtins.__dict__.get('_', gettext.gettext)
 
 
@@ -52,6 +53,11 @@ def clean_lines_numbered(text, keep_markers=False, optional_stop=False, block_de
             continue
         result.append((number, line))
     return result
+
+
+def _is_block_deleted(raw):
+    """True for a line that starts with '/' (after the comments)."""
+    return _COMMENT_PAREN_RE.sub('', raw).split(';', 1)[0].strip().startswith('/')
 
 
 def clean_lines(text):
@@ -123,7 +129,7 @@ def _split_comments(line):
     return re.split(r'(\([^)]*\)|;.*$)', line)
 
 
-_M6_WORD_RE = re.compile(r'(?<![A-Za-z0-9.])M0*6(?![0-9.])', re.IGNORECASE)
+_M6_WORD_RE = re.compile(r'M\s*0*6(?![0-9.])', re.IGNORECASE)
 
 
 def _has_m6(line):
@@ -131,7 +137,7 @@ def _has_m6(line):
     return any(k == 'M' and v == 6 for k, v in _words(code))
 
 
-_M6_T_RE = re.compile(r'(?<![A-Za-z0-9.])(?:M\s*0*6(?![0-9.])|T\s*[+-]?\d+\.?\d*)', re.IGNORECASE)
+_M6_T_RE = re.compile(r'(?:M\s*0*6(?![0-9.])|T\s*[+-]?\d+\.?\d*)', re.IGNORECASE)
 
 
 def _strip_m6_block(line):
@@ -439,9 +445,13 @@ def prepare_job(inputs, profile_compute, limits=(GRBL_RX_BUFFER, GRBL_MAX_LINE))
     :return: _PreparedJob. A refused correction leaves no lines: the GUI thread tells the user.
     """
     prepared = _PreparedJob(inputs=inputs)
-    text = inputs.source
+    source = inputs.source
+    if inputs.block_delete:
+        # a block-deleted line does not run: the profile must not check it (a blank line keeps the numbers)
+        source = '\n'.join('' if _is_block_deleted(raw) else raw for raw in source.splitlines())
+    text = source
     if inputs.profile is not None and inputs.source.strip():
-        outcome = prepared.profile = profile_compute(inputs.source, inputs.target, inputs.profile, inputs.op,
+        outcome = prepared.profile = profile_compute(source, inputs.target, inputs.profile, inputs.op,
                                                      prepared.line_map)
         if outcome.refused is not None:
             return prepared
@@ -462,7 +472,7 @@ def prepare_job(inputs, profile_compute, limits=(GRBL_RX_BUFFER, GRBL_MAX_LINE))
         # the corrected text has other lines than the source: each line maps to the line that it comes from
         line_map = prepared.line_map
         numbers = [line_map[number - 1] if 0 < number <= len(line_map) else number for number in numbers]
-    elif text != inputs.source:
+    elif text != source:
         numbers = []
     if inputs.arc_mode == 'split':
         lines, count, source_index, unsplit = split_arcs(lines, inputs.units, inputs.arc_segment,

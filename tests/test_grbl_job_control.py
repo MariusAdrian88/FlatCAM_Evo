@@ -212,7 +212,7 @@ class TestCheckModeJob(unittest.TestCase):
             with self.subTest(stop=stop):
                 fake = CheckFake()
                 tool = make_stream_tool(fake)
-                tool._profile_setup = lambda op, profile, target: (Setup(), [], None)
+                tool._profile_setup = lambda op, profile, target, **kwargs: (Setup(), [], None)
                 tool._confirm_profile_stream = MagicMock(return_value=True)
                 seen = collections.defaultdict(list)
 
@@ -268,7 +268,7 @@ class TestCheckModeJob(unittest.TestCase):
         with self.subTest(levelled=True):
             fake = CheckFake()
             tool, _target = make_levelled_stream_tool(fake)
-            tool._profile_setup = lambda op, profile, target: (Setup(), [], None)
+            tool._profile_setup = lambda op, profile, target, **kwargs: (Setup(), [], None)
             tool._confirm_profile_stream = MagicMock(
                 side_effect=lambda note: seen['confirm'].append(threading.current_thread()) or True)
             seen = collections.defaultdict(list)
@@ -658,6 +658,34 @@ class TestRestartPreamble(unittest.TestCase):
         self.assertEqual(numbered, [(3, 'G1 X2')])
         numbered = SenderGen.clean_lines_numbered(text, optional_stop=True, block_delete=False)
         self.assertEqual(numbered, [(1, 'G1 X1'), (2, 'M0'), (3, 'G1 X2 M0')])
+        # compact blocks: the M word follows a number
+        compact = 'N10M1\nG1X2M01\nG1X3'
+        self.assertEqual(SenderGen.clean_lines_numbered(compact, optional_stop=True),
+                         [(1, 'N10M0'), (2, 'G1X2M0'), (3, 'G1X3')])
+        self.assertEqual(SenderGen.clean_lines_numbered(compact, optional_stop=False), [(1, 'N10'), (2, 'G1X2'), (3, 'G1X3')])
+
+    def start_inputs(self, source, **kwargs):
+        return SenderGen._StartInputs(
+            op=None, target=None, source=source, check_mode=False, autolevel=False, arc_mode='off', arc_segment=0.5,
+            units='MM', decimals=4, profile=None, poll_ms=20, seq=0, generation=0, **kwargs)
+
+    def test_m6_skip_policy_removes_compact_m6_words(self):
+        source = 'G1X2\nT2M6\nM06\nm6\nN10M6 T3\nG1X3'
+        prepared = SenderGen.prepare_job(self.start_inputs(source, m6_policy='skip'), None)
+        self.assertEqual(prepared.lines, ['G1X2', 'T2', 'N10 T3', 'G1X3'])
+
+    def test_block_delete_applies_before_the_profile_check(self):
+        seen = []
+
+        def compute(text, target, profile, op, line_map):
+            seen.append(text)
+            return SenderGen._ProfileOutcome(out=text)
+
+        inputs = self.start_inputs('/G0 X500\nG1 X1', block_delete=True)
+        inputs.profile = object()
+        prepared = SenderGen.prepare_job(inputs, compute)
+        self.assertNotIn('X500', seen[0])
+        self.assertEqual((prepared.lines, prepared.numbers), (['G1 X1'], [2]))
 
     def test_restart_preamble_dwells_after_spindle_start(self):
         on = [line.replace('S12000', 'S10000') for line in PROGRAM]
@@ -1502,6 +1530,10 @@ class TestJobEstimate(unittest.TestCase):
         self.assertAlmostEqual(line_seconds(['G20', 'G1 X1 F10'], 3000, 'MM')[1], 6.0)
         self.assertAlmostEqual(line_seconds(['G21', 'G2 X20 I10 F600'], 3000, 'MM')[1], 3.14159, delta=0.01)
         self.assertIsNone(line_seconds(['G21', 'G1 X1 A90 F100'], 3000, 'MM'))
+        # a native full circle has no axis word
+        self.assertAlmostEqual(line_seconds(['G21', 'G2 I-10 J0 F600'], 3000, 'MM')[1], 6.2832, delta=0.01)
+        # the modal feed keeps its physical value when the units change
+        self.assertAlmostEqual(line_seconds(['G21', 'G1 X25.4 F600', 'G20', 'G1 X0'], 3000, 'MM')[3], 2.54)
 
     def test_a_word_gives_no_estimate(self):
         from appPlugins.ToolGcodeSender.SenderEstimate import line_seconds

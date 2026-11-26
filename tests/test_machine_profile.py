@@ -1160,7 +1160,7 @@ def test_start_profile_outcomes(outcome):
 
     fake = CheckFake()
     tool = make_stream_tool(fake)
-    tool._profile_setup = lambda op, profile, target: (Setup(), [], None)
+    tool._profile_setup = lambda op, profile, target, **kwargs: (Setup(), [], None)
     tool._confirm_profile_stream = MagicMock(return_value=False)
     prepared = []
     tool.job_prepared_sig.emit.side_effect = prepared.append

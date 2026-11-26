@@ -189,7 +189,8 @@ def _code_of(line):
 
 
 def _has_m6_word(line):
-    return re.search(r'(?<![A-Za-z0-9.])M0*6(?![0-9.])', _code_of(line), re.IGNORECASE) is not None
+    # a word starts at its letter, also after a number (T2M6, G1X2M6)
+    return re.search(r'M\s*0*6(?![0-9.])', _code_of(line), re.IGNORECASE) is not None
 
 
 def _is_m0_only(line):
@@ -315,8 +316,7 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
         while not tool_wait and tool_index is None and manual_command is None and sent < total:
             if host_tool_change and not check_mode and _has_m6_word(lines[sent]):
                 if in_flight or not idle_since_ack:
-                    last_progress = clock()     # the wait for the machine is no stall
-                    break
+                    break   # a Run report is progress; Idle reports with a lost ok must time out
                 done += 1
                 if on_progress is not None:
                     on_progress(done, total)
@@ -333,7 +333,8 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
             data = (lines[sent] + '\n').encode('utf-8')
             if used + len(data) > rx_size:
                 break
-            stepping = step_gate is not None and step_gate.enabled and poll_status
+            # in Check mode the controller does not move and reports Check, never Idle: no gate
+            stepping = step_gate is not None and step_gate.enabled and poll_status and not check_mode
             if stepping:
                 if in_flight or not idle_since_ack:
                     break

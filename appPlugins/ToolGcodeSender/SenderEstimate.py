@@ -93,6 +93,7 @@ def line_seconds(lines, rapid_mm_min, units):
             for axis, value in state.pos.items():
                 if value is not None:
                     state.pos[axis] = value * factor
+            feed *= factor              # the modal feed is in the units of the block that gave the F word
             state.units = new_units
         info = state.advance(line)
         seconds = dwell_seconds(line)
@@ -102,7 +103,10 @@ def line_seconds(lines, rapid_mm_min, units):
             for letter, value in info['words']:
                 if letter == 'F':
                     feed = value
-            if info['axes'] and not info['blocked'] and not state.inverse and state.motion in (0, 1, 2, 3):
+            # a native full circle has no axis word: its end is its start
+            full_circle = state.motion in (2, 3) and any(letter in 'IJ' for letter, _value in info['words'])
+            if (info['axes'] or full_circle) and not info['blocked'] and not state.inverse \
+                    and state.motion in (0, 1, 2, 3):
                 start, end = info['start'], state.pos
                 delta = [end[a] - start[a] for a in 'XYZ' if end[a] is not None and start[a] is not None]
                 length = math.sqrt(sum(d * d for d in delta))

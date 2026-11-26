@@ -614,6 +614,24 @@ class TestGrblConsole(unittest.TestCase):
         console.update_edit_controls()
         self.assertFalse(console.edit_button.isEnabled())
 
+    def test_click_in_edit_mode_places_the_cursor(self):
+        from PyQt6 import QtCore, QtTest
+
+        tool = make_stream_tool(CheckFake(), source='G21\nG1 X10 Y20 F100\n')
+        console = self.attach_console(tool)
+        console.set_program(['G21', 'G1 X10 Y20 F100'])
+        console.resize(600, 250)
+        console.show()
+        _qapp.processEvents()
+        console.edit_button.click()
+        self.assertFalse(console.program_view.isReadOnly())
+        cursor = QtGui.QTextCursor(console.program_view.document().findBlockByNumber(1))
+        cursor.setPosition(cursor.position() + 4)                  # before the X10 digits
+        point = console.program_view.cursorRect(cursor).center()
+        QtTest.QTest.mouseClick(console.program_view.viewport(), QtCore.Qt.MouseButton.LeftButton, pos=point)
+        QtTest.QTest.keyClicks(console.program_view, '9')
+        self.assertEqual(console.program_view.toPlainText().split('\n')[1], 'G1 X910 Y20 F100')
+
     def test_edited_program_is_levelled(self):
         tool, target = make_levelled_stream_tool(CheckFake())
         console = self.attach_console(tool)
@@ -1161,7 +1179,8 @@ class TestDockedJogPage(unittest.TestCase):
             except RuntimeError:
                 pass    # already deleted
         self.assertIsNone(console.page('camera'))
-        # the next UI mounts its own parts
+        # the next UI mounts its own parts (run() ends the kept state first)
+        self.tool._kept_across_reset = False
         self.tool.set_tool_ui()
         _qapp.processEvents()
         self.assertTrue(console.isAncestorOf(self.tool.ui.operate_header))
@@ -1231,6 +1250,27 @@ class TestDockedJogPage(unittest.TestCase):
         self.app.grbl_sender_tool = None            # no Sender tool: nothing happens
         press(QtCore.Qt.Key.Key_Pause)
 
+    def test_estop_key_works_in_a_detached_tab_window(self):
+        from appGUI.MainGUI import MainGUI
+        from appGUI.GUIElements import FCDetachableTab
+        self.connect(DockJogFake())
+        self.tool.on_emergency_stop = MagicMock()
+        self.app.grbl_sender_tool = self.tool
+        window = SimpleNamespace(app=self.app, isAncestorOf=lambda widget: False,
+                                 app_focus_in_text=MainGUI.app_focus_in_text)
+        content = QtWidgets.QWidget()
+        detached = FCDetachableTab.FCDetachedTab('FlatCAM Plot', content)
+        self.addCleanup(detached.deleteLater)
+
+        def press(key, modifier=QtCore.Qt.KeyboardModifier.NoModifier):
+            event = QtGui.QKeyEvent(QtCore.QEvent.Type.KeyPress, key, modifier)
+            return MainGUI.eventFilter(window, content, event)
+
+        self.assertTrue(press(QtCore.Qt.Key.Key_Pause))
+        self.tool.on_emergency_stop.assert_called_once_with()
+        # the other global keys keep their main-window-only rule
+        self.assertFalse(press(QtCore.Qt.Key.Key_H, QtCore.Qt.KeyboardModifier.ShiftModifier))
+
     def test_work_position_identifies_converted_job_units_and_reported_spindle(self):
         self.connect(DockJogFake())
         self.tool._target = lambda: MagicMock(units='IN')
@@ -1262,6 +1302,7 @@ class TestDockedJogPage(unittest.TestCase):
         port = FakeGrbl()
         self.connect(port)
         self.tool.app.worker_task.emit.side_effect = lambda task: task['fcn']()
+        self.tool._camera_public_mode = False       # the camera mode keeps Zero A hidden
         ui = self.tool.ui
         a_widgets = (ui.status_strip.dro.work['A'], ui.jog_wdg.jog_a_plus_button, ui.jog_wdg.jog_a_minus_button,
                      ui.zero_axs_wdg.grbl_zeroa_button, ui.jog_a_step_entry, ui.jog_a_fr_entry,
@@ -1294,6 +1335,69 @@ class TestDockedJogPage(unittest.TestCase):
             self.tool._camera_public_mode = False
             self.tool._apply_camera_public_mode()
             self.assertEqual(not zero_a.isHidden(), shown)
+
+    def test_capability_refresh_keeps_the_camera_mode_rules_and_runs_on_the_gui_thread(self):
+        import threading
+        self.connect(DockJogFake())
+        zero_a = self.tool.ui.zero_axs_wdg.grbl_zeroa_button
+        self.tool._grbl_caps = {'axes': 'XYZA'}
+        self.assertTrue(self.tool._camera_public_mode)
+        self.tool._grbl_apply_capabilities()
+        self.assertTrue(zero_a.isHidden())      # camera mode: Zero A stays hidden on an XYZA controller
+        # the discovery runs in a worker thread: the widgets change in the GUI thread
+        threads = []
+        original = self.tool._apply_a_axis_ui
+        self.tool._apply_a_axis_ui = lambda *args: (threads.append(threading.current_thread()), original(*args))
+        worker = threading.Thread(target=self.tool._grbl_apply_capabilities)
+        worker.start()
+        worker.join()
+        _qapp.processEvents()
+        self.assertEqual(threads, [threading.main_thread()])
+
+    def test_continuous_a_jog_needs_an_a_axis(self):
+        port = DockJogFake()
+        self.connect(port)
+        self.tool.ui.continuous_jog_cb.setChecked(True)
+        button = QtWidgets.QPushButton()
+        for axes, started in (('XYZ', []), ('XYZA', [(3, 0, self.tool.ui.jog_a_fr_entry.get_value())])):
+            with self.subTest(axes=axes):
+                self.tool._grbl_caps = {'axes': axes}
+                self.tool._on_jog_pressed(button, 'aplus')
+                self.assertEqual(port.started, started)
+                self.tool._stop_continuous_jog()
+                if self.tool._grbl_op is not None:
+                    self.tool._grbl_release(self.tool._grbl_op)
+
+    def test_unlock_result_is_handled_once_after_rebuilds(self):
+        self.full_mode()
+        self.full_mode()
+        self.tool.ui.status_strip.set_alarm = MagicMock()
+        self.tool.unlock_result_sig.emit(True)
+        self.tool.ui.status_strip.set_alarm.assert_called_once_with(None)
+
+    def test_kept_sender_delivers_no_status_to_the_deleted_dock_widgets(self):
+        self.full_mode()
+        self.connect(DockJogFake())
+        self.tool.detach_for_reset()
+        QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)
+        _qapp.processEvents()
+        with patch.object(self.tool, '_grbl_start_op') as start_op:
+            self.tool._poll_idle_status()
+        start_op.assert_not_called()
+        self.tool._on_status_report({'state': 'Idle', 'wpos': (1.0, 2.0, 3.0)})
+        # the other slots that a kept, connected Sender can still run
+        self.tool.op_changed_sig.emit()
+        self.tool._apply_machine_state()
+        self.tool._on_stream_progress(1, 10)
+        self.tool._flush_stream_ui(drain=True)
+        self.tool.console_line_sig.emit('ok')
+        self.tool._stream_result = {'done': 1, 'last_text': 'ok', 'errors': []}
+        self.tool._on_stream_ended('done')
+        self.tool._on_capabilities_applied()
+        self.tool._set_estop_enabled(True)
+        self.tool.grbl_ser_port = None
+        self.tool._on_grbl_port_closed()
+        self.full_mode()    # run() builds the UI again
 
     def test_abort_banner_stays_until_recovery_ends(self):
         self.connect(DockJogFake())
@@ -2571,6 +2675,20 @@ class TestIOTab(unittest.TestCase):
         self.assertIn('unknown', self.page.inputs['X Limit'].toolTip())
         self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Pn:XP>')
         self.assertEqual([self.shown(self.page, n) for n in ('X Limit', 'Y Limit', 'Probe')], [True, False, True])
+
+    def test_a_change_of_pin_reporting_in_the_configuration_is_read_again(self):
+        tool, fake, io = self.make(hal=True)
+        io.pin_report = True
+        fake.replies = {'$$': ['$10=0', '$13=0', 'ok']}
+        tool.configuration_result_sig = MagicMock()
+        tool._grbl_mpg_owned = tool._grbl_sd_owned = False
+        tool.app.worker_task.emit.side_effect = lambda task: task['fcn'](*task['params'])
+        page = SimpleNamespace(tool=tool, identity=(tool.grbl_ser_port, tool._grbl_safety_generation),
+                               values={'10': '16'}, epoch=1, status=MagicMock())
+        tool._configuration_request(page, {'10': '0'})
+        self.assertEqual(io.pin_report, False)
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000>')
+        self.assertIsNone(self.shown(self.page, 'X Limit'))         # unknown, not Off
 
     def test_coolant_sends_one_toggle_and_an_unconfirmed_change_is_not_retried(self):
         tool, fake, io = self.make()

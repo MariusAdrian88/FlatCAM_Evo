@@ -91,6 +91,7 @@ def make_audit_tool(units='MM', storage=None, heights_valid=False, cls=None):
     tool.ecut_motion_result_sig = MagicMock()
     tool.ecut_connect_result_sig = MagicMock()
     tool.connect_result_sig = MagicMock()
+    tool.capabilities_applied_sig = MagicMock()
     if isinstance(tool, ToolGCodeSender):
         tool.connect_result_sig.emit.side_effect = tool._on_connect_result
     # publish results at once (in tests the worker runs inline, in the main thread)

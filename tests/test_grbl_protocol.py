@@ -976,6 +976,24 @@ class TestStream(unittest.TestCase):
         res, times, waits = stream(gate, [])
         self.assertEqual((res['status'], len(times), waits), ('finished', 3, []))
 
+        # Check mode: the controller does not move and reports Check; the gate does not apply
+        clock = FakeClock()
+        port = TimedPort(clock, ack_at=0, report=lambda now: '<Check|MPos:0.000,0.000,0.000|FS:0,0>', step=1.0)
+        res = stream_lines(lines, port.write, port.readline, poll_status=True, poll_interval=0.2, clock=clock,
+                           step_gate=StepGate(), check_mode=True)
+        self.assertEqual((res['status'], res['done']), ('finished', 3))
+
+    def test_lost_ok_times_out_while_a_host_m6_waits(self):
+        for lines in (['G0 X1', 'G0 X2'], ['G0 X1', 'M6', 'G0 X2']):
+            with self.subTest(lines=lines):
+                clock = FakeClock()
+                port = TimedPort(clock, ack_at=None, report=lambda now: '<Idle|MPos:0.000,0.000,0.000|FS:0,0>',
+                                 step=1.0, limit=200.0)
+                res = stream_lines(lines, port.write, port.readline, poll_status=True, poll_interval=0.2,
+                                   clock=clock, host_tool_change=True)
+                self.assertEqual(res['status'], 'timeout')
+                self.assertLess(clock.now, 60.0)
+
     def test_a_lost_status_reply_does_not_stop_polling(self):
         clock = FakeClock()
         written, queue, dropped = [], [], []

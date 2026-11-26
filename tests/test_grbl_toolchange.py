@@ -891,12 +891,13 @@ class ToolPauseFake(FakeGrbl):
         self.gc = None
         self.g92 = (0.0, 0.0, 0.0)
         self.mpos = (0.0, 0.0, 0.0)
+        self.g54 = (0.0, 0.0, 0.0)
 
     def _answer(self, cmd):
         if cmd == '$G' and self.gc is not None:
             self._send(self.gc, 'ok')
         elif cmd == '$#':
-            self._send('[G54:0.000,0.000,0.000]', '[G92:%.3f,%.3f,%.3f]' % self.g92, '[TLO:0.000]', 'ok')
+            self._send('[G54:%.3f,%.3f,%.3f]' % self.g54,'[G92:%.3f,%.3f,%.3f]' % self.g92, '[TLO:0.000]', 'ok')
         elif cmd == '?':
             self._send('<%s|MPos:%.3f,%.3f,%.3f|FS:0,0>' % ((self.state,) + self.mpos))
         else:
@@ -962,6 +963,60 @@ class TestHostToolChangePolicy(unittest.TestCase):
         tool._profile_present.assert_called_once()
         self.assertIsNotNone(tool._tool_pause)
         self.assertIsNone(tool._grbl_op)
+
+    def test_resume_checks_the_offsets_that_the_operator_set_during_the_pause(self):
+        import tempfile
+        from appCommon.machine_profile.profile import MachineProfile, save_profile
+        with tempfile.TemporaryDirectory() as folder:
+            save_profile(MachineProfile(name='Small', bed_x=100.0, bed_y=100.0), folder)
+            fake = ToolPauseFake()
+            fake.gc = '[GC:G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0]'
+            from tests.grbl_stream_helpers import make_stream_tool
+            tool = make_stream_tool(fake, source=self.PROGRAM)
+            tool.app.collection.get_by_name.return_value.z_move = 5.0
+            tool.app.options.update({'tools_grbl_m6_policy': 'pause', 'global_machine_profile': 'Small',
+                                     'global_machine_profiles_folder': folder})
+            tool._grbl_report_inches = False
+            tool._confirm_profile_stream = MagicMock(return_value=True)
+            tool._confirm_profile_resume = MagicMock(return_value=True)
+            tool.on_start()
+            self.assertIsNotNone(tool._tool_pause)
+            # G10 L2 P1 X250 of the operator: the work X moves 250 mm out of the 100 mm bed
+            fake.g54 = (250.0, 0.0, 0.0)
+            written = self.resume(tool, fake)
+            self.assertFalse([c for c in written if c.startswith(('G0', 'G1', 'X'))], written)
+            self.assertIsNotNone(tool._tool_pause)
+            self.assertIsNone(tool._grbl_op)
+
+    def test_levelled_job_resumes_only_with_its_height_map_and_frame(self):
+        from tests.grbl_stream_helpers import make_levelled_stream_tool
+        text = ('G21\nG90\nG94\nG00 Z2.0000\nG00 X1.0000 Y1.0000\nG01 Z-0.1000 F300.0000\nG01 X3.0000 Y1.0000\n'
+                'T2 M6\nM0\nG01 X5.0000 Y2.0000\nM05\nM2\n')
+        # (name, the controller or the map changes during the pause, the Resume is refused)
+        for name, change, refuse in (('same', None, False), ('zero', 'zero', True), ('g54_x', (3.0, 0.0, 0.0), True),
+                                     ('g54_y', (0.0, 3.0, 0.0), True), ('g54_z', (0.0, 0.0, -4.0), False)):
+            with self.subTest(name):
+                fake = ToolPauseFake()
+                tool, target = make_levelled_stream_tool(fake, text=text)
+                target.z_move = 5.0
+                tool.app.options['tools_grbl_m6_policy'] = 'pause'
+                tool.on_start()
+                self.assertIsNotNone(tool._tool_pause, [str(c) for c in tool.app.inform.emit.call_args_list])
+                if change == 'zero':
+                    tool.on_grbl_zero('x')
+                    self.assertFalse(tool.al_heights_valid)
+                elif change is not None:
+                    fake.g54 = change       # G10 L2 P1 of the operator in the console
+                written = self.resume(tool, fake)
+                moves = [c for c in written if c.startswith(('G0', 'G1', 'X'))]
+                if refuse:
+                    self.assertEqual(moves, [], written)
+                    self.assertIsNotNone(tool._tool_pause)
+                    self.assertIsNone(tool._grbl_op)
+                    self.assertIn('height map', str(tool.app.inform.emit.call_args.args[0]))
+                else:
+                    self.assertTrue(moves, written)
+                    self.assertIsNone(tool._tool_pause)
 
     def test_host_tool_change_cases(self):
         spindle_on = 'G21 G90\nG0 X10 Y10\nM3 S10000\nG1 Z-1 F300\nG1 X20\nT2 M6\nM0\nX30\n'

@@ -796,7 +796,7 @@ class GrblConsole(QtWidgets.QWidget):
             QtCore.QTimer.singleShot(0, self.clear_program_selection)
         elif event.type() == QtCore.QEvent.Type.Hide and obj is self:
             self.clear_program_selection()
-        if event.type() == QtCore.QEvent.Type.MouseButtonRelease \
+        if event.type() == QtCore.QEvent.Type.MouseButtonRelease and view.isReadOnly() \
                 and event.button() == QtCore.Qt.MouseButton.LeftButton and obj is view.viewport():
             QtWidgets.QPlainTextEdit.mouseReleaseEvent(self.program_view, event)
             cursor = view.cursorForPosition(event.position().toPoint())

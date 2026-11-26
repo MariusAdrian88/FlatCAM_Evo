@@ -230,6 +230,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     stream_ended_sig = QtCore.pyqtSignal(str)
     # the result of a $X from the unlock task: True clears the alarm row (GUI slot)
     unlock_result_sig = QtCore.pyqtSignal(bool)
+    # the capabilities of the controller are known (worker thread): the GUI slot sets the A axis widgets
+    capabilities_applied_sig = QtCore.pyqtSignal()
     # set by a 'port_error' failure (worker thread); the GUI slot closes the port
     _grbl_port_lost = False
     # set when the lost port is closed: None, or 'job' (an operation was running) / 'idle'
@@ -351,6 +353,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         deleted (it would delete this widget, and its hide would stop the machine); run() shows it again.
         """
         self._kept_across_reset = True
+        # no status poll and no status delivery to the deleted dock widgets until run() builds the UI again
+        self._plugin_active = False
         self._clear_dock()
         scroll = self.app.ui.plugin_scroll_area
         if scroll.widget() is self:
@@ -646,6 +650,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.stream_progress_sig.connect(self._on_stream_progress)
             self.status_report_sig.connect(self._on_status_report)
             self.op_changed_sig.connect(self._apply_machine_state)
+            self.unlock_result_sig.connect(self._on_unlock_result)
+            self.capabilities_applied_sig.connect(self._on_capabilities_applied)
             self.io_discovery_sig.connect(lambda port: self.sender_io.discover(port))
             self.io_result_sig.connect(lambda result: self.sender_io.on_result(result))
             self.camera_capture_sig.connect(self._on_camera_capture)
@@ -697,7 +703,6 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.baudrates_list_combo.currentTextChanged.connect(self.on_baudrate_changed)
         self.ui.controller_reset_button.clicked.connect(lambda: self.on_grbl_reset())
         self.ui.recovery_button.clicked.connect(lambda: self.on_grbl_reset())
-        self.unlock_result_sig.connect(self._on_unlock_result)
         self.ui.com_connect_button.clicked.connect(self.on_grbl_connect)
         self.ui.controller_combo.currentIndexChanged.connect(self._save_connection_settings)
         self.ui.connection_combo.currentIndexChanged.connect(self._save_connection_settings)
@@ -918,8 +923,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def _set_estop_enabled(self, enabled):
         """Both E-Stop buttons (the Plugin tab footer and the dock header) share one state."""
-        self.ui.estop_button.setEnabled(enabled)
-        self.ui.estop_dock_button.setEnabled(enabled)
+        if not self.__dict__.get('_kept_across_reset'):
+            self.ui.estop_button.setEnabled(enabled)
+            self.ui.estop_dock_button.setEnabled(enabled)
         self.app.ui.sender_estop_button.setVisible(enabled)     # the status bar, always in view
 
     def _mount_emergency_stop(self):
@@ -1210,13 +1216,19 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if 0 <= index < 4:
             self.ui.jog_a_step_entry.set_value(self._jog_a_presets()[index])
 
+    def _on_capabilities_applied(self):
+        """Slot of capabilities_applied_sig (GUI thread)."""
+        if self.ui is not None and not self.__dict__.get('_kept_across_reset'):
+            self._apply_a_axis_ui(self._grbl_connected)
+
     def _apply_a_axis_ui(self, connected=True):
         """The A widgets exist only on a connected XYZA controller."""
         has_a = connected and (self._grbl_caps or {}).get('axes') == 'XYZA'
         ui = self.ui
-        for widget in (ui.jog_wdg.jog_a_plus_button, ui.jog_wdg.jog_a_minus_button,
-                       ui.zero_axs_wdg.grbl_zeroa_button) + tuple(ui.a_axis_widgets):
+        for widget in (ui.jog_wdg.jog_a_plus_button, ui.jog_wdg.jog_a_minus_button) + tuple(ui.a_axis_widgets):
             widget.setVisible(has_a)
+        # the camera mode hides Zero A, whatever the controller has
+        ui.zero_axs_wdg.grbl_zeroa_button.setVisible(has_a and not self.__dict__.get('_camera_public_mode', False))
         dros = [ui.status_strip.dro]
         if self.view3d is not None and self.view3d.dro is not None:
             dros.append(self.view3d.dro)
@@ -1760,11 +1772,15 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._grbl_settings = ({number: parse_grbl_setting(text, number) for number in (22, 110, 111)}
                                if status == 'ok' else None)
         if status == 'ok':
-            # GRBL 1.1 always reports the pins; grblHAL does it with $10 bit 4
-            mask = parse_grbl_setting(text, 10)
-            self.sender_io.pin_report = (not self.__dict__.get('_grbl_grblhal', False)
-                                         or (mask is not None and bool(int(mask) & 16)))
+            self._grbl_note_pin_report(text)
         return status
+
+    def _grbl_note_pin_report(self, text):
+        """The IO tab learns from a `$$` reply whether the controller reports the pins."""
+        # GRBL 1.1 always reports the pins; grblHAL does it with $10 bit 4
+        mask = parse_grbl_setting(text, 10)
+        self.sender_io.pin_report = (not self.__dict__.get('_grbl_grblhal', False)
+                                     or (mask is not None and bool(int(mask) & 16)))
 
     def _grbl_read_after_connect(self, op):
         """
@@ -1822,7 +1838,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             blocked = _("This grblHAL controller has axes other than X, Y, Z and A. "
                         "Only XYZ and XYZA machines are supported.")
         self._grbl_motion_blocked = blocked
-        self._apply_a_axis_ui()
+        self.capabilities_applied_sig.emit()    # worker thread: the widgets change in the GUI slot
         if blocked:
             self.app.inform.emit('[ERROR_NOTCL] %s' % blocked)
         elif caps.get('probe') is False:
@@ -1920,6 +1936,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if lost is not None and self.app.options.get("tools_grbl_auto_reconnect", False):
             self._reconnect_job = lost == 'job'
             self._reconnect_start()
+        if self.__dict__.get('_kept_across_reset'):
+            self.app.ui.sender_estop_button.setVisible(False)       # the status bar button lives in the main window
+            return      # the widgets of the old project are deleted: build_ui() shows the state
         try:
             self._grbl_set_ui_connected(False)
             self._connection_controls()
@@ -1948,7 +1967,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def _reconnect_tick(self):
         """Slot of the reconnect timer. It only connects; it never starts or resumes a job."""
-        if not self._reconnect_active():
+        if not self._reconnect_active() or self.__dict__.get('_kept_across_reset'):
             return
         if not self.app.options.get("tools_grbl_auto_reconnect", False) or self.grbl_ser_port is not None:
             self._reconnect_stop()
@@ -2461,6 +2480,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 if state != 'Idle' or self._grbl_mpg_owned or self._grbl_sd_owned:
                     read_status = 'controller not idle or externally owned'
                     return
+                if '10' in changes:
+                    self.sender_io.pin_report = None        # not known until the readback succeeds
                 for number, value in changes.items():
                     text, status = self._grbl_transact(op, '$%s=%s' % (number, value), timeout=5.0, echo=False)
                     outcomes[number] = (status, text.strip())
@@ -2469,6 +2490,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                         return
                 text, read_status = self._grbl_transact(op, '$$', timeout=5.0, echo=False)
                 if read_status == 'ok':
+                    self._grbl_note_pin_report(text)
                     values = GrblConfiguration.parse_settings(text)
                     if not values:
                         read_status = 'no settings reported'
@@ -2514,6 +2536,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._continuous_jog_click_button = button
         if not self._continuous_jog_capable(port):
             return
+        if direction[0] == 'a' and (self._grbl_caps or {}).get('axes') != 'XYZA':
+            return      # like the fixed-step jog: no A move on a controller without A
         if self.ui.check_mode_cb.isChecked():
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("Turn off check mode before jogging."))
             return
@@ -4336,6 +4360,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def _apply_machine_state(self):
         """Enable each operator widget from action_allowed() and show the recovery state (GUI thread only)."""
+        if self.__dict__.get('_kept_across_reset'):
+            return      # the widgets of the old project are deleted: run() builds the UI again
         ui = self.ui
         situation = self._machine_situation()
         allowed = {action: self.action_allowed(action) is None for action in SENDER_ACTIONS}
@@ -5306,15 +5332,16 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         outcome = self._profile_compute(text, target, profile, op, line_map)
         return outcome.out if self._profile_present(profile, outcome) else None
 
-    def _profile_compute(self, text, target, profile, op, line_map=None, correct=True, macro=False):
+    def _profile_compute(self, text, target, profile, op, line_map=None, correct=True, macro=False, refresh=False):
         """
         The machine profile step of a stream with no GUI call and no write of the Sender (a worker can run it): the
         setup of the check, then the correction and the check of `text`. `correct=False` only checks the text.
         A macro (`macro=True`) has no target (None), reads the controller again and runs in its live modal state.
+        `refresh=True` reads $G and $# again (the Resume of a tool change pause: the operator may have changed them).
 
         :return: SenderGen._ProfileOutcome
         """
-        live_kwargs = {'refresh': True, 'live_modes': True} if macro else {}
+        live_kwargs = {'refresh': True, 'live_modes': True} if macro else {'refresh': refresh}
         setup, assumed, setup_key = self._profile_setup(op, profile, target, **live_kwargs)
         outcome = SenderGen._ProfileOutcome(setup=setup, setup_key=setup_key)
         kwargs = {'line_map': line_map} if correct else {'correct': False}
@@ -5624,7 +5651,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def _start_free_button(self):
         """A levelled Start ended before the stream: the Start button works again (GUI thread)."""
-        if self._grbl_op is None:
+        if self._grbl_op is None and not self.__dict__.get('_kept_across_reset'):
             self.ui.start_button.setDisabled(False)
 
     def _confirm_outside_map(self, count):
@@ -5862,8 +5889,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 self.app.inform.emit('[WARNING_NOTCL] %s' % _(
                     "The program or machine state changed while the dialog was open. Press Start again."))
             return
+        profile = active_profile_of(self.app)
+        if (resume_from is not None and profile is not None and self._stream_setup_key is not None and
+                self.live_setup_changed(self._stream_setup_key, op, profile, getattr(target, 'pp_geometry_name', None))):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "The offsets, the WCS, G92 or the tool length offset of the controller changed after the machine "
+                "profile check. Press Resume again."))
+            self._grbl_release(op)
+            self._start_free_button()
+            return
         if resume_from is not None:
-            # the Resume rechecked the preamble and the rest of the job; the tool change changed the TLO on purpose
+            # the Resume rechecked the preamble and the rest of the job with a fresh read of the controller
             self._start_stream_launch(op, target, lines, numbers, check_mode, poll_ms, req,
                                       (resume_lines, resume_from, resumed_lines))
             return
@@ -5938,6 +5974,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         :return: True if the preparation started.
         """
         pause = self._tool_pause
+        if not self._pause_map_current(pause):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % self._pause_map_text())
+            return False
         op = self._grbl_reserve('stream', motion=True)
         if op is None:
             return False
@@ -5977,6 +6016,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if g92_active:
             return SenderGen._PreparedRestart(error=_(
                 "A G92 offset is active. A tool change pause cannot be resumed. Clear G92, then press Resume."))
+        if pause.map_generation is not None and not self._pause_frame_unchanged(op, pause, _text):
+            return SenderGen._PreparedRestart(error=self._pause_map_text())
         target = pause.target
         try:
             preamble, tail = SenderGen.tool_change_resume(pause.lines, pause.m6_index, pause.index, target.z_move,
@@ -5989,13 +6030,39 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         outcome = None
         if profile is not None:
             # the preamble and the rest of the job are in the output frame already: check them, correct nothing
-            outcome = self._profile_compute('\n'.join(preamble + tail) + '\n', target, profile, op, correct=False)
+            outcome = self._profile_compute('\n'.join(preamble + tail) + '\n', target, profile, op, correct=False,
+                                            refresh=True)
         return SenderGen._PreparedRestart(preamble=preamble, resumed=tail, outcome=outcome)
+
+    @staticmethod
+    def _pause_map_text():
+        return _("The height map or its frame changed during the tool change. Stop and start the job again.")
+
+    def _pause_frame_unchanged(self, op, pause, offsets_text):
+        """
+        A worker thread, under `op`: the active WCS and its X and Y offset (`$#` of the Resume) are the ones of the
+        height map frame of the paused job. Z may differ: the new tool sets it.
+        """
+        bound = pause.map_frame
+        if bound is None:
+            return False
+        modal_text, status = self._grbl_transact(op, '$G', timeout=5.0, echo=False)
+        if status != 'ok':
+            return False
+        try:
+            wcs = parse_grbl_active_wcs(modal_text)
+            offset = parse_grbl_work_offset(offsets_text, wcs)
+        except ValueError:
+            return False
+        live = (wcs, tuple(offset[:2]) + tuple(bound[1][2:]), bound[2])
+        return self._frames_match(live, bound)
 
     def _on_tool_resume_prepared(self, prepared):
         """Slot part of restart_prepared_sig (GUI thread): the Resume is prepared. Present the check, then stream."""
         c = prepared.context
         if not self._tool_resume_current(c):
+            if self._tool_pause is c.resume and not self._pause_map_current(c.resume):
+                self.app.inform.emit('[ERROR_NOTCL] %s' % self._pause_map_text())
             self._grbl_release(c.op)
             if c.op.cancel.is_set():
                 self._stream_result = {}
@@ -6018,7 +6085,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def _tool_resume_current(self, c):
         """:return: True if the operation, the pause and the program are the ones of the Resume (GUI thread)."""
-        return self._tool_pause is c.resume and self._start_current(c.op, c.seq, c.generation, c.target, c.source)
+        return (self._tool_pause is c.resume and self._pause_map_current(c.resume) and
+                self._start_current(c.op, c.seq, c.generation, c.target, c.source))
+
+    def _pause_map_current(self, pause):
+        """:return: True if the paused job is not levelled, or its height map and frame are still the ones that
+        it was made with (Zero, a new map, a probe or a frame change retire them)."""
+        if pause.map_generation is None:
+            return True
+        return (bool(self.__dict__.get('al_heights_valid')) and
+                self.__dict__.get('job_map_generation') == pause.map_generation and
+                self.__dict__.get('_al_map_frame') == pause.map_frame)
 
     def _start_current(self, op, seq, generation, target, source):
         """:return: True if the operation, the start sequence, the safety generation and the program are the ones of
@@ -6766,6 +6843,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                                                        _("left")))
 
     def _on_stream_progress(self, done, total):
+        if self.__dict__.get('_kept_across_reset'):
+            return
         self.ui.progress_bar.setValue(int(done * 100 / total) if total else 0)
         self._show_job_time(done, total)
         console = self.app.ui.grbl_console_dock.widget()
@@ -7227,6 +7306,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return
         self._controller_state = report['state'].split(':')[0]
         self._controller_state_time = time.monotonic()
+        if self.__dict__.get('_kept_across_reset'):
+            return      # the UI of the old project is deleted: run() builds the next one
         self.sender_io.on_status_report(report)
         if self._resume_refused_version is not None:
             # the recheck refused the Resume: the button works again after the next tool command or the end of the tool change
@@ -7336,7 +7417,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def _invalidate_coordinates(self):
         self._last_wco = None
-        if self.ui is not None:
+        if self.ui is not None and not self.__dict__.get('_kept_across_reset'):
             self.ui.status_strip.set_position(None, None)
         if self.view3d is not None:
             try:
@@ -7552,6 +7633,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.app.worker_task.emit({'fcn': worker_task, 'params': []})
 
     def _on_preview_ready(self, result):
+        if self.__dict__.get('_kept_across_reset'):
+            return      # the view of the old project is gone: run() prepares a new preview
         if result.get('stream'):
             if (result['op'] is not self._grbl_op or result['generation'] != self._preview_generation or
                     result['view'] is not self.view3d or self._target() is not result['target']):
@@ -7684,7 +7767,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 index=pause['index'], m6_index=pause['m6_index'], tool=pause['tool'], lines=self.job_lines,
                 numbers=self.job_line_numbers, check_mode=False,
                 poll_ms=int(self.app.options.get("tools_grbl_status_ms", 200)), target=self._target(),
-                job_start=self._job_start)
+                job_start=self._job_start, map_generation=self.__dict__.get('job_map_generation'),
+                map_frame=self.__dict__.get('_al_map_frame'))
         self._apply_machine_state()
         console = self.app.ui.grbl_console_dock.widget()
         if isinstance(console, GrblConsole):
@@ -7702,18 +7786,20 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             'alarm': _("The controller is in alarm."), 'error': _("GRBL stopped the job."),
             'timeout': _("The controller did not answer."), 'port_error': _("The serial port failed."),
             'unexpected_reset': _("The controller reset during the job.")}
-        if how in reasons:
+        # a Sender kept across a project reset has no widgets: the messages still reach the status bar
+        widgets = not self.__dict__.get('_kept_across_reset')
+        if how in reasons and widgets:
             # the feed hold stays: the banner stays until the recovery ends (_on_status_report)
             self.ui.status_strip.set_recovery(last_text or reasons[how])
 
         if how == 'finished':
-            self.ui.progress_bar.setValue(100)
+            widgets and self.ui.progress_bar.setValue(100)
             self.app.inform.emit('[success] %s' % (_("Job done. Time elapsed: %s") % self._elapsed_text()))
         elif how == 'check_passed':
-            self.ui.progress_bar.setValue(100)
+            widgets and self.ui.progress_bar.setValue(100)
             self.app.inform.emit('[success] %s' % _("Check mode: GRBL found no error."))
         elif how == 'check_passed_needs_home':
-            self.ui.progress_bar.setValue(100)
+            widgets and self.ui.progress_bar.setValue(100)
             self.app.inform.emit('[WARNING_NOTCL] %s' % _(
                 "Check mode: GRBL found no error. GRBL is in alarm after the reset. Press Home."))
         elif how == 'check_failed':
@@ -7739,7 +7825,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         elif how == 'stopped':
             self.app.inform.emit('[WARNING_NOTCL] %s%s' % (_("The job was stopped."), recovery))
         elif how in ('error', 'alarm'):
-            if how == 'alarm':
+            if how == 'alarm' and widgets:
                 self.ui.status_strip.set_alarm(last_text or 'ALARM')
             self.app.inform.emit('[ERROR_NOTCL] %s %d: %s.%s' % (
                 _("GRBL stopped the job at line"), result.get('line', 0), last_text, recovery))
@@ -7766,6 +7852,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         elif console.tool is not self:
             # a new project made a new plugin: the console of the dock must not keep the deleted one
             console.set_tool(self)
+        if self.__dict__.get('_kept_across_reset'):
+            return console      # the old widgets are deleted: run() mounts the new ones
         # the Sender UI is rebuilt on reset; the dock keeps one set of jog controls
         jog_page = getattr(getattr(self, 'ui', None), 'jog_page', None)
         if isinstance(jog_page, QtWidgets.QWidget):
