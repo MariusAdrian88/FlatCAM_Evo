@@ -366,6 +366,13 @@ _AUX_IO_RE = re.compile(r'^\s*\[AUX IO:([^\]]*)\]')
 # the axis letters of the machines that this application drives (XYZ only)
 GRBL_XYZ_AXES = 'XYZ'
 
+# the size of the GRBL serial receive buffer (GRBL 1.1 on an ATmega328P), used when OPT does not report it
+GRBL_RX_BUFFER = 127
+# LINE_BUFFER_SIZE of GRBL 1.1: the longest line GRBL accepts, with the line end
+GRBL_MAX_LINE = 80
+# LINE_BUFFER_SIZE of grblHAL (core/protocol.h): 256 characters plus the terminator
+GRBLHAL_MAX_LINE = 257
+
 
 def parse_grbl_identity(text):
     """
@@ -376,13 +383,14 @@ def parse_grbl_identity(text):
     :return: dict with 'firmware' (str or None), 'axes' (int or None), 'axis_letters' (str or None) and
         'options' (set of str, the NEWOPT list), 'opt_flags' (set of the legacy OPT letters, for example
         'V', 'M', 'D'; None without a well-formed OPT line), 'signals' (set of the SIGNALS letters, or None)
-        and 'aux_io' (tuple of 4 ints: digital in, digital out, analog in, analog out; or None); None if the
+        'rx_buffer' (int, the 3rd OPT field, or None) and 'aux_io' (tuple of 4 ints: digital in, digital out,
+        analog in, analog out; or None); None if the
         answer holds none of these tags.
     """
     if not text:
         return None
     identity = {'firmware': None, 'axes': None, 'axis_letters': None, 'options': set(),
-                'opt_flags': None, 'signals': None, 'aux_io': None}
+                'opt_flags': None, 'signals': None, 'aux_io': None, 'rx_buffer': None}
     axs_records, opt_records = [], []
     seen = False
     for line in text.splitlines():
@@ -417,6 +425,9 @@ def parse_grbl_identity(text):
             axes = None
             if match and identity['opt_flags'] is None:
                 identity['opt_flags'] = {ch for ch in parts[0].upper() if ch.isalpha()}
+            if (match and identity['rx_buffer'] is None and len(parts) >= 3 and
+                    re.fullmatch(r'[0-9]+', parts[2]) and int(parts[2]) > 0):
+                identity['rx_buffer'] = int(parts[2])
             if (len(parts) in (4, 5) and all(re.fullmatch(r'[0-9]+', part) for part in parts[1:]) and
                     int(parts[1]) > 0 and int(parts[2]) > 0):
                 axes = int(parts[3]) or None
@@ -452,12 +463,15 @@ def grbl_capabilities(identity):
         if it did not report its options) and 'top_bit_realtime' (bool: the printable '?', '!' and '~' are
         off, use 0x80, 0x82 and 0x81). The IO fields are True / False / None (unknown): 'mist' (OPT 'M'),
         'spindle_dir' (False if OPT 'D': the direction pin is the enable pin), 'control_signals' (set of the
-        SIGNALS letters, or None) and 'aux_out' (int, the number of digital outputs, 0 if not reported).
+        SIGNALS letters, or None) and 'aux_out' (int, the number of digital outputs, 0 if not reported),
+        'rx_buffer' (int or None: the receive buffer that the controller reported) and 'max_line' (int: the
+        longest line with its line end, GRBL_MAX_LINE or GRBLHAL_MAX_LINE).
     """
     if not identity:
         return {'grblhal': False, 'xyz_only': None, 'manual_tool_change': False,
                 'automatic_tool_change': False, 'probe': None, 'top_bit_realtime': False,
-                'mist': None, 'spindle_dir': None, 'control_signals': None, 'aux_out': 0}
+                'mist': None, 'spindle_dir': None, 'control_signals': None, 'aux_out': 0,
+                'rx_buffer': None, 'max_line': GRBL_MAX_LINE}
     options = identity['options']
     flags = identity.get('opt_flags')
     aux_io = identity.get('aux_io')
@@ -466,8 +480,11 @@ def grbl_capabilities(identity):
         xyz_only = None
     else:
         xyz_only = axes == len(GRBL_XYZ_AXES) and (letters or GRBL_XYZ_AXES).upper() == GRBL_XYZ_AXES
+    grblhal = (identity['firmware'] or '').lower() == 'grblhal'
     return {
-        'grblhal': (identity['firmware'] or '').lower() == 'grblhal',
+        'grblhal': grblhal,
+        'rx_buffer': identity.get('rx_buffer'),
+        'max_line': GRBLHAL_MAX_LINE if grblhal else GRBL_MAX_LINE,
         'xyz_only': xyz_only,
         'manual_tool_change': 'TC' in options,
         'automatic_tool_change': 'ATC' in options or 'ATC=1' in options,

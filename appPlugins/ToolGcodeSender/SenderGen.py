@@ -14,7 +14,7 @@ import builtins
 from types import SimpleNamespace
 
 from appCommon.machine_profile.correct import MARKER_RE
-from appPlugins.Common.grbl.grbl_client import validate_stream_lines
+from appPlugins.Common.grbl.grbl_client import validate_stream_lines, GRBL_RX_BUFFER, GRBL_MAX_LINE
 from appPlugins.Common.gcode_arcs import split_arcs
 from appPlugins.Common.gcode_segment import _ModalState, _WORD_RE, _words, _fmt, split_long_moves
 
@@ -269,7 +269,7 @@ class _PreparedRestart:
     context: object = None
 
 
-def prepare_job(inputs, profile_compute):
+def prepare_job(inputs, profile_compute, limits=(GRBL_RX_BUFFER, GRBL_MAX_LINE)):
     """
     The full-file steps of a Start, with no GUI call (a worker): the machine profile computation, the clean, the
     line check and the arc split.
@@ -288,7 +288,7 @@ def prepare_job(inputs, profile_compute):
         text = outcome.out
     numbered = clean_lines_numbered(text)
     lines = [line for _number, line in numbered]
-    bad_index = validate_stream_lines(lines)
+    bad_index = validate_stream_lines(lines, *limits)
     if bad_index is not None:
         prepared.error = _("Line %d of the G-code is longer than GRBL accepts. The job was not made.") % \
                          numbered[bad_index][0]
@@ -315,7 +315,7 @@ def prepare_job(inputs, profile_compute):
     return prepared
 
 
-def prepare_levelled_job(inputs, profile_compute, autolevell, tlo_line):
+def prepare_levelled_job(inputs, profile_compute, autolevell, tlo_line, limits=(GRBL_RX_BUFFER, GRBL_MAX_LINE)):
     """
     The full-file steps of a levelled Start, with no widget access (a worker): clean, the tool length check,
     the segmentation, the levelling, the machine profile computation, clean and line check.
@@ -331,7 +331,7 @@ def prepare_levelled_job(inputs, profile_compute, autolevell, tlo_line):
     target = inputs.target
     numbered = clean_lines_numbered(inputs.source, level.keep_markers)
     lines = [line for _number, line in numbered]
-    bad_index = validate_stream_lines(lines)
+    bad_index = validate_stream_lines(lines, *limits)
     if bad_index is not None:
         prepared.error = _("Line %d of the G-code is longer than GRBL accepts. The job was not made.") % \
                          numbered[bad_index][0]
@@ -357,7 +357,7 @@ def prepare_levelled_job(inputs, profile_compute, autolevell, tlo_line):
         if outcome.refused is not None:
             return prepared
         job_lines = [line for _number, line in clean_lines_numbered(outcome.out)]
-    bad_index = validate_stream_lines(job_lines)
+    bad_index = validate_stream_lines(job_lines, *limits)
     if bad_index is not None:
         prepared.error = _("Line %d of the levelled G-code is longer than GRBL accepts. The job was not made.") % \
                          (bad_index + 1)
@@ -366,7 +366,8 @@ def prepare_levelled_job(inputs, profile_compute, autolevell, tlo_line):
     return prepared
 
 
-def prepare_restart(lines, start_line, travel_z, units, decimals, profile_compute=None, spindle_dwell=0.0):
+def prepare_restart(lines, start_line, travel_z, units, decimals, profile_compute=None, spindle_dwell=0.0,
+                    limits=(GRBL_RX_BUFFER, GRBL_MAX_LINE)):
     """
     The restart preamble of a start from a line and its profile computation (a worker).
 
@@ -377,7 +378,7 @@ def prepare_restart(lines, start_line, travel_z, units, decimals, profile_comput
     try:
         preamble, resumed = restart_preamble(lines, start_line, travel_z, units, decimals,
                                                   spindle_dwell)
-        if validate_stream_lines(preamble + resumed) is not None:
+        if validate_stream_lines(preamble + resumed, *limits) is not None:
             raise ValueError(_("The restart preparation exceeds the GRBL line length limit."))
     except ValueError as err:
         return _PreparedRestart(error=str(err))

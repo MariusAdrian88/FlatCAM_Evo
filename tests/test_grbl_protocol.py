@@ -106,6 +106,16 @@ class TestGrblHalIdentity(unittest.TestCase):
         self.assertFalse(caps['manual_tool_change'])
         self.assertTrue(caps['automatic_tool_change'])
 
+    def test_identity_buffer_size(self):
+        for text, expected in (('[OPT:VL,35,1024,3]', 1024), ('[OPT:V,15,128]', 128), ('[OPT:VN,35,128,3,0]', 128),
+                               ('[NEWOPT:ENUMS]', None), ('[OPT:V,15,bad]', None), ('[OPT:V,15,0]', None)):
+            with self.subTest(text=text):
+                caps = grbl_capabilities(parse_grbl_identity(text))
+                self.assertEqual(caps['rx_buffer'], expected)
+        self.assertIsNone(grbl_capabilities(None)['rx_buffer'])
+        self.assertEqual(grbl_capabilities(None)['max_line'], GRBL_MAX_LINE)
+        self.assertEqual(grbl_capabilities(parse_grbl_identity('[FIRMWARE:grblHAL]'))['max_line'], 257)
+
     def test_opt_axis_fallback(self):
         for count, expected in (('3', True), ('4', False), ('2', False),
                                 ('', None), ('bad', None), ('0', None), ('3.0', None)):

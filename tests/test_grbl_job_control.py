@@ -976,6 +976,35 @@ class TestGrblHalController(unittest.TestCase):
         self.assertLess(start, motion)
         self.assertTrue(any('Cycle Start' in text for text in emitted(tool)))
 
+    def test_line_limits_reach_the_stream(self):
+        long_line = 'G1 X1.' + '0' * 114
+        tool_command = '$J=G91 X' + '0' * 110
+        self.assertEqual((len(long_line), len(tool_command)), (120, 118))
+        caps = {'grblhal': True, 'manual_tool_change': True, 'rx_buffer': 1024, 'max_line': 257}
+        fake = ToolChangeFake()
+        tool = make_stream_tool(fake, source='G21\nM6\n%s\n' % long_line)
+        tool._grbl_caps = caps
+        queued = []
+
+        def operator():
+            if not (fake.tool_waiting and tool.__dict__.get('_grbl_tool_change_pending')):
+                return
+            if not queued:
+                tool._controller_state = 'Tool'
+                queued.append(tool._grbl_queue_tool_command(tool_command))
+            elif not tool.__dict__.get('_grbl_tool_command_busy'):
+                tool._on_resume_button()
+        fake.read_hook = operator
+        tool.on_start()
+        self.assertEqual(ended_how(tool), 'finished')
+        self.assertIn((long_line + '\n').encode(), fake.written)
+        self.assertIn((tool_command + '\n').encode(), fake.written)
+
+        stock = ToolChangeFake()
+        tool = make_stream_tool(stock, source='G21\n%s\n' % long_line)
+        tool.on_start()
+        self.assertNotIn((long_line + '\n').encode(), stock.written)
+
     def test_adjacent_manual_m6_requires_a_fresh_second_reply_fence(self):
         for fail_second in (False, True):
             with self.subTest(fail_second=fail_second):

@@ -78,7 +78,7 @@ def test_whole_job_preparation_is_only_for_ecut_and_preserves_completion(ecut,ch
         port.prepare_program = MagicMock()
     op = SimpleNamespace(port=port,cancel=threading.Event(),failed=False)
     tool = SimpleNamespace(_grbl_op_lock=threading.RLock(),_grbl_active_locked=lambda op:True,
-                           _grbl_op=op,grbl_ser_port=port,
+                           _grbl_op=op,grbl_ser_port=port,_line_limits=lambda:(127,80),
                            _grbl_query_status=lambda op:'<Idle|MPos:0,0,0>',
                            _grbl_read_report_units=lambda op:'ok',
                            _grbl_enter_check_mode=lambda op:None,

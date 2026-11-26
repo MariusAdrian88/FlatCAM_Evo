@@ -39,6 +39,8 @@ from appPlugins.Common.grbl.grbl_protocol import (
     grbl_modes_confirmed,
     parse_grbl_identity,
     grbl_capabilities,
+    GRBL_RX_BUFFER,
+    GRBL_MAX_LINE,
 )
 from appPlugins.Common.levelling_interp import match_nearest_point
 
@@ -46,11 +48,6 @@ fcTranslate.apply_language('strings')
 if '_' not in builtins.__dict__:
     _ = gettext.gettext
 
-
-# the size of the GRBL serial receive buffer (GRBL 1.1 on an ATmega328P)
-GRBL_RX_BUFFER = 127
-# LINE_BUFFER_SIZE of GRBL 1.1: the longest line GRBL accepts, with the line end
-GRBL_MAX_LINE = 80
 
 # the startup banner of the E-Cut USB adapter (appPlugins/Common/ecut); it is not a GRBL banner
 ECUT_BANNER = "E-Cut host adapter 1.0 ['$' for help]"
@@ -130,14 +127,15 @@ def is_tool_change_line(line):
     return any(letter.upper() == 'M' and float(value) == 6.0 for letter, value in words)
 
 
-def validate_stream_lines(lines, rx_size=GRBL_RX_BUFFER):
+def validate_stream_lines(lines, rx_size=GRBL_RX_BUFFER, max_line=GRBL_MAX_LINE):
     """
-    :param lines:   list of str, no line ends.
-    :param rx_size: the receive buffer size of GRBL.
-    :return: the index of the first line that is longer than min(rx_size, GRBL_MAX_LINE)
+    :param lines:    list of str, no line ends.
+    :param rx_size:  the receive buffer size of the controller.
+    :param max_line: the longest line that the controller accepts, with the line end.
+    :return: the index of the first line that is longer than min(rx_size, max_line)
         bytes (encoded, with the line end), or None if all lines fit.
     """
-    limit = min(rx_size, GRBL_MAX_LINE)
+    limit = min(rx_size, max_line)
     for index, line in enumerate(lines):
         if len((line + '\n').encode('utf-8')) > limit:
             return index
@@ -160,7 +158,7 @@ def dwell_seconds(line):
     return 0.0
 
 
-def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=False,
+def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_MAX_LINE, check_mode=False,
                  on_progress=None, on_line=None, poll_status=False, poll_interval=0.2,
                  on_status=None, clock=time.monotonic, stall_timeout=30.0,
                  status_request=b'?', write_control=None, tool_change_ack=False,
@@ -183,7 +181,8 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
     :param readline:     callable() -> bytes, 1 line (or a part of it, or b'' on a read timeout).
         An exception (serial.SerialException, OSError) gives 'port_error'.
     :param rx_size:      the receive buffer size of GRBL.
-    :param check_mode:   True in $C mode: an error does not stop the stream, it is counted.
+    :param max_line:     the longest line that the controller accepts, with the line end.
+    :param check_mode:  True in $C mode: an error does not stop the stream, it is counted.
     :param on_progress:  callable(done, total), after each acknowledged line.
     :param on_line:      callable(text), for each job line written and each reply line read
         (not for the status request and not for status reports).
@@ -259,7 +258,7 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
                 dwell_index = in_flight[0][0]
                 dwell_until = clock() + seconds + stall_timeout
 
-    bad_index = validate_stream_lines(lines, rx_size)
+    bad_index = validate_stream_lines(lines, rx_size, max_line)
     if bad_index is not None:
         return result('line_too_long', line_index=bad_index)
 
@@ -298,7 +297,7 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
                 manual_command is None and tool_command is not None):
             manual_command = tool_command()
             if manual_command is not None:
-                if validate_stream_lines([manual_command], rx_size) is not None:
+                if validate_stream_lines([manual_command], rx_size, max_line) is not None:
                     return result('error', last_text='Tool change command is too long.')
                 try:
                     status = write((manual_command + '\n').encode('utf-8'))

@@ -43,7 +43,7 @@ from appPlugins.Common.levelling_interp import build_bilinear_grid
 from appPlugins.ToolGcodeSender import SenderGen
 from appPlugins.Common.grbl.grbl_client import (
     GrblClientMixin, STATUS_POLL, IO_STATUS, IO_STATUS_PERIOD, MONITOR_OPS, is_controller_banner, is_grblhal_banner, is_native_jog_banner,
-    stream_lines, validate_stream_lines, _GrblProbeAbort)
+    stream_lines, validate_stream_lines, _GrblProbeAbort, GRBL_RX_BUFFER, GRBL_MAX_LINE)
 from appPlugins.Common.grbl.grbl_protocol import parse_grbl_identity, grbl_capabilities
 from appPlugins.Common.grbl.grbl_messages import code_text
 from appCommon.machine_profile.correct import CorrectionRefused
@@ -1600,6 +1600,16 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._grbl_identity_pending = False
         return self._grbl_read_report_units(op)
 
+    def _line_limits(self):
+        """
+        :return: (rx_size, max_line) of the connected controller: its receive buffer less 1 byte (127 for GRBL
+            when OPT does not report it) and the longest line with the line end. The one source of the limits
+            of every line check and of the stream.
+        """
+        caps = self.__dict__.get('_grbl_caps') or {}
+        rx_buffer = caps.get('rx_buffer')
+        return (rx_buffer - 1 if rx_buffer else GRBL_RX_BUFFER), caps.get('max_line', GRBL_MAX_LINE)
+
     def _grbl_apply_capabilities(self):
         """Apply what $I+ reported: the real-time command form, and the configurations that are not supported."""
         caps = self._grbl_caps or {}
@@ -2084,7 +2094,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         for number, value in changes.items():
             if (number not in page.values or not re.fullmatch(r'\d+', number) or
                     not re.fullmatch(r'[\x20-\x7e]*', value) or any(char in value for char in '!~?') or
-                    validate_stream_lines(['$%s=%s' % (number, value)]) is not None):
+                    validate_stream_lines(['$%s=%s' % (number, value)], *self._line_limits()) is not None):
                 page.status.setText(_('Invalid setting value: control/realtime characters and multiline commands are forbidden.'))
                 return
             if int(number) in (*range(0, 7), 10, 11, 12, 13, *range(20, 28), 30, 31, 32,
@@ -4617,7 +4627,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             text = source
         numbered = SenderGen.clean_lines_numbered(text, keep_markers)
         lines = [line for _number, line in numbered]
-        bad_index = validate_stream_lines(lines)
+        bad_index = validate_stream_lines(lines, *self._line_limits())
         if bad_index is not None:
             self.job_lines = []
             self.job_line_numbers = []
@@ -4652,7 +4662,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         inputs = self._level_inputs(op, apply_profile)
         if inputs is None:
             return False
-        prepared = SenderGen.prepare_levelled_job(inputs, self._profile_compute, self.autolevell_gcode, self._tlo_line)
+        prepared = SenderGen.prepare_levelled_job(inputs, self._profile_compute, self.autolevell_gcode, self._tlo_line,
+                                                  self._line_limits())
         return self._apply_prepared(prepared)
 
     def _level_inputs(self, op, apply_profile=True, request=None):
@@ -4815,7 +4826,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if inputs is None:
             return False
         # the same steps as a Start, here in the calling thread
-        return self._apply_prepared(SenderGen.prepare_job(inputs, self._profile_compute))
+        return self._apply_prepared(SenderGen.prepare_job(inputs, self._profile_compute, self._line_limits()))
 
     def on_start(self):
         if not self._action_ok('start'):
@@ -4878,9 +4889,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._grbl_release(op)
             return
 
+        limits = self._line_limits()
+
         def prepare_task():
             try:
-                prepared = SenderGen.prepare_job(inputs, self._profile_compute)
+                prepared = SenderGen.prepare_job(inputs, self._profile_compute, limits)
             except Exception as err:
                 self.app.log.error("ToolGcodeSender.on_start() -> %s" % str(err))
                 prepared = SenderGen._PreparedJob(inputs=inputs, error=_("The Start failed."))
@@ -5131,10 +5144,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         inputs.check_mode = req.check_mode
         self.app.inform.emit(_("Preparing the job"))
 
+        limits = self._line_limits()
+
         def level_task():
             try:
                 prepared = SenderGen.prepare_levelled_job(inputs, self._profile_compute, self.autolevell_gcode,
-                                                          self._tlo_line)
+                                                          self._tlo_line, limits)
             except Exception as err:
                 self.app.log.error("ToolGcodeSender._on_frame_ready() -> %s" % str(err))
                 prepared = SenderGen._PreparedJob(inputs=inputs, error=str(err))
@@ -5203,6 +5218,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         units, decimals = target.units, target.coords_decimals
         spindle_dwell = float(self.app.options.get("tools_grbl_spindle_dwell", 3.0))
 
+        limits = self._line_limits()
+
         def restart_task():
             def compute(text):
                 # the lines are the prepared (corrected) program: the preamble and the resumed part are in the
@@ -5210,7 +5227,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 return self._profile_compute(text, target, profile, op, correct=False)
             try:
                 prepared = SenderGen.prepare_restart(lines, start_line, travel_z, units, decimals,
-                                                     None if profile is None else compute, spindle_dwell)
+                                                     None if profile is None else compute, spindle_dwell, limits)
             except Exception as err:
                 self.app.log.error("ToolGcodeSender._start_stream_worker() -> %s" % str(err))
                 prepared = SenderGen._PreparedRestart(error=str(err))
@@ -5411,7 +5428,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 self.app.inform.emit('[ERROR_NOTCL] %s' % _("Tool change command is busy or recovery is required."))
                 return True
             # Firmware settings and unrestricted motion aren't part of native touch-off.
-            if ('\n' in command or '\r' in command or validate_stream_lines([command]) is not None or
+            if ('\n' in command or '\r' in command or validate_stream_lines([command], *self._line_limits()) is not None or
                     not re.fullmatch(r'(?:\$(?:TPW|TLR|G|#)|\$J=[A-Z0-9+ .\-]+|'
                                      r'G43\.1\s+Z[+\-]?(?:\d+(?:\.\d*)?|\.\d+)|G49)',
                                      command, re.IGNORECASE)):
@@ -5628,8 +5645,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             acked[0] = done
             self._progress_latest = (program_done(done), len(lines))
 
+        rx_size, max_line = self._line_limits()
         res = stream_lines(
-            program, write, readline, check_mode=check_mode,
+            program, write, readline, rx_size=rx_size, max_line=max_line, check_mode=check_mode,
             on_progress=on_progress,
             on_line=on_stream_line,
             poll_status=True, poll_interval=poll_interval,
@@ -6152,6 +6170,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return
         probe_lines = []
         points = ()
+        rx_size, max_line = self._line_limits()
         target = self._target()
         controller = VirtualGrbl()
         controller.scale = 25.4 if target.units.upper() == 'IN' else 1.0
@@ -6203,7 +6222,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             if result is None:
                 return
             lines = [line for line in result['job'].splitlines() if line.strip()]
-            if validate_stream_lines(lines) is not None:
+            if validate_stream_lines(lines, rx_size, max_line) is not None:
                 self.app.inform.emit('[ERROR_NOTCL] %s' % _("The levelled G-code has a line longer than GRBL accepts."))
                 return
             probe_lines = ['G20 G90' if controller.scale == 25.4 else 'G21 G90', 'G0 Z%.6f' % travel_z]
@@ -6282,7 +6301,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             try:
                 if probe_lines:
                     result = stream_lines(
-                        probe_lines, controller.write, controller.readline, poll_status=True, poll_interval=0.05,
+                        probe_lines, controller.write, controller.readline, rx_size=rx_size, max_line=max_line,
+                        poll_status=True, poll_interval=0.05,
                         stall_timeout=float('inf'),
                         on_progress=lambda done, total: event('progress', (done, total)),
                         on_line=lambda line: event('console', line),
@@ -6295,7 +6315,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     self.simulation_event_sig.emit(dialog, 'program', (lines, points))
                 # The same character-counting streamer as the physical controller, with private I/O.
                 result = stream_lines(
-                    lines, controller.write, controller.readline, poll_status=True, poll_interval=0.05,
+                    lines, controller.write, controller.readline, rx_size=rx_size, max_line=max_line,
+                    poll_status=True, poll_interval=0.05,
                     stall_timeout=float('inf'),
                     on_progress=lambda done, total: event('progress', (done, total)),
                     on_line=lambda line: event('console', line),
