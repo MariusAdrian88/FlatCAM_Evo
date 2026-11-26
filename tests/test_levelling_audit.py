@@ -46,6 +46,11 @@ def make_audit_tool(units='MM', storage=None, heights_valid=False, cls=None):
     tool.app.app_units = units
     tool.app.options = {}
     tool.app.inform_shell = MagicMock()
+    # the dock keeps the console that _console() sets: no new parentless console per call
+    holder = {}
+    dock = tool.app.ui.grbl_console_dock
+    dock.setWidget.side_effect = lambda w: holder.__setitem__('w', w)
+    dock.widget.side_effect = lambda: holder.get('w')
     tool.ui = MagicMock()
     tool.ui.al_toolbar.indexOf.return_value = -1
     tool.ui.plot_probing_pts_cb.get_value.return_value = False
@@ -61,6 +66,7 @@ def make_audit_tool(units='MM', storage=None, heights_valid=False, cls=None):
     tool.grbl_probe_result = ''
     tool.grbl_work_offset = (0.0, 0.0, 0.0)
     tool.grbl_ser_port = None
+    tool._grbl_grblhal = False
     tool.probing_shapes = None
     tool.solid_geo = None
     tool.mouse_events_connected = False

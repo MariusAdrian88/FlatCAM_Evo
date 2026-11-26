@@ -44,6 +44,7 @@ from appPlugins.Common.grbl.grbl_client import (
     GrblClientMixin, STATUS_POLL, IO_STATUS, IO_STATUS_PERIOD, is_controller_banner, is_grblhal_banner, is_native_jog_banner,
     stream_lines, validate_stream_lines, _GrblProbeAbort)
 from appPlugins.Common.grbl.grbl_protocol import parse_grbl_identity, grbl_capabilities
+from appPlugins.Common.grbl.grbl_messages import code_text
 from appCommon.machine_profile.correct import CorrectionRefused
 from appCommon.machine_profile.facts import active_profile_of
 from appCommon.machine_profile.output import (
@@ -156,6 +157,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     spindle_state_sig = QtCore.pyqtSignal(bool)
     # how the stream worker ended: 'finished', 'stopped', 'check_passed', ... (see _on_stream_ended)
     stream_ended_sig = QtCore.pyqtSignal(str)
+    # the result of a $X from the unlock task: True clears the alarm row (GUI slot)
+    unlock_result_sig = QtCore.pyqtSignal(bool)
     # a text line for the console, from any thread
     console_line_sig = QtCore.pyqtSignal(str)
     preview_ready_sig = QtCore.pyqtSignal(object)
@@ -601,6 +604,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.del_bd_button.clicked.connect(self.on_grbl_delete_baudrate_grbl)
         self.ui.baudrates_list_combo.currentTextChanged.connect(self.on_baudrate_changed)
         self.ui.controller_reset_button.clicked.connect(lambda: self.on_grbl_reset())
+        self.ui.recovery_button.clicked.connect(lambda: self.on_grbl_reset())
+        self.unlock_result_sig.connect(self._on_unlock_result)
         self.ui.com_connect_button.clicked.connect(self.on_grbl_connect)
         self.ui.controller_combo.currentIndexChanged.connect(self._save_connection_settings)
         self.ui.connection_combo.currentIndexChanged.connect(self._save_connection_settings)
@@ -2350,7 +2355,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     return False
                 if status != 'ok':
                     self.app.inform.emit('[ERROR_NOTCL] %s: %s -> %s' % (
-                        _("Jog failed"), cmd, grbl_reply_error(text) or status))
+                        _("Jog failed"), cmd, code_text(grbl_reply_error(text), self._grbl_grblhal) or status))
                     return False
                 if idx < len(commands) - 1 and not self._grbl_wait_idle(op):
                     return False
@@ -5635,13 +5640,18 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.on_grbl_reset(keep_position=idle, wait_hold=not idle)
 
     def on_unlock(self):
-        self.ui.status_strip.set_alarm(None)
-
         def task(op):
             text, status = self._grbl_transact(op, '$X', timeout=5.0)
             if status != 'ok':
-                self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Unlock failed"), text or status))
+                self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (
+                    _("Unlock failed"), code_text(grbl_reply_error(text), self._grbl_grblhal) or text or status))
+            self.unlock_result_sig.emit(status == 'ok')
         self._grbl_start_op('unlock', task)
+
+    def _on_unlock_result(self, ok):
+        """Slot of unlock_result_sig (GUI thread): a good $X clears the alarm row."""
+        if ok:
+            self.ui.status_strip.set_alarm(None)
 
     def on_save_levelled_gcode(self):
         # always make the job again: the lines of an earlier Start can be old. The design (levelled) lines come
@@ -6227,7 +6237,14 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if report['state'].split(':')[0] != 'Alarm':
             self.ui.status_strip.set_alarm(None)
         elif not self.ui.status_strip.alarm_label.text():
-            self.ui.status_strip.set_alarm('ALARM' + (':' + report['substate'] if 'substate' in report else ''))
+            self.ui.status_strip.set_alarm(
+                code_text('ALARM:' + report['substate'], self._grbl_grblhal) if 'substate' in report else 'ALARM')
+        # the recovery banner is latched: only the end of the recovery hides it (S7 moves this to
+        # _apply_machine_state())
+        if self._grbl_recovery is None:
+            self.ui.status_strip.set_recovery(None)
+        elif self._grbl_recovery == 'needs_home':
+            self.ui.status_strip.set_recovery(_("Reset done. Home the machine."), button=False)
         if 'ov' in report:
             self.ui.ov_values_label.setText('F: %d%%  R: %d%%  S: %d%%' % report['ov'])
             # the accessory field comes with 'Ov'; without it, no accessory is on
@@ -6589,10 +6606,18 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if errors and how in ('check_failed', 'check_exit_failed'):
             # the console queue drops old lines: the errors of a Check job come from the stream result
             summary = ['%s: %d' % (_("Check mode errors"), len(errors))]
-            summary += ['%s %d: %s' % (_("Line"), number, reply)
+            summary += ['%s %d: %s' % (_("Line"), number, code_text(reply, self._grbl_grblhal))
                         for number, reply in zip(errors, result.get('error_replies', []))]
             self._console().append('\n'.join(summary))
         recovery = (' ' + self._grbl_recovery_text()) if self._grbl_recovery is not None else ''
+        last_text = code_text(result.get('last_text', ''), self._grbl_grblhal)
+        reasons = {
+            'alarm': _("The controller is in alarm."), 'error': _("GRBL stopped the job."),
+            'timeout': _("The controller did not answer."), 'port_error': _("The serial port failed."),
+            'unexpected_reset': _("The controller reset during the job.")}
+        if how in reasons:
+            # the feed hold stays: the banner stays until the recovery ends (_on_status_report)
+            self.ui.status_strip.set_recovery(last_text or reasons[how])
 
         if how == 'finished':
             self.ui.progress_bar.setValue(100)
@@ -6626,9 +6651,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.app.inform.emit('[WARNING_NOTCL] %s%s' % (_("The job was stopped."), recovery))
         elif how in ('error', 'alarm'):
             if how == 'alarm':
-                self.ui.status_strip.set_alarm(result.get('last_text') or 'ALARM')
+                self.ui.status_strip.set_alarm(last_text or 'ALARM')
             self.app.inform.emit('[ERROR_NOTCL] %s %d: %s.%s' % (
-                _("GRBL stopped the job at line"), result.get('line', 0), result.get('last_text', ''), recovery))
+                _("GRBL stopped the job at line"), result.get('line', 0), last_text, recovery))
         else:
             self.app.inform.emit('[ERROR_NOTCL] %s%s' % (_("The job did not finish."), recovery))
 

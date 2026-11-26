@@ -1146,6 +1146,40 @@ class TestDockedJogPage(unittest.TestCase):
         self.tool._on_status_report({'state': 'Idle', 'ov': (100, 100, 100)})
         self.assertEqual(self.tool.ui.spindle_button.text(), 'Spindle OFF')
 
+    def test_abort_banner_stays_until_recovery_ends(self):
+        self.connect(DockJogFake())
+        strip = self.tool.ui.status_strip
+        self.tool.on_grbl_reset = MagicMock()
+        self.tool._grbl_recovery = 'needs_reset'
+        self.tool._stream_result = {'last_text': 'error:20', 'line': 5}
+        self.tool._on_stream_ended('error')
+        self.assertFalse(strip.recovery_frame.isHidden())
+        self.assertIn('Unsupported', strip.recovery_label.text())
+        for state in ('Hold', 'Hold', 'Hold', 'Idle', 'Idle', 'Idle'):
+            self.tool._on_status_report({'state': state})
+            self.assertFalse(strip.recovery_frame.isHidden())
+        self.tool.ui.recovery_button.click()
+        self.tool.on_grbl_reset.assert_called_once_with()
+        self.tool._grbl_recovery = None
+        self.tool._on_status_report({'state': 'Idle'})
+        self.assertTrue(strip.recovery_frame.isHidden())
+
+    def test_unlock_clears_alarm_on_gui_thread_after_ok(self):
+        self.connect(DockJogFake())
+        strip = self.tool.ui.status_strip
+        tasks = []
+        self.tool._grbl_start_op = lambda name, task, **kwargs: tasks.append(task)
+        replies = [('error:8', 'error'), ('ok', 'ok')]
+        self.tool._grbl_transact = lambda op, command, timeout=None: replies.pop(0)
+        strip.set_alarm('ALARM:1')
+        self.tool.on_unlock()
+        self.assertFalse(strip.alarm_frame.isHidden())      # not cleared before the result
+        tasks[-1](None)
+        self.assertFalse(strip.alarm_frame.isHidden())      # a failed $X keeps the alarm row
+        self.tool.on_unlock()
+        tasks[-1](None)
+        self.assertTrue(strip.alarm_frame.isHidden())
+
     def test_status_strip_state_alarm_position_and_disconnect(self):
         self.connect(DockJogFake())
         strip = self.tool.ui.status_strip

@@ -7,6 +7,8 @@
 
 from PyQt6 import QtWidgets, QtGui
 
+from appGUI.GUIElements import FCButton
+
 import gettext
 import appTranslation as fcTranslate
 import builtins
@@ -63,6 +65,19 @@ class SenderStatusStrip(QtWidgets.QWidget):
         self.alarm_row.addWidget(self.alarm_label, 1)
         layout.addWidget(self.alarm_frame)
         self.alarm_frame.setVisible(False)
+
+        # the banner of an aborted job: latched, it does not follow the state reports
+        self.recovery_frame = QtWidgets.QWidget()
+        recovery_row = QtWidgets.QHBoxLayout(self.recovery_frame)
+        recovery_row.setContentsMargins(0, 0, 0, 0)
+        self.recovery_label = QtWidgets.QLabel()
+        self.recovery_label.setWordWrap(True)
+        self.recovery_label.setStyleSheet("QLabel {color: #c0392b; font-weight: bold;}")
+        recovery_row.addWidget(self.recovery_label, 1)
+        self.recovery_button = FCButton(_("Reset (spindle off)"))
+        recovery_row.addWidget(self.recovery_button)
+        layout.addWidget(self.recovery_frame)
+        self.recovery_frame.setVisible(False)
         self.clear()
 
     def set_state(self, state):
@@ -89,7 +104,14 @@ class SenderStatusStrip(QtWidgets.QWidget):
         self.alarm_label.setText(text or '')
         self.alarm_frame.setVisible(bool(text))
 
+    def set_recovery(self, text, button=True):
+        """Show the latched recovery banner; None hides it. button=False: text only."""
+        self.recovery_label.setText(text or '')
+        self.recovery_button.setVisible(button)
+        self.recovery_frame.setVisible(bool(text))
+
     def clear(self):
         self.set_state(None)
         self.set_position(None, None)
         self.set_alarm(None)
+        self.set_recovery(None)

@@ -162,7 +162,7 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
                  on_progress=None, on_line=None, poll_status=False, poll_interval=0.2,
                  on_status=None, clock=time.monotonic, stall_timeout=30.0,
                  status_request=b'?', write_control=None, tool_change_ack=False,
-                 on_tool_change=None, tool_command=None, on_tool_command_done=None):
+                 on_tool_change=None, tool_command=None, on_tool_command_done=None, reply_timeout=5.0):
     """
     Send `lines` to GRBL with the character-counting protocol: a new line
     is written only while the bytes of the lines in flight (each line + '\\n')
@@ -190,11 +190,13 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
     :param clock:        callable() -> seconds (monotonic).
     :param stall_timeout: seconds without progress while lines are in flight -> 'timeout'.
         Only these events are progress: an 'ok' or 'error:N'; a status report with the
-        state Hold, Door, Jog, Home or Tool; a Run report whose position is not the same as in
-        the last report. An Idle report or an unchanged Run report is not progress.
+        state Run, Jog, Home, Hold, Door, Tool or Check (also if the position is the same).
+        An Idle report is not progress.
         A G4 line gets dwell_seconds(line) more seconds, 1 time for that line: with
         poll_status=True when a status report shows Idle while the G4 is the oldest line
         in flight, else when the G4 becomes the oldest line in flight.
+    :param reply_timeout: seconds without any line from the controller while lines are in flight
+        -> 'timeout'. Only with poll_status=True (else a long move is silent).
     :param status_request: the byte written to request a status report ('?', or 0x80 on a grblHAL
         that reports RT-).
     :param write_control: callable(data: bytes) -> status, for the real-time bytes; by default `write`.
@@ -222,6 +224,7 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
     buf = b''
     last_text = ''
     last_progress = clock()
+    last_reply = last_progress   # the last time any data came from the controller
     last_position = None    # the position of the last status report
     dwell_index = None      # the line that got its dwell extension
     dwell_until = None
@@ -331,6 +334,7 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
             return result('port_error')
         if chunk:
             buf += chunk
+            last_reply = clock()
         while b'\n' in buf:
             raw, buf = buf.split(b'\n', 1)
             text = raw.decode('utf-8', errors='replace').strip()
@@ -350,9 +354,7 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
                     return result('alarm')
                 if report.get('mpg') or ',' in report.get('sd', '') or report.get('sd') == 'Pending':
                     return result('error', last_text='External SD/MPG execution owns the controller.')
-                if state in ('Hold', 'Door', 'Jog', 'Home', 'Tool'):
-                    last_progress = clock()
-                elif state == 'Run' and position is not None and position != last_position:
+                if state in ('Run', 'Jog', 'Home', 'Hold', 'Door', 'Tool', 'Check'):
                     last_progress = clock()
                 elif state == 'Idle' and poll_status:
                     arm_dwell()
@@ -458,6 +460,8 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
             if dwell_until is not None and dwell_until > deadline:
                 deadline = dwell_until
             if clock() > deadline:
+                return result('timeout')
+            if poll_status and clock() > last_reply + reply_timeout:
                 return result('timeout')
         if manual_deadline is not None and clock() > manual_deadline:
             return result('timeout', last_text='Tool change command did not acknowledge.')

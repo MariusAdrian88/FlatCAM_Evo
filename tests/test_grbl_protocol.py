@@ -10,6 +10,22 @@ from appPlugins.Common.grbl.grbl_protocol import (
     parse_grbl_status_report, parse_grbl_work_offset, work_position)
 
 
+class TestCodeText(unittest.TestCase):
+    def test_code_text(self):
+        from appPlugins.Common.grbl.grbl_messages import code_text
+        for reply, number in (('error:20', '20'), ('ALARM:1', '1'), ('error:46', '46'), ('ALARM:22', '22')):
+            text = code_text(reply)
+            self.assertIn(number, text)
+            self.assertGreater(len(text), len(reply) + 3)
+        self.assertEqual(code_text('error:999'), 'error:999')
+        self.assertEqual(code_text('ok'), 'ok')
+        self.assertEqual(code_text('ALARM:abc'), 'ALARM:abc')
+        self.assertIn('Homing fail', code_text('ALARM:10'))
+        self.assertIn('EStop', code_text('ALARM:10', grblhal=True))
+        self.assertNotIn('EStop', code_text('ALARM:10'))
+        self.assertEqual(code_text('error:20', grblhal=True), code_text('error:20'))
+
+
 class TestStatusReport(unittest.TestCase):
     def test_run_mpos_fs_ov(self):
         rep = parse_grbl_status_report(
@@ -715,6 +731,7 @@ class TestStream(unittest.TestCase):
 
                 res = stream_lines(['M6', 'G1 X2'], write, readline, tool_change_ack=True,
                                    poll_status=True, poll_interval=5, clock=clock, stall_timeout=10,
+                                   reply_timeout=60.0,
                                    on_tool_change=lambda: notified.append(True),
                                    tool_command=lambda: 'G10 L20 P1 Z0',
                                    on_tool_command_done=completed.append)
@@ -1099,9 +1116,8 @@ class TestStream(unittest.TestCase):
         self.assertLessEqual(clock.now, 32.0)
 
     def test_status_does_not_refresh_stall(self):
-        # an Idle report and an unchanged Run report are not progress
-        for report in (lambda now: '<Idle|MPos:0.000,0.000,0.000|FS:0,0>',
-                       lambda now: '<Run|MPos:5.000,0.000,0.000|FS:500,0>'):
+        # an Idle report is not progress
+        for report in (lambda now: '<Idle|MPos:0.000,0.000,0.000|FS:0,0>',):
             clock = FakeClock()
             port = TimedPort(clock, report=report)
             res = run(port, ['G1 X1'], clock=clock, stall_timeout=30.0, poll_status=True)
@@ -1164,6 +1180,24 @@ class TestStream(unittest.TestCase):
 
         res = run(Port(clock), ['G1 X1', 'G4 P60'], clock=clock, stall_timeout=30.0, poll_status=False)
         self.assertEqual(res['status'], 'finished')
+
+
+class TestStallDetection(unittest.TestCase):
+    def test_run_without_motion_is_not_a_stall(self):
+        # a status report with the state Run means the controller is alive, also if the position is the same
+        clock = FakeClock()
+        port = TimedPort(clock, ack_at=60.0, report=lambda now: '<Run|MPos:5.000,0.000,0.000|FS:500,0>')
+        res = run(port, ['G1 X1'], clock=clock, stall_timeout=30.0, poll_status=True)
+        self.assertEqual(res['status'], 'finished')
+        self.assertGreaterEqual(clock.now, 60.0)
+
+        # a silent port: no line of any kind for reply_timeout s gives a timeout, long before stall_timeout
+        clock = FakeClock()
+        port = TimedPort(clock)
+        res = run(port, ['G1 X1'], clock=clock, stall_timeout=30.0, poll_status=True)
+        self.assertEqual(res['status'], 'timeout')
+        self.assertGreater(clock.now, 5.0)
+        self.assertLessEqual(clock.now, 7.0)
 
 
 if __name__ == '__main__':

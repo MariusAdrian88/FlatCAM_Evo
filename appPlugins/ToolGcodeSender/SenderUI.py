@@ -564,6 +564,7 @@ class GcodeSenderUI:
         header_box.setContentsMargins(0, 0, 0, 0)
         self.status_strip = SenderStatusStrip()
         header_box.addWidget(self.status_strip)
+        self.recovery_button = self.status_strip.recovery_button
 
         self.job_row = QtWidgets.QWidget()
         job_lay = QtWidgets.QHBoxLayout(self.job_row)

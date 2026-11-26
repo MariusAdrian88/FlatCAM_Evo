@@ -473,8 +473,8 @@ class TestProgressCoalescing(unittest.TestCase):
         self.assertLessEqual(len(shown), 5010)
         summary = shown[-3:]
         self.assertIn('2', summary[0])
-        self.assertTrue(summary[1].endswith('11: error:20'))
-        self.assertTrue(summary[2].endswith('7001: error:33'))
+        self.assertIn('11: error:20 - ', summary[1])
+        self.assertIn('7001: error:33 - ', summary[2])
 
 
 class RaisingGrbl(FakeGrbl):
