@@ -669,6 +669,19 @@ class TestRestartPreamble(unittest.TestCase):
         off = [line for line in PROGRAM if not line.startswith('M3')]
         self.assertFalse([s for s in SenderGen.restart_preamble(off, 10, 3, 'MM', 4, 3.0)[0] if s.startswith('G4 ')])
 
+    def test_restart_preamble_with_a_axis(self):
+        program = ['G21', 'G90', 'G1 X1 Y0 Z5 A90 F100', 'G1 X2 A10']
+        out = SenderGen.restart_preamble(program, 4, 3, 'MM', 4)[0]
+        self.assertIn('G0 X1.0000 Y0.0000 A90.0000', out)
+        # the A position is in degrees: no inch conversion
+        out = SenderGen.restart_preamble(['G20', 'G90', 'G1 X1 Y0 Z1 A90 F10', 'G1 X2'], 4, 0.1, 'IN', 4)[0]
+        self.assertIn('G0 X1.0000 Y0.0000 A90.0000', out)
+        out = SenderGen.restart_preamble(['G21', 'G90', 'G1 X1 Y0 Z5 F100', 'G1 X2'], 4, 3, 'MM', 4)[0]
+        self.assertIn('G0 X1.0000 Y0.0000', out)
+        # an A word whose position is not known (incremental from unknown) refuses
+        with self.assertRaises(ValueError):
+            SenderGen.restart_preamble(['G21', 'G91', 'G1 X1 A5 F100', 'G90', 'G1 X2 Y0 Z5'], 5, 3, 'MM', 4)
+
     def test_incremental_and_implicit_moves_reconstruct_the_preceding_position(self):
         lines = PROGRAM[:9] + ['G91', 'G1 X2 Y3 Z-0.1', 'X1', 'X2']
         result = self.preamble(lines, len(lines))
@@ -1488,6 +1501,7 @@ class TestJobEstimate(unittest.TestCase):
         self.assertAlmostEqual(line_seconds(['G4 P2'], 3000, 'MM')[0], 2.0)
         self.assertAlmostEqual(line_seconds(['G20', 'G1 X1 F10'], 3000, 'MM')[1], 6.0)
         self.assertAlmostEqual(line_seconds(['G21', 'G2 X20 I10 F600'], 3000, 'MM')[1], 3.14159, delta=0.01)
+        self.assertIsNone(line_seconds(['G21', 'G1 X1 A90 F100'], 3000, 'MM'))
 
     def test_a_word_gives_no_estimate(self):
         from appPlugins.ToolGcodeSender.SenderEstimate import line_seconds

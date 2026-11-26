@@ -44,6 +44,7 @@ class Setup:
     plane: Optional[str] = None             # 'G17', 'G18' or 'G19'
     motion_mode: Optional[str] = None       # 'G0', 'G1', 'G2', 'G3'
     source: Optional[str] = None            # 'controller' = the live state of the controller
+    axes: Optional[str] = None              # the axis letters of the controller, 'XYZ' or 'XYZA'; None = 'XYZ'
 
 
 @dataclass(frozen=True)

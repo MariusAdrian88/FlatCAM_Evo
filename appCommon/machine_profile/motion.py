@@ -128,6 +128,7 @@ def _unknown_text(p, what: str, state: _State) -> str:
 class _Interpreter:
     def __init__(self, setup: Setup):
         self.s = _State(setup)
+        self.axes = setup.axes or 'XYZ'
         self.records: List[MotionRecord] = []
 
     # ------------------------------------------------------------ lexer
@@ -179,6 +180,9 @@ class _Interpreter:
                 vals[letter] = v
                 if letter in AXIS_INDEX:
                     ax[AXIS_INDEX[letter]] = v
+            elif letter == 'A' and 'A' in self.axes:
+                # a rotary axis of the controller: the bed, depth and feed checks do not cover it
+                s.pending.append('axis A is not checked')
             else:
                 s.pending.append('word %s%g is outside the supported set' % (letter, v))
         unk = set()

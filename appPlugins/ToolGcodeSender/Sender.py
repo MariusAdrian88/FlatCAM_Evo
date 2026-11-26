@@ -6937,7 +6937,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         setup = setup_from_controller(profile, dialect, units, machine_pos, wcs_offsets, active_wcs, g92, tlo)
         modal = parse_grbl_modal(gc_text)
         setup = dataclasses.replace(setup, distance_mode=modal['distance_mode'], motion_mode=modal['motion_mode'],
-                                    plane=modal['plane'], arc_mode=modal['arc_mode'])
+                                    plane=modal['plane'], arc_mode=modal['arc_mode'],
+                                    axes=(self.__dict__.get('_grbl_caps') or {}).get('axes'))
         self.live_setup_key = (setup.profile_hash,
                                None if wcs_offsets is None else tuple(sorted(setup.wcs_offsets.items())),
                                active_wcs, setup.g92, setup.tlo)

@@ -55,10 +55,20 @@ class _ModalState:
         self.dist = 90          # 90, 91, or None: not known
         self.inverse = False    # G93 True, G94 False, None: not known
         self.units = None       # 20, 21, or None: not known
+        # the rotary A axis in degrees (never scaled for inch): None = not known or no A word yet. The 3D
+        # path and the levelling ignore it, so it is not in `pos`.
+        self.a = None
+        self.a_seen = False     # an A word was applied
 
-    def lose(self, axes=('X', 'Y', 'Z')):
+    def lose(self, axes=None):
+        """Forget positions: all of X, Y, Z and A for None, else only the given axes."""
+        if axes is None:
+            axes = ('X', 'Y', 'Z', 'A')
         for axis in axes:
-            self.pos[axis] = None
+            if axis == 'A':
+                self.a = None
+            else:
+                self.pos[axis] = None
 
     def advance(self, line):
         """
@@ -163,6 +173,15 @@ class _ModalState:
                         pos[k] += v
             else:
                 self.lose(axes.keys())
+        a_words = [v for k, v in words if k == 'A']
+        if a_words:
+            self.a_seen = True
+            if blocked or self.motion not in (0, 1, 2, 3) or self.dist not in (90, 91):
+                self.a = None
+            elif self.dist == 90:
+                self.a = a_words[-1]
+            elif self.a is not None:
+                self.a += sum(a_words)
         return {'words': words, 'g_words': g_words, 'letters': letters, 'axes': axes,
                 'keys': keys, 'start': start, 'blocked': blocked}
 

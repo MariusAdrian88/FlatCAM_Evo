@@ -124,6 +124,12 @@ class TestStrictMode(unittest.TestCase):
         tool, _target = make_sender("G90 G21 G54\nG91\nG1 X5 Y0 Z-1 F100\n")
         self.assertFalse(tool.build_levelled_job())
         self.assertEqual(len(messages(tool, '[ERROR_NOTCL]')), 1)
+        # an A word: the height map has no rotary axis
+        tool, _target = make_sender("G90 G21 G54\nG0 X0 Y0 Z5\nG1 X5 Y0 Z-1 A90 F100\n")
+        self.assertFalse(tool.build_levelled_job())
+        errors = messages(tool, '[ERROR_NOTCL]')
+        self.assertEqual(len(errors), 1)
+        self.assertIn('A axis', errors[0])
 
     def test_tool_levelling_stays_lenient(self):
         # without the strict keyword, the same program only warns (a relative move at an unknown position)

@@ -262,6 +262,18 @@ def test_unverified_record_alone_gives_partial():
     assert result.violations[0].message and not has_reject(result)
 
 
+def test_a_axis_is_a_warning_with_a_4_axis_controller():
+    import dataclasses
+    from appCommon.machine_profile.check import check_motion
+    text = 'G00 X1\nG01 X2 A90 F100\n'
+    for axes, reason in (('XYZA', 'A is not checked'), ('XYZ', 'outside the supported set')):
+        records = interpret(text, dataclasses.replace(_known_setup(), axes=axes))
+        assert records[0].verified and not records[1].verified
+        assert reason in records[1].unverified_reason
+        result = check_motion(records, _bed_profile())
+        assert result.status is CheckStatus.PARTIAL and not has_reject(result)
+
+
 def test_unknown_start_keeps_the_known_destination_out_of_the_bed():
     # the path from an unknown start is unverified, but the known end point is outside the bed: reject
     result, found = _kinds('G00 X110 Y2 Z0\n', _bed_profile(), start=None)

@@ -179,6 +179,9 @@ def restart_preamble(lines, start_line, travel_z, units, decimals=4, spindle_dwe
             state.units = 20 if initial.units == 'IN' else 21
         if initial.pos is not None:
             state.pos = dict(zip('XYZ', initial.pos))
+            if len(initial.pos) > 3:
+                # the A position of the controller, in degrees
+                state.a = initial.pos[3]
         state.dist, state.motion = initial.dist, initial.motion
         state.inverse = {94: False, 93: True}.get(initial.feed_mode)
         plane, wcs = initial.plane, initial.wcs
@@ -196,7 +199,7 @@ def restart_preamble(lines, start_line, travel_z, units, decimals=4, spindle_dwe
         line = _COMMENT_PAREN_RE.sub('', raw).split(';', 1)[0].strip().upper()
         words = _words(line)
         if (not words or re.sub(r'\s', '', _WORD_RE.sub('', line)) or
-                any(not math.isfinite(v) or k not in 'NGXYZIJKRFSPMT' for k, v in words) or
+                any(not math.isfinite(v) or k not in 'NGXYZIJKRFSPMTA' for k, v in words) or
                 any(k == 'G' and v not in allowed_g for k, v in words) or
                 any(k == 'M' and v not in allowed_m for k, v in words)):
             raise ValueError(_("Cannot reconstruct the state at program line %d. Start from Beginning.") % number)
@@ -252,6 +255,8 @@ def restart_preamble(lines, start_line, travel_z, units, decimals=4, spindle_dwe
         raise ValueError(_("The motion mode before the selected line is not known."))
     if any(v is None or not math.isfinite(v) for v in state.pos.values()):
         raise ValueError(_("The X, Y and Z position before the selected line is not known. Start from Beginning."))
+    if state.a_seen and (state.a is None or not math.isfinite(state.a)):
+        raise ValueError(_("The A position before the selected line is not known. Start from Beginning."))
     scale = 25.4 if state.units == 20 else 1.0
     travel = travel_z * (25.4 if units == 'IN' else 1.0) / scale
     x, y, z = (float(state.pos[k]) for k in 'XYZ')
@@ -271,7 +276,8 @@ def restart_preamble(lines, start_line, travel_z, units, decimals=4, spindle_dwe
     if tool is not None:
         out.append('T%s' % _fmt(tool, 0))
     out.extend(['G0 Z%s' % _fmt(clearance, decimals),
-                'G0 X%s Y%s' % (_fmt(x, decimals), _fmt(y, decimals))])
+                'G0 X%s Y%s' % (_fmt(x, decimals), _fmt(y, decimals)) +
+                ('' if state.a is None else ' A%s' % _fmt(state.a, decimals))])
     out.append('M%d S%s' % (spindle, _fmt(speed, decimals)))
     if spindle in (3, 4) and spindle_dwell > 0:
         # G4 P is in seconds; '%g' gives 3 and 1.5, never an exponent for 0..60
@@ -499,6 +505,9 @@ def prepare_levelled_job(inputs, profile_compute, autolevell, tlo_line, limits=(
     if bad_index is not None:
         prepared.error = _("Line %d of the G-code is longer than GRBL accepts. The job was not made.") % \
                          numbered[bad_index][0]
+        return prepared
+    if any(k == 'A' for line in lines for k, _v in _words(_COMMENT_PAREN_RE.sub('', line).split(';', 1)[0])):
+        prepared.error = _("The program moves the A axis. A levelled job can not do this.")
         return prepared
     tlo_index = tlo_line(lines)
     if tlo_index is not None:
