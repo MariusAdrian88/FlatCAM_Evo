@@ -652,6 +652,13 @@ class TestRestartPreamble(unittest.TestCase):
         self.assertNotIn(PROGRAM[9], result)
         self.assertNotIn('M2', result)
 
+    def test_optional_stop_and_block_delete(self):
+        text = '/G1 X1\nM1\nG1 X2 M1'
+        numbered = SenderGen.clean_lines_numbered(text, optional_stop=False, block_delete=True)
+        self.assertEqual(numbered, [(3, 'G1 X2')])
+        numbered = SenderGen.clean_lines_numbered(text, optional_stop=True, block_delete=False)
+        self.assertEqual(numbered, [(1, 'G1 X1'), (2, 'M0'), (3, 'G1 X2 M0')])
+
     def test_restart_preamble_dwells_after_spindle_start(self):
         on = [line.replace('S12000', 'S10000') for line in PROGRAM]
         result = SenderGen.restart_preamble(on, 10, 3, 'MM', 4, 3.0)[0]

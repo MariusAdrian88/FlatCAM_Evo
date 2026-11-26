@@ -53,7 +53,7 @@ from appCommon.machine_profile.output import (
     setup_from_controller, setup_from_profile)
 from appCommon.machine_profile.records import CheckStatus, Purpose, ViolationKind
 from appCommon.machine_profile.writer import FileGate, gate_file_text
-from appPlugins.ToolGcodeSender.SenderDock import GrblConfiguration, GrblConsole
+from appPlugins.ToolGcodeSender.SenderDock import CommandHistory, GrblConfiguration, GrblConsole
 from appPlugins.ToolGcodeSender.SenderIO import SenderIOController
 from appPlugins.ToolGcodeSender.SenderCameraPane import CameraPane
 from appPlugins.ToolGcodeSender.SenderUI import GcodeSenderUI
@@ -120,7 +120,9 @@ WIDGET_ACTIONS = {
     'estop_button': 'estop', 'estop_dock_button': 'estop',
     'controller_reset_button': 'reset', 'unlock_button': 'unlock',
     'zero_axs_wdg.grbl_homing_button': 'home',
-    'jog_step_entry': 'jog', 'jog_fr_entry': 'jog',
+    'jog_step_entry': 'jog', 'jog_fr_entry': 'jog', 'jog_presets_wdg': 'jog',
+    'jog_wdg.jog_up_left_button': 'jog', 'jog_wdg.jog_up_right_button': 'jog',
+    'jog_wdg.jog_down_left_button': 'jog', 'jog_wdg.jog_down_right_button': 'jog',
     'zero_axs_wdg.grbl_zerox_button': 'zero', 'zero_axs_wdg.grbl_zeroy_button': 'zero',
     'zero_axs_wdg.grbl_zeroz_button': 'zero', 'zero_axs_wdg.grbl_zero_all_button': 'zero',
     'spindle_button': 'spindle',
@@ -674,6 +676,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             widget.valueChanged.connect(self._save_run_settings)
         self.ui.grbl_send_button.clicked.connect(self.on_grbl_send_command)
         self.ui.grbl_command_entry.returnPressed.connect(self.on_grbl_send_command)
+        # a copy: the options share the list of the factory defaults until the first command
+        history = self.app.options["tools_grbl_console_history"] = [
+            str(command) for command in (self.app.options.get("tools_grbl_console_history") or [])]
+        self._command_history = CommandHistory(self.ui.grbl_command_entry, history)
         self.ui.ecut_motion_button.clicked.connect(self.on_ecut_motion_settings)
 
         # Jog
@@ -692,6 +698,13 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             lambda checked: None if checked else self._stop_continuous_jog())
         self.ui.jog_stop_button.clicked.connect(self.on_stream_stop)
         self.ui.jog_wdg.jog_origin_button.clicked.connect(lambda: self.on_grbl_jog(direction='origin'))
+        for button, direction in ((self.ui.jog_wdg.jog_up_left_button, 'xminus_yplus'),
+                                  (self.ui.jog_wdg.jog_up_right_button, 'xplus_yplus'),
+                                  (self.ui.jog_wdg.jog_down_left_button, 'xminus_yminus'),
+                                  (self.ui.jog_wdg.jog_down_right_button, 'xplus_yminus')):
+            button.clicked.connect(lambda checked=False, direction=direction: self.on_grbl_jog(direction=direction))
+        for index, button in enumerate(self.ui.jog_preset_buttons):
+            button.clicked.connect(lambda checked=False, index=index: self.set_jog_preset(index))
 
         # Zero
         self.ui.zero_axs_wdg.grbl_zerox_button.clicked.connect(lambda: self.on_grbl_zero(axis='x'))
@@ -1081,6 +1094,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def _jog_defaults_to_form(self, app_defaults):
         """The jog step and feed are stored in mm; the entries show them in the units of the app."""
         factor = 25.4 if self.units == 'IN' else 1.0
+        self._update_jog_presets()
         for key, entry in (("tools_grbl_jog_step", self.ui.jog_step_entry),
                            ("tools_grbl_jog_fr", self.ui.jog_fr_entry)):
             stored = self.app.options.get(
@@ -1103,6 +1117,45 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def _on_jog_fr_edited(self):
         self._store_jog_option("tools_grbl_jog_fr", self.ui.jog_fr_entry)
+
+    def _jog_presets(self):
+        """The 4 step presets in mm from the option; a bad entry keeps the default of its place."""
+        default = AppDefaults.factory_defaults["tools_grbl_jog_presets"]
+        values = [float(v) for v in re.findall(r'\d+(?:\.\d+)?', default)]
+        for place, text in enumerate(str(self.app.options.get("tools_grbl_jog_presets", default)).split(',')[:4]):
+            try:
+                value = float(text)
+            except ValueError:
+                continue
+            if math.isfinite(value) and value > 0:
+                values[place] = value
+        return values
+
+    def _update_jog_presets(self):
+        factor = 25.4 if self.units == 'IN' else 1.0
+        for button, value in zip(self.ui.jog_preset_buttons, self._jog_presets()):
+            button.setText('%g' % round(value / factor, 4))
+
+    def set_jog_preset(self, index):
+        """Set the jog step to preset 'index' (0 to 3) as an edit of the step field does."""
+        if not 0 <= index < 4:
+            return
+        entry = self.ui.jog_step_entry
+        entry.set_value(self._jog_presets()[index] / (25.4 if self.units == 'IN' else 1.0))
+        self._store_jog_option("tools_grbl_jog_step", entry)
+
+    def _step_jog_preset(self, delta):
+        presets = self._jog_presets()
+        step = self.app.options.get("tools_grbl_jog_step", presets[0])
+        # the preset nearest to the step is the current one; the ends stay
+        current = min(range(4), key=lambda i: abs(presets[i] - step))
+        self.set_jog_preset(max(0, min(3, current + delta)))
+
+    def next_jog_preset(self):
+        self._step_jog_preset(1)
+
+    def previous_jog_preset(self):
+        self._step_jog_preset(-1)
 
     def to_form(self, storage=None):
         if storage is None:
@@ -2008,6 +2061,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return
         # the dock entry cleared itself after a send: the one entry does it now
         self.ui.grbl_command_entry.clear()
+        self._command_history.add(cmd)
         if self._grbl_queue_tool_command(cmd):
             return
         self._invalidate_coordinates()
@@ -2454,6 +2508,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             'yminus': 'Y-%s' % step_text,
             'zplus': 'Z%s' % step_text,
             'zminus': 'Z-%s' % step_text,
+            'xminus_yplus': 'X-%s Y%s' % (step_text, step_text),
+            'xplus_yplus': 'X%s Y%s' % (step_text, step_text),
+            'xminus_yminus': 'X-%s Y-%s' % (step_text, step_text),
+            'xplus_yminus': 'X%s Y-%s' % (step_text, step_text),
         }
         if direction == 'origin':
             commands = [
@@ -4697,7 +4755,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return False
         if text is None:
             text = source
-        numbered = SenderGen.clean_lines_numbered(text, keep_markers)
+        numbered = SenderGen.clean_lines_numbered(
+            text, keep_markers, self.ui.optional_stop_cb.get_value() is True,
+            self.ui.block_delete_cb.get_value() is True)
         lines = [line for _number, line in numbered]
         bad_index = validate_stream_lines(lines, *self._line_limits())
         if bad_index is not None:
@@ -4992,6 +5052,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         return SenderGen._StartInputs(
             op=op, target=target, source=source, check_mode=self.ui.check_mode_cb.get_value() is True,
             autolevel=self.ui.autolevel_cb.get_value() is True,
+            optional_stop=self.ui.optional_stop_cb.get_value() is True,
+            block_delete=self.ui.block_delete_cb.get_value() is True,
             arc_mode=self.app.options.get("tools_grbl_arc_mode", 'split'),
             arc_segment=float(self.app.options.get("tools_grbl_arc_segment", 0.5)), units=target.units,
             decimals=target.coords_decimals, profile=profile,

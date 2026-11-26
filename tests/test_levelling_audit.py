@@ -102,6 +102,7 @@ def make_audit_tool(units='MM', storage=None, heights_valid=False, cls=None):
     tool._grbl_op = None
     tool._grbl_unclosed_ports = []
     tool._grbl_closing_ports = []
+    tool._command_history = MagicMock()   # connect_signals_at_init does not run here
     tool._grbl_recovery = None
     tool._grbl_close_pending = False
     tool._grbl_connected = False

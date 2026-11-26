@@ -83,6 +83,16 @@ class ToolsGrblSenderPrefGroupUI(OptionsGroupUI):
         par_grid.addWidget(self.jog_step_label, 0, 0)
         par_grid.addWidget(self.jog_step_entry, 0, 1)
 
+        # JOG step presets
+        self.jog_presets_label = FCLabel('%s:' % _("Step presets"))
+        self.jog_presets_label.setToolTip(
+            _("Four jog steps in mm, separated by commas.\nThe buttons above the step of the jog block and the keys\n"
+              "1 to 4 set them.")
+        )
+        self.jog_presets_entry = FCEntry()
+        par_grid.addWidget(self.jog_presets_label, 1, 0)
+        par_grid.addWidget(self.jog_presets_entry, 1, 1)
+
         # JOG Feedrate
         self.jog_fr_label = FCLabel('%s:' % _("Feedrate"))
         self.jog_fr_label.setToolTip(

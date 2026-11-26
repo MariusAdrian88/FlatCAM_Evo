@@ -334,7 +334,20 @@ class GcodeSenderUI:
         self.jog_stop_button.setStyleSheet("QPushButton {background-color: red; color: white;}")
         self.jog_stop_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding,
                                            QtWidgets.QSizePolicy.Policy.Fixed)
-        grbl_ctrl2_grid.addWidget(self.jog_stop_button, 3, 0, 1, 2)
+        grbl_ctrl2_grid.addWidget(self.jog_stop_button, 4, 0, 1, 2)
+
+        # the step presets (mm, from the preferences) sit above the step; the Sender labels and wires them
+        self.jog_presets_wdg = QtWidgets.QWidget()
+        presets_layout = QtWidgets.QHBoxLayout(self.jog_presets_wdg)
+        presets_layout.setContentsMargins(0, 0, 0, 0)
+        presets_layout.setSpacing(3)
+        self.jog_preset_buttons = []
+        for _idx in range(4):
+            preset_button = QtWidgets.QToolButton()
+            preset_button.setToolTip(_("Set the jog step."))
+            presets_layout.addWidget(preset_button)
+            self.jog_preset_buttons.append(preset_button)
+        grbl_ctrl2_grid.addWidget(self.jog_presets_wdg, 0, 0, 1, 2)
 
         # JOG Step
         self.jog_step_label = FCLabel('%s:' % _("Step"))
@@ -351,8 +364,8 @@ class GcodeSenderUI:
         metric = self.app.app_units.upper() == 'MM'
         self.jog_step_entry.set_range(smallest, 500 if metric else 20)
 
-        grbl_ctrl2_grid.addWidget(self.jog_step_label, 0, 0)
-        grbl_ctrl2_grid.addWidget(self.jog_step_entry, 0, 1)
+        grbl_ctrl2_grid.addWidget(self.jog_step_label, 1, 0)
+        grbl_ctrl2_grid.addWidget(self.jog_step_entry, 1, 1)
 
         # JOG Feedrate
         self.jog_fr_label = FCLabel('%s:' % _("Feedrate"))
@@ -366,8 +379,8 @@ class GcodeSenderUI:
         self.jog_fr_entry.setSingleStep(10)
         self.jog_fr_entry.set_range(smallest, 10000 if metric else 400)
 
-        grbl_ctrl2_grid.addWidget(self.jog_fr_label, 1, 0)
-        grbl_ctrl2_grid.addWidget(self.jog_fr_entry, 1, 1)
+        grbl_ctrl2_grid.addWidget(self.jog_fr_label, 2, 0)
+        grbl_ctrl2_grid.addWidget(self.jog_fr_entry, 2, 1)
 
         self.continuous_jog_cb = FCCheckBox(_("Continuous"))
         self.continuous_jog_cb.setToolTip(
@@ -376,12 +389,12 @@ class GcodeSenderUI:
         )
         self.continuous_jog_cb.setChecked(False)
         self.continuous_jog_cb.setEnabled(False)
-        grbl_ctrl2_grid.addWidget(self.continuous_jog_cb, 2, 0, 1, 2)
+        grbl_ctrl2_grid.addWidget(self.continuous_jog_cb, 3, 0, 1, 2)
 
         self.ecut_motion_button = FCButton(_("E-Cut settings"))
         self.ecut_motion_button.setToolTip(_("Motion, motor calibration, spindle and input/output settings."))
         self.ecut_motion_button.hide()
-        grbl_ctrl2_grid.addWidget(self.ecut_motion_button, 4, 0, 1, 2)
+        grbl_ctrl2_grid.addWidget(self.ecut_motion_button, 5, 0, 1, 2)
 
         # #############################################################################################################
         # GRBL CONTROL
@@ -589,6 +602,12 @@ class GcodeSenderUI:
         self.check_mode_cb.setToolTip(_("While checked, every Start validates G-code without motion.\n"
                                        "The controller exits check mode after each job; this request stays checked.\n"
                                        "Uncheck it explicitly before cutting."))
+        self.optional_stop_cb = FCCheckBox(_("Optional stop (M1)"))
+        self.optional_stop_cb.setToolTip(_("Checked: an M1 in the G-code stops the job like M0.\nUnchecked: M1 is ignored."))
+        self.block_delete_cb = FCCheckBox(_("Block delete (/)"))
+        self.block_delete_cb.setToolTip(_("Checked: the lines that start with '/' are skipped.\n"
+                                          "Unchecked: they are sent without the '/'."))
+        self.block_delete_cb.setChecked(True)
         # Unlock sits at the right end of the alarm row; Alarm always sets an alarm text, so the row is shown
         self.status_strip.alarm_row.addWidget(self.unlock_button)
 
@@ -731,6 +750,8 @@ class GcodeSenderUI:
         self.job_tab_layout.addWidget(self.fit_view_cb)
         self.job_tab_layout.addWidget(self.check_mode_cb)
         self.job_tab_layout.addWidget(self.autolevel_cb)
+        self.job_tab_layout.addWidget(self.optional_stop_cb)
+        self.job_tab_layout.addWidget(self.block_delete_cb)
         sim_row = QtWidgets.QHBoxLayout()
         sim_row.addWidget(self.sim_button)
         sim_row.addWidget(self.view3d_button)

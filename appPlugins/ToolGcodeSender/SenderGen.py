@@ -19,10 +19,11 @@ from appPlugins.Common.gcode_arcs import split_arcs
 from appPlugins.Common.gcode_segment import _ModalState, _WORD_RE, _words, _fmt, split_long_moves
 
 _COMMENT_PAREN_RE = re.compile(r'\([^)]*\)')
+_OPTIONAL_STOP_RE = re.compile(r'(?<![A-Za-z0-9.])M0*1(?![0-9.])', re.IGNORECASE)
 _ = builtins.__dict__.get('_', gettext.gettext)
 
 
-def clean_lines_numbered(text, keep_markers=False):
+def clean_lines_numbered(text, keep_markers=False, optional_stop=False, block_delete=True):
     """
     Make the stream lines out of G-code text: remove the comments ('(...)' and
     ';...'), the '%' lines and the empty lines; strip the spaces.
@@ -30,6 +31,8 @@ def clean_lines_numbered(text, keep_markers=False):
     :param text: G-code text.
     :param keep_markers: keep the machine profile markers '(MP:FIXED BEGIN <role>)' / '(MP:FIXED END)' as lines
         (the levelling passes them through; the final clean removes them).
+    :param optional_stop: the M1 word becomes M0 (a stop); off, the M1 word is removed.
+    :param block_delete: a line that starts with '/' is skipped; off, the '/' is removed and the line stays.
     :return: list of (source line number, str). The source line number is 1-based.
     """
     result = []
@@ -39,6 +42,11 @@ def clean_lines_numbered(text, keep_markers=False):
             continue
         line = _COMMENT_PAREN_RE.sub('', raw)
         line = line.split(';', 1)[0].strip()
+        if line.startswith('/'):
+            if block_delete:
+                continue
+            line = line[1:].strip()
+        line = _OPTIONAL_STOP_RE.sub('M0' if optional_stop else '', line).strip()
         if not line or line == '%':
             continue
         result.append((number, line))
@@ -232,6 +240,8 @@ class _StartInputs:
     seq: int                    # the start sequence number
     generation: int             # the safety generation
     level: object = None        # a _LevelInput for a levelled job, else None
+    optional_stop: bool = False  # M1 stops the job
+    block_delete: bool = True   # the lines that start with '/' are skipped
 
 
 @dataclasses.dataclass
@@ -286,7 +296,7 @@ def prepare_job(inputs, profile_compute, limits=(GRBL_RX_BUFFER, GRBL_MAX_LINE))
         if outcome.refused is not None:
             return prepared
         text = outcome.out
-    numbered = clean_lines_numbered(text)
+    numbered = clean_lines_numbered(text, optional_stop=inputs.optional_stop, block_delete=inputs.block_delete)
     lines = [line for _number, line in numbered]
     bad_index = validate_stream_lines(lines, *limits)
     if bad_index is not None:
@@ -334,7 +344,7 @@ def prepare_levelled_job(inputs, profile_compute, autolevell, tlo_line, limits=(
     level = inputs.level
     prepared = _PreparedJob(inputs=inputs)
     target = inputs.target
-    numbered = clean_lines_numbered(inputs.source, level.keep_markers)
+    numbered = clean_lines_numbered(inputs.source, level.keep_markers, inputs.optional_stop, inputs.block_delete)
     lines = [line for _number, line in numbered]
     bad_index = validate_stream_lines(lines, *limits)
     if bad_index is not None:

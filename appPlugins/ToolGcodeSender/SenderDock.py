@@ -23,6 +23,40 @@ if '_' not in builtins.__dict__:
     _ = gettext.gettext
 
 
+class CommandHistory(QtCore.QObject):
+    """Up and Down in a command entry walk the sent commands; 'items' is the list that the options store."""
+
+    def __init__(self, entry, items, limit=100):
+        # a child of the entry: a rebuilt UI deletes the old entry and its history with it
+        super().__init__(entry if isinstance(entry, QtCore.QObject) else None)
+        self.entry = entry
+        self.items = items
+        self.limit = limit
+        self._pos = len(items)
+        self._draft = ''
+        entry.installEventFilter(self)
+
+    def add(self, command):
+        """Keep a sent command unless it repeats the last one."""
+        if not self.items or self.items[-1] != command:
+            self.items.append(command)
+            del self.items[:-self.limit]
+        self._pos = len(self.items)
+
+    def eventFilter(self, obj, event):
+        if obj is not self.entry or event.type() != QtCore.QEvent.Type.KeyPress:
+            return False
+        key = event.key()
+        if key not in (QtCore.Qt.Key.Key_Up, QtCore.Qt.Key.Key_Down) or not self.items:
+            return False
+        if self._pos >= len(self.items):
+            self._draft = self.entry.text()
+        step = -1 if key == QtCore.Qt.Key.Key_Up else 1
+        self._pos = max(0, min(len(self.items), self._pos + step))
+        self.entry.setText(self.items[self._pos] if self._pos < len(self.items) else self._draft)
+        return True
+
+
 class GrblConfiguration(QtWidgets.QWidget):
     """Controller-confirmed values and explicit pending edits; editing never sends commands."""
     DESCRIPTIONS = {'0': 'Step pulse (microseconds)', '1': 'Step idle delay (milliseconds)',

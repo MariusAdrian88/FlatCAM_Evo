@@ -499,6 +499,7 @@ class PreferencesUIManager(QtCore.QObject):
             "tools_grbl_network_port":   self.ui.plugin_eng_pref_form.tools_grbl_group.network_port_entry,
             "tools_grbl_jog_step":       self.ui.plugin_eng_pref_form.tools_grbl_group.jog_step_entry,
             "tools_grbl_jog_fr":         self.ui.plugin_eng_pref_form.tools_grbl_group.jog_fr_entry,
+            "tools_grbl_jog_presets":    self.ui.plugin_eng_pref_form.tools_grbl_group.jog_presets_entry,
             "tools_grbl_travelz":        self.ui.plugin_eng_pref_form.tools_grbl_group.jog_travelz_entry,
             "tools_grbl_baudrate":       self.ui.plugin_eng_pref_form.tools_grbl_group.baudrate_combo,
             "tools_grbl_arc_mode":       self.ui.plugin_eng_pref_form.tools_grbl_group.arc_mode_radio,

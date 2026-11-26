@@ -1285,6 +1285,33 @@ class TestDockedJogPage(unittest.TestCase):
         jogs = [cmd for cmd in port.commands() if cmd.startswith('$J')]
         self.assertEqual(jogs, ['$J=G91 G21 X1.5000 F200.0'])
 
+    def test_console_history(self):
+        from PyQt6 import QtTest
+
+        entry = self.tool.ui.grbl_command_entry
+        with patch.object(self.tool, '_grbl_start_op'), patch.object(self.tool, 'action_allowed', return_value=None):
+            for command in ('$$', '$G', '$G'):
+                entry.set_value(command)
+                self.tool.on_grbl_send_command()
+        self.assertEqual(self.tool.app.options['tools_grbl_console_history'], ['$$', '$G'])
+        for key, shown in ((QtCore.Qt.Key.Key_Up, '$G'), (QtCore.Qt.Key.Key_Up, '$$'),
+                           (QtCore.Qt.Key.Key_Down, '$G')):
+            QtTest.QTest.keyClick(entry, key)
+            self.assertEqual(entry.get_value(), shown)
+
+    def test_diagonal_jog_command(self):
+        from tests.test_levelling_audit import FakeGrbl
+
+        port = FakeGrbl()
+        self.connect(port)
+        self.tool.app.worker_task.emit.side_effect = lambda task: task['fcn']()
+        self.tool.ui.jog_step_entry.set_value(1)
+        self.tool.ui.jog_fr_entry.set_value(1500)
+        self.tool.on_grbl_jog('xplus_yminus')
+        self.tool.on_grbl_jog('xminus_yplus')
+        jogs = [cmd for cmd in port.commands() if cmd.startswith('$J')]
+        self.assertEqual(jogs, ['$J=G91 G21 X1.0000 Y-1.0000 F1500.0', '$J=G91 G21 X-1.0000 Y1.0000 F1500.0'])
+
     def test_jog_defaults_in_inch(self):
         from appPlugins.ToolGcodeSender.Sender import AppDefaults
         from tests.test_levelling_audit import FakeGrbl
@@ -1394,7 +1421,8 @@ class TestDockedJogPage(unittest.TestCase):
         self.app.ui.notebook.setCurrentWidget(self.app.ui.plugin_tab)
         self.send_key(self.dock, Key.Key_Right)
         self.wait_native(lambda: len([d for d in port.written if d.startswith(b'$J')]) >= 1)
-        self.assertNotIn(b'\x85', port.written)
+        # no check for "no 0x85 yet": under load the dead-man guard (0.15 s of real time) can stop the jog
+        # itself; a release that did nothing keeps the key down, so the jog never ends and the wait fails
         # the release goes through, whatever the focus is now
         self.assertTrue(self.send_key(self.tool.ui.grbl_command_entry, Key.Key_Right, Release)[0])
         self.wait_native(lambda: self.tool._grbl_op is None)

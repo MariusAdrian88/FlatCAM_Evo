@@ -5606,6 +5606,18 @@ class FCJog(QtWidgets.QFrame):
         )
         grbl_jog_grid.addWidget(self.jog_z_down_button, 4, 3)
 
+        # diagonal jogs in the corners of the pad
+        for name, row, col, text, tip in (
+                ('jog_up_left_button', 2, 0, '↖', _("Jog X and Y: left and up.")),
+                ('jog_up_right_button', 2, 2, '↗', _("Jog X and Y: right and up.")),
+                ('jog_down_left_button', 4, 0, '↙', _("Jog X and Y: left and down.")),
+                ('jog_down_right_button', 4, 2, '↘', _("Jog X and Y: right and down."))):
+            diagonal_button = QtWidgets.QToolButton()
+            diagonal_button.setText(text)
+            diagonal_button.setToolTip(tip)
+            setattr(self, name, diagonal_button)
+            grbl_jog_grid.addWidget(diagonal_button, row, col)
+
 
 class FCZeroAxes(QtWidgets.QFrame):
 

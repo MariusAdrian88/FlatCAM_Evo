@@ -82,7 +82,10 @@ def actions():
         sc('zero_z', _("Zero Z"), '', _pressed(lambda tool: tool.on_grbl_zero('z'))),
         sc('zero_all', _("Zero all axes"), '', _pressed(lambda tool: tool.on_grbl_zero('all'))),
         sc('console_focus', _("Focus the command line"), '', _pressed(_console_focus)),
-    ]
+        sc('step_next', _("Next jog step"), ']', _pressed(lambda tool: tool.next_jog_preset())),
+        sc('step_prev', _("Previous jog step"), '[', _pressed(lambda tool: tool.previous_jog_preset())),
+    ] + [sc('preset_%d' % number, _("Jog step %d") % number, str(number),
+            _pressed(lambda tool, index=number - 1: tool.set_jog_preset(index))) for number in range(1, 5)]
 
 
 def dispatch(tool, event):
