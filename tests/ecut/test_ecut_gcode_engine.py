@@ -837,6 +837,37 @@ def test_rotary_feed_ignores_a_units_change_for_console_and_prepared_program(set
     assert float(re.search(r'F(-?[\d.]+)', lines[-1]).group(1)) == pytest.approx(60)
 
 
+@pytest.mark.parametrize('units', ['G21', 'G20'])
+def test_jog_accepts_a_in_degrees_at_the_written_feed(units):
+    engine, api = a_engine()
+    planned = [str(line) for line in engine._plan(f'G91 {units} A1.000 F60', True)[3]]
+    assert 'A1.000' in planned[0] and float(re.search(r'F(-?[\d.]+)', planned[0]).group(1)) == pytest.approx(60)
+    api._usb.events.clear()
+    assert engine.execute_line(f'$J=G91 {units} A1.000 F60') == ['ok']
+    assert api._usb.positions[3] == round(100 * api.config.interpolation_factor)   # 1 degree, not 25.4
+    assert '|MPos:0.000,0.000,0.000,1.000|' in engine.status_report()
+    assert engine.execute_line('$J=G90 G53 A0 F60') == ['ok']
+    assert api._usb.positions[3] == 0
+    assert engine.execute_line('$J=G91 G21 X1 A1 F60') == ['ok']
+    assert '|MPos:1.000,0.000,0.000,1.000|' in engine.status_report()
+
+
+def test_jog_a_past_the_soft_limit_is_refused_and_a_disabled_is_an_error():
+    engine, api = a_engine()
+    axis = api.config.axes[3]
+    axis.soft_limits_enabled, axis.soft_limit_negative_mm, axis.soft_limit_positive_mm = True, 0, 2
+    api.push_config()
+    api._usb.events.clear()
+    with pytest.raises(Exception, match='Soft limit'):
+        engine.execute_line('$J=G91 G21 A2.5 F60')
+    assert api._usb.events == []
+    axis.enabled = False
+    api.push_config()
+    with pytest.raises(Exception) as error:
+        engine.execute_line('$J=G91 G21 A1 F60')
+    assert error.value.code in (16, 20)
+
+
 def test_retained_a_count_does_not_block_xyz_moves_when_a_is_disabled():
     engine, api = engine_api()
     api._usb.positions[3] = 500

@@ -634,8 +634,8 @@ class EcutGcodeEngine:
         if probing and not any(k in values for k in 'XYZ'):
             raise GcodeError(26, 'Probe requires an axis word')
         if jog and (ms or any(g not in (20, 21, 90, 91, 53) for g in gs)
-                    or any(k not in 'FXYZ' for k in values) or 'F' not in values
-                    or not any(k in values for k in 'XYZ')):
+                    or any(k not in 'FXYZA' for k in values) or 'F' not in values
+                    or not any(k in values for k in 'XYZA')):
             raise GcodeError(16, 'Jog requires axes, F and only G20/G21 G90/G91 G53')
         for letter, maximum in [('N', 10000000), ('T', 255)]:
             if letter in values and (not values[letter].is_integer() or values[letter] > maximum):
