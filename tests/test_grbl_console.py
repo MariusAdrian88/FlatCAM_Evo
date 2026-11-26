@@ -1324,6 +1324,14 @@ class TestDockedJogPage(unittest.TestCase):
     def native_hold(self, port=None):
         from PyQt6 import QtTest
 
+        port = self.native_ready(port)
+        button = self.tool.ui.jog_wdg.jog_right_button
+        QtTest.QTest.mousePress(button, QtCore.Qt.MouseButton.LeftButton)
+        return port, button
+
+    def native_ready(self, port=None):
+        from PyQt6 import QtTest
+
         port = port or NativeJogFake()
         self.tool.grbl_ser_port = port
         self.tool._grbl_rx_port = port
@@ -1348,9 +1356,57 @@ class TestDockedJogPage(unittest.TestCase):
             QtWidgets.QApplication.setActiveWindow(self.window)
         QtTest.QTest.qWait(30)
         self.assertEqual(port.written, [])
-        button = self.tool.ui.jog_wdg.jog_right_button
-        QtTest.QTest.mousePress(button, QtCore.Qt.MouseButton.LeftButton)
-        return port, button
+        return port
+
+    def send_key(self, target, key, kind=QtCore.QEvent.Type.KeyPress, modifiers=QtCore.Qt.KeyboardModifier.NoModifier):
+        event = QtGui.QKeyEvent(kind, key, modifiers, '', False, 1)
+        with patch.object(QtWidgets.QApplication, 'focusWidget', return_value=target):
+            consumed = self.console().eventFilter(target, event)
+        return consumed, event
+
+    def test_sender_keys(self):
+        from appGUI import shortcuts
+        Key = QtCore.Qt.Key
+        self.connect(DockJogFake())
+        self.tool._plugin_active = True
+        self.app.ui.notebook.setCurrentWidget(self.app.ui.plugin_tab)
+        self.tool.show_jog_page()
+        self.addCleanup(shortcuts.registry().set_key, 'sender.jog_x_plus', 'Right')
+        with patch.object(self.tool, 'on_grbl_jog') as jog:
+            self.assertTrue(self.send_key(self.dock, Key.Key_Right)[0])
+            jog.assert_called_once_with('xplus')
+            jog.reset_mock()
+            entry = self.tool.ui.grbl_command_entry
+            self.assertFalse(self.send_key(entry, Key.Key_Right)[0])
+            jog.assert_not_called()
+            shortcuts.registry().set_key('sender.jog_x_plus', 'D')
+            self.assertTrue(self.send_key(self.dock, Key.Key_D)[0])
+            jog.assert_called_once_with('xplus')
+            jog.reset_mock()
+            self.assertFalse(self.send_key(self.dock, Key.Key_Right)[0])
+            jog.assert_not_called()
+
+    def test_key_release_stops_continuous_jog(self):
+        Key = QtCore.Qt.Key
+        Release = QtCore.QEvent.Type.KeyRelease
+        port = self.native_ready()
+        self.tool._plugin_active = True
+        self.app.ui.notebook.setCurrentWidget(self.app.ui.plugin_tab)
+        self.send_key(self.dock, Key.Key_Right)
+        self.wait_native(lambda: len([d for d in port.written if d.startswith(b'$J')]) >= 1)
+        self.assertNotIn(b'\x85', port.written)
+        # the release goes through, whatever the focus is now
+        self.assertTrue(self.send_key(self.tool.ui.grbl_command_entry, Key.Key_Right, Release)[0])
+        self.wait_native(lambda: self.tool._grbl_op is None)
+        self.assertIn(b'\x85', port.written)
+        self.wait_native(lambda: self.tool.ui.jog_fr_entry.isEnabled())
+        # the window loses the focus while the key is down: no release will come
+        port.written.clear()
+        self.send_key(self.dock, Key.Key_Right)
+        self.wait_native(lambda: len([d for d in port.written if d.startswith(b'$J')]) >= 1)
+        self.console().eventFilter(self.dock, QtCore.QEvent(QtCore.QEvent.Type.WindowDeactivate))
+        self.wait_native(lambda: self.tool._grbl_op is None)
+        self.assertIn(b'\x85', port.written)
 
     def wait_native(self, predicate, timeout=10000):
         # the jog thread runs in the background; under the parallel load of the gate 2 s was too short

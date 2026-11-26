@@ -11,6 +11,7 @@ import re
 from PyQt6 import QtWidgets, QtCore, QtGui
 
 from appEditors.text_editor.code_edit import CodeEdit
+from appPlugins.ToolGcodeSender import SenderKeys
 from appPlugins.ToolGcodeSender.SenderCameraUI import CurrentPageTabWidget
 
 import gettext
@@ -647,10 +648,9 @@ class GrblConsole(QtWidgets.QWidget):
         self.page_changed.emit(key)
 
     def _jog_shortcut(self, obj, event):
-        """A plain Tab while the Sender is the Plugin tab opens the dock with the jog block, or collapses a shown one."""
-        if event.key() != QtCore.Qt.Key.Key_Tab or event.isAutoRepeat():
-            return False
-        if event.modifiers() != QtCore.Qt.KeyboardModifier.NoModifier:
+        """True when a key press may run a Sender key: the Sender is the Plugin tab, the focus is in the notebook or
+        the dock window and in no field that edits text."""
+        if event.isAutoRepeat():
             return False
         if (QtWidgets.QApplication.activeModalWidget() is not None
                 or QtWidgets.QApplication.activePopupWidget() is not None):
@@ -686,9 +686,14 @@ class GrblConsole(QtWidgets.QWidget):
         view = self.__dict__.get('program_view')
         if view is None:
             return False
-        if event.type() == QtCore.QEvent.Type.KeyPress and self._jog_shortcut(obj, event):
-            self.tool.toggle_jog_page()
+        if event.type() == QtCore.QEvent.Type.KeyPress and self._jog_shortcut(obj, event) \
+                and SenderKeys.dispatch(self.tool, event):
             return True
+        # a release ends the action of its press wherever the focus is now
+        if event.type() == QtCore.QEvent.Type.KeyRelease and SenderKeys.dispatch(self.tool, event):
+            return True
+        if event.type() == QtCore.QEvent.Type.WindowDeactivate:
+            SenderKeys.release_all(self.tool)
         if event.type() == QtCore.QEvent.Type.MouseButtonPress and self.isVisible() \
                 and isinstance(obj, QtWidgets.QWidget) \
                 and obj is not self.program_area and not self.program_area.isAncestorOf(obj):

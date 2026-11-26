@@ -22,7 +22,8 @@ from PyQt6 import QtGui, QtWidgets
 
 from appDatabase import _database_option
 from appGUI.GUIElements import FCMessageBox, FCInputDoubleSpinner
-from appGUI.shortcuts import (Context, Shortcut, Stop, STOP, SOURCE_CANVAS, SOURCE_PROJECT, PHASE_TOOL, PHASE_LATE)
+from appPlugins.ToolGcodeSender import SenderKeys
+from appGUI.shortcuts import (Context,Shortcut, Stop, STOP, SOURCE_CANVAS, SOURCE_PROJECT, PHASE_TOOL, PHASE_LATE)
 
 import gettext
 import appTranslation as fcTranslate
@@ -53,6 +54,7 @@ def contexts():
         Context('2_sided_tool', _("2-Sided")),
         Context('fiducials_tool', _("Fiducials")),
         Context('markers_tool', _("Markers")),
+        Context('gcode_sender', _("G-code Sender"), keypad_plain=True),
         # read-only: the keys of the drawing tools of the editors (their on_key()), of the plugins that take the keys
         # of the plot area, and of the text fields
         Context('geo_drawing', '%s: %s' % (_("Geometry Editor"), drawing), editable=False),
@@ -71,7 +73,7 @@ def contexts():
 
 def actions():
     return (global_actions() + app_actions() + geo_editor_actions() + grb_editor_actions() + exc_editor_actions() +
-            plugin_actions() + read_only_actions())
+            plugin_actions() + SenderKeys.actions() + read_only_actions())
 
 
 # ---------------------------------------------------------------------------------------------------------------------

@@ -40,7 +40,7 @@ from appPlugins.Common.grbl.grbl_protocol import (
     parse_grbl_probe_output, parse_grbl_offsets, grbl_wcs_p_number)
 from appPlugins.Common.gcode_segment import split_long_moves, parse_toolpath, _words, _g_key
 from appPlugins.Common.levelling_interp import build_bilinear_grid
-from appPlugins.ToolGcodeSender import SenderGen
+from appPlugins.ToolGcodeSender import SenderGen, SenderKeys
 from appPlugins.Common.grbl.grbl_client import (
     GrblClientMixin, STATUS_POLL, IO_STATUS, IO_STATUS_PERIOD, MONITOR_OPS, is_controller_banner, is_grblhal_banner, is_native_jog_banner,
     stream_lines, validate_stream_lines, _GrblProbeAbort, GRBL_RX_BUFFER, GRBL_MAX_LINE)
@@ -2384,6 +2384,25 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def _on_console_page_changed(self, key):
         """The IO tab reads only while it is current. The camera runs while its pane or window is shown."""
         self.sender_io.evaluate()
+
+    def key_jog(self, direction, pressed):
+        """A jog key: with Continuous jog on a capable port the press starts the jog and the release stops it, else a
+        press is 1 step."""
+        holds = self.__dict__.setdefault('_key_holds', {})
+        if not pressed:
+            hold = holds.pop(direction, None)
+            if hold is not None:
+                hold.release()
+                self._stop_continuous_jog()
+            return
+        if direction in holds:
+            return
+        if self.ui.continuous_jog_cb.isChecked() and self._continuous_jog_capable(self.grbl_ser_port):
+            hold = SenderKeys.KeyHold(self.app.ui.grbl_console_dock.window())
+            holds[direction] = hold
+            self._on_jog_pressed(hold, direction)
+        else:
+            self.on_grbl_jog(direction)
 
     def toggle_jog_page(self):
         """Tab while the Sender is the Plugin tab: show the dock with the jog block open; a shown dock collapses or expands the
