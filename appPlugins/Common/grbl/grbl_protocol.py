@@ -546,7 +546,7 @@ def grbl_capabilities(identity):
 
 
 # Pn letters of GRBL 1.1 and grblHAL -> display name
-_PIN_NAMES = {'X': 'X Limit', 'Y': 'Y Limit', 'Z': 'Z Limit', 'P': 'Probe', 'D': 'Door', 'H': 'Hold',
+_PIN_NAMES = {'X': 'X Limit', 'Y': 'Y Limit', 'Z': 'Z Limit', 'A': 'A Limit', 'P': 'Probe', 'D': 'Door', 'H': 'Hold',
               'R': 'Reset', 'S': 'Cycle Start', 'E': 'E-stop'}
 _LIMIT_LETTERS = 'XYZ'
 _CONTROL_ORDER = 'DHRSE'
@@ -565,6 +565,8 @@ def grbl_io_signals(caps):
     :param caps: a dict from grbl_capabilities().
     """
     signals = ['%s Limit' % axis for axis in _LIMIT_LETTERS]
+    if caps.get('axes') == 'XYZA':
+        signals.append(_PIN_NAMES['A'])
     if caps.get('probe') is not False:
         signals.append(_PIN_NAMES['P'])
     reported = caps.get('control_signals')

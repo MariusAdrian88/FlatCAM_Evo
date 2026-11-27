@@ -25,6 +25,22 @@ class TestCodeText(unittest.TestCase):
         self.assertNotIn('EStop', code_text('ALARM:10'))
         self.assertEqual(code_text('error:20', grblhal=True), code_text('error:20'))
 
+    def test_setting_text_of_the_a_axis_and_the_names_of_grblhal_settings(self):
+        from appPlugins.Common.grbl.grbl_messages import setting_text
+        # grblHAL core settings.c: "-axis travel resolution", "-axis maximum rate", "-axis acceleration",
+        # "-axis maximum travel", "-axis backlash compensation", "-axis dual axis offset"; the units of a rotary
+        # axis (set_axis_setting_unit): step/deg, deg/min, deg/sec^2, deg
+        self.assertEqual(setting_text(103), ('A-axis travel resolution', 'step/deg'))
+        self.assertEqual(setting_text(113), ('A-axis maximum rate', 'deg/min'))
+        self.assertEqual(setting_text(123), ('A-axis acceleration', 'deg/sec^2'))
+        self.assertEqual(setting_text(133), ('A-axis maximum travel', 'degrees'))
+        self.assertEqual(setting_text(163), ('A-axis backlash compensation', 'degrees'))
+        self.assertEqual(setting_text(173)[0], 'A-axis dual axis offset')
+        self.assertEqual(setting_text(43)[0], 'Homing passes')
+        self.assertEqual(setting_text(65)[0], 'Probing options')
+        self.assertEqual(setting_text(60)[0], 'End program actions')
+        self.assertEqual(setting_text(9)[0], 'PWM spindle options')
+
 
 class TestParseModal(unittest.TestCase):
     def test_modal_words_of_the_gc_report(self):
@@ -204,6 +220,15 @@ class TestGrblIo(unittest.TestCase):
         self.assertEqual(hal, ['X Limit', 'Y Limit', 'Z Limit', 'Probe', 'Door', 'Hold', 'Reset', 'Cycle Start'])
         hal = grbl_io_signals(self.caps('[SIGNALS:P,E,X]\n[NEWOPT:NOPROBE]\n[FIRMWARE:grblHAL]'))
         self.assertEqual(hal, ['X Limit', 'Y Limit', 'Z Limit', 'E-stop'])
+
+    def test_a_limit_pin_only_with_an_a_axis(self):
+        for ident, has_a in (('[AXS:4:XYZA]\n[FIRMWARE:grblHAL]', True), ('[AXS:3:XYZ]\n[FIRMWARE:grblHAL]', False)):
+            with self.subTest(has_a=has_a):
+                signals = grbl_io_signals(self.caps(ident))
+                self.assertEqual('A Limit' in signals, has_a)
+                states, reason = decode_grbl_pins('<Idle|MPos:0,0,0,0|Pn:A>', signals, False)
+                self.assertIsNone(reason)
+                self.assertEqual([n for n, v in states.items() if v], ['A Limit'] if has_a else [])
 
     def test_pins_present_absent_and_unreported(self):
         signals = grbl_io_signals(self.caps('[SIGNALS:RHSD]\n[FIRMWARE:grblHAL]'))

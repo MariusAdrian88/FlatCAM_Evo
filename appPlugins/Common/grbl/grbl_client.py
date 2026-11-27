@@ -174,6 +174,11 @@ class StepGate:
         with self._lock:
             self._tokens += 1
 
+    def reset(self):
+        """Drop the presses of an ended stream: each stream starts without a token."""
+        with self._lock:
+            self._tokens = 0
+
     def ready(self):
         with self._lock:
             return self._tokens > 0

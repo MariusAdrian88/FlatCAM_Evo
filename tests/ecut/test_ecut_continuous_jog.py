@@ -339,6 +339,26 @@ def test_feed_hold_during_the_backlash_take_up_brakes_it(monkeypatch):
     assert api.state == State.IDLE and not api.jogging
 
 
+@pytest.mark.parametrize('hold_at_end, known', [(True, True), (False, False)])
+def test_a_hold_after_the_last_takeup_record_keeps_the_offset(monkeypatch, hold_at_end, known):
+    api, clock = backlash_jog_api(monkeypatch)
+    api.config.axes[0].backlash_mm = 1.0
+    takeup = round(abs(api._axis_scale(0)))      # 1 mm of counts
+    sent, total, fired = api._usb.send_motion, [0], []
+
+    def counting(records):
+        sent(records)
+        total[0] += sum(abs(struct.unpack('>6h', rec[4:16])[0]) for rec in records)
+        if not fired and (total[0] >= takeup if hold_at_end else True):
+            fired.append(1)
+            api.pause()                 # the FEED_HOLD: after the last record of the take-up, or in its middle
+    api._usb.send_motion = counting
+    api.jog_start(0, 0, 120)
+    assert fired and total[0] <= takeup + 16 * 4     # no jog record after the hold
+    assert (api._backlash_offset[0] != 0) == known
+    assert api.state == State.IDLE
+
+
 def test_nan_feed_writes_no_motion_before_the_refusal(monkeypatch):
     api, _ = backlash_jog_api(monkeypatch)
     with pytest.raises((EcutError, ValueError)):

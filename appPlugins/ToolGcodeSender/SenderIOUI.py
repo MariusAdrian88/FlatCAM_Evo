@@ -172,7 +172,7 @@ class IOPage(QtWidgets.QWidget):
         self.outputs_box.set_indicators(self.outputs.values())
         self._apply_enabled()
 
-    def update(self, states):
+    def set_states(self, states):
         """states: name -> (True | False | None, reason, source)."""
         for name, value in states.items():
             indicator = self.inputs.get(name) or self.outputs.get(name)

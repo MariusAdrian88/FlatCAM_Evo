@@ -800,6 +800,44 @@ def test_prepared_sender_batches_real_engine_linear_motion():
         port.close()
 
 
+@pytest.mark.parametrize('first, running', [(['G91', 'G1X0.01F60', 'G4P5'], lambda api: api.state == State.RUNNING),
+                                            (['G91', 'G1X5F60'], lambda api: api._streaming)])
+def test_a_graceful_stop_of_a_prepared_job_leaves_the_next_job_runnable(first, running):
+    from appPlugins.Common.ecut.ecut_sender_port import EcutSenderPort
+    from appPlugins.Common.grbl.grbl_client import stream_lines
+    api = make_board_api()
+    port = EcutSenderPort(api=api, timeout=0.03)
+
+    def send(lines):
+        port.prepare_program(lines)
+
+        def write(data):
+            assert port.write(data) == len(data)
+            return 'ok'
+        return stream_lines(lines, write, port.readline, rx_size=32,
+                            poll_status=True, poll_interval=0.001, stall_timeout=1)
+    try:
+        port.readline()
+        wait_for(lambda: not port._startup_pending and not port._active)
+        api.reference_axes([0])
+        homed, homed_x = api.homed_axes, api._usb.positions[0]
+        assert send(first)['status'] == 'finished'
+        wait_for(lambda: running(api), timeout=3)
+        port.write(b'\x85')                  # the graceful stop of the host
+        wait_for(lambda: not port._active and port._prepared_job is None, timeout=6)
+        port.readlines()
+        before = api._usb.positions[0]
+        full = 5 * api.config.axes[0].steps_per_mm * api.config.interpolation_factor
+        assert before - homed_x < full       # the first job was cut, not finished
+        assert send(['G91', 'G1X0.01F60'])['status'] == 'finished'
+        wait_for(lambda: api._usb.positions[0] != before and not port._active, timeout=3)
+        text = b''.join(port.readlines())
+        assert b'error' not in text and b'ALARM' not in text
+        assert api.homed_axes == homed
+    finally:
+        port.close()
+
+
 def test_prepared_real_job_preserves_m6_confirmation_and_reset():
     from appPlugins.Common.ecut.ecut_sender_port import EcutSenderPort
     from appPlugins.Common.grbl.grbl_client import stream_lines

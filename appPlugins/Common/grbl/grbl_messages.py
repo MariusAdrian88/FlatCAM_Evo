@@ -183,10 +183,25 @@ SETTING_TEXTS = {
     130: (N_("X-axis maximum travel"), N_("millimeters")),
     131: (N_("Y-axis maximum travel"), N_("millimeters")),
     132: (N_("Z-axis maximum travel"), N_("millimeters")),
-    # grblHAL (names of the Setting_ ids of settings.h)
-    7: (N_("Spindle PWM behaviour"), ""),
+    # the A axis of grblHAL: settings.c names the axis settings "-axis ..." and the axis letter is put before;
+    # A is rotary (the Sender A axis), so the units are those of set_axis_setting_unit() for a rotary axis
+    103: (N_("A-axis travel resolution"), N_("step/deg")),
+    113: (N_("A-axis maximum rate"), N_("deg/min")),
+    123: (N_("A-axis acceleration"), N_("deg/sec^2")),
+    133: (N_("A-axis maximum travel"), N_("degrees")),
+    # grblHAL settings.c: "-axis backlash compensation" (160 + axis) and "-axis dual axis offset" (170 + axis)
+    160: (N_("X-axis backlash compensation"), N_("millimeters")),
+    161: (N_("Y-axis backlash compensation"), N_("millimeters")),
+    162: (N_("Z-axis backlash compensation"), N_("millimeters")),
+    163: (N_("A-axis backlash compensation"), N_("degrees")),
+    170: (N_("X-axis dual axis offset"), N_("millimeters")),
+    171: (N_("Y-axis dual axis offset"), N_("millimeters")),
+    172: (N_("Z-axis dual axis offset"), N_("millimeters")),
+    173: (N_("A-axis dual axis offset"), N_("millimeters")),
+    # grblHAL (names of the Setting_ ids of settings.h; the texts of settings.c where it has one)
+    7: (N_("Deprecated"), ""),
     8: (N_("Ganged direction invert"), N_("mask")),
-    9: (N_("Spindle PWM options"), ""),
+    9: (N_("PWM spindle options"), ""),
     14: (N_("Control signals invert"), N_("mask")),
     15: (N_("Coolant invert"), N_("mask")),
     16: (N_("Spindle invert"), N_("mask")),
@@ -205,13 +220,13 @@ SETTING_TEXTS = {
     40: (N_("Jog soft limited"), N_("boolean")),
     41: (N_("Parking enable"), ""),
     42: (N_("Parking axis"), ""),
-    43: (N_("Homing locate cycles"), ""),
-    60: (N_("Restore overrides"), ""),
+    43: (N_("Homing passes"), ""),
+    60: (N_("End program actions"), ""),
     61: (N_("Safety door options"), ""),
     62: (N_("Sleep enable"), N_("boolean")),
     63: (N_("Feed hold actions"), ""),
     64: (N_("Force init alarm"), N_("boolean")),
-    65: (N_("Probing flags"), ""),
+    65: (N_("Probing options"), ""),
 }
 
 

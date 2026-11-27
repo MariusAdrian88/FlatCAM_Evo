@@ -8,6 +8,7 @@
 
 import builtins
 import gettext
+import threading
 
 from PyQt6 import QtCore, QtWidgets
 from shapely import Point
@@ -272,9 +273,10 @@ def report_gate(app, gate):
         return      # stub apps have no status bar
     if app.headless is True:
         return      # a headless run has no dot and no dialog: the refusal text on stderr is the feedback
-    if QtCore.QThread.currentThread() is not _GATE_BRIDGE.thread():
+    qt_app = QtCore.QCoreApplication.instance()
+    if qt_app is not None and QtCore.QThread.currentThread() is not qt_app.thread():
         # a Tcl command or a job runs on a worker thread: the dot and the dialog belong to the GUI thread
-        _GATE_BRIDGE.reported.emit(app, gate)
+        _gate_bridge().reported.emit(app, gate)
         return
     _show_gate(app, gate)
 
@@ -292,7 +294,26 @@ class _GateBridge(QtCore.QObject):
         _show_gate(app, gate)
 
 
-_GATE_BRIDGE = _GateBridge()
+def _make_gate_bridge():
+    """A bridge that lives in the thread of the application (the GUI thread), whichever thread made it."""
+    bridge = _GateBridge()
+    qt_app = QtCore.QCoreApplication.instance()
+    if qt_app is not None and bridge.thread() is not qt_app.thread():
+        bridge.moveToThread(qt_app.thread())    # only possible from the thread that made it: here
+    return bridge
+
+
+_GATE_BRIDGE = None
+_GATE_BRIDGE_LOCK = threading.Lock()
+
+
+def _gate_bridge():
+    """The bridge, made at the first use (a worker thread can be the first user)."""
+    global _GATE_BRIDGE
+    with _GATE_BRIDGE_LOCK:
+        if _GATE_BRIDGE is None:
+            _GATE_BRIDGE = _make_gate_bridge()
+        return _GATE_BRIDGE
 
 
 def _show_gate(app, gate):

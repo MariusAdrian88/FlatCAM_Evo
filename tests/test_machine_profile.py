@@ -1233,6 +1233,26 @@ def test_report_gate_from_a_worker_thread_touches_the_widgets_on_the_main_thread
     assert machine_profile_ui.DOT_COLORS['rejected'] in dot.styleSheet()
 
 
+def test_gate_bridge_made_in_a_worker_thread_still_reports_on_the_main_thread(monkeypatch):
+    from appCommon.machine_profile.writer import FileGate
+    from appGUI import machine_profile_ui
+
+    qapp, app, dot, touched, dialogs, dialog, main, threading = _gate_app(headless=False)
+    gate = FileGate(False, 'refused', result=object())
+    made = []
+    monkeypatch.setattr(machine_profile_ui, '_GATE_BRIDGE', None)     # the first use is on a worker thread
+    original = machine_profile_ui._make_gate_bridge
+    monkeypatch.setattr(machine_profile_ui, '_make_gate_bridge', lambda: made.append(original()) or made[-1])
+    with dialog:
+        worker = threading.Thread(target=machine_profile_ui.report_gate, args=(app, gate))
+        worker.start()
+        worker.join()
+        qapp.processEvents()
+    assert len(made) == 1 and made[0].thread() is main
+    assert touched and all(thread is main for thread in touched)
+    assert dialogs and all(thread is main for thread in dialogs)
+
+
 def test_report_gate_of_a_headless_app_keeps_the_dot_and_the_dialog_untouched():
     from appCommon.machine_profile.writer import FileGate
     from appGUI import machine_profile_ui

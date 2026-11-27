@@ -22,6 +22,7 @@ def make_stream_tool(fake, source=None, check_mode=False):
     tool = make_audit_tool()
     tool.grbl_ser_port = fake
     tool._grbl_connected = True
+    tool._grbl_caps = None
     tool.app.options = {'tools_grbl_status_ms': 20}
     tool.app.worker_task.emit.side_effect = lambda task: task['fcn']()
     tool._start_stream_thread = lambda fn: fn()

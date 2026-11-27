@@ -195,5 +195,21 @@ class TestExtract(unittest.TestCase):
         self.assertEqual(['mod.py:1', 'mod.py:3'], strings['First'])
         self.assertEqual(2, len(problems))
 
+    def test_n_marker_is_extracted(self):
+        src = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, src, True)
+        with open(os.path.join(src, 'mod.py'), 'w', encoding='utf-8') as f:
+            f.write('T = {1: N_("Marked"), 2: N_("Both"), 3: _("Both")}\n')
+        strings, problems = t.extract(src)
+        self.assertEqual(['Marked', 'Both'], list(strings))
+        self.assertEqual(['mod.py:1'], strings['Marked'])
+        self.assertEqual([], problems)
+
+    def test_grbl_messages_reach_the_template(self):
+        strings = extract_program_strings()[0]
+        self.assertIn('Step pulse time must be greater or equal to 2 microseconds.', strings)
+        self.assertIn('Homing passes', strings)
+
+
 if __name__ == '__main__':
     unittest.main()

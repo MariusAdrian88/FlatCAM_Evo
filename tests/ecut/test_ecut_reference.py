@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from appPlugins.Common.ecut import EcutError, State
+from appPlugins.Common.ecut import Cmd, EcutError, State
 from appPlugins.Common.ecut.ecut_controller import _MoveAction
 from appPlugins.Common.ecut.ecut_gcode_engine import GcodeError
 from test_ecut_gcode_engine import engine_api
@@ -118,10 +118,23 @@ def test_an_axis_outside_the_limits_can_move_back_in():
     assert api.state == State.IDLE
 
 
-def test_stop_during_motion_removes_the_reference():
+@pytest.mark.parametrize('frame', [
+    SimpleNamespace(motion_busy=True, fifo_free=12000),
+    SimpleNamespace(motion_busy=False, fifo_free=11000),
+    None])
+def test_stop_of_a_moving_board_removes_the_reference(frame):
     engine, api = limited_engine()
     api.reference_axes([0, 1])
-    api._running = True
+    api._last_rx = frame   # busy, a FIFO that is not empty, or no frame: the board can have moved
+    api.stop()
+    assert api.homed_axes == ()
+
+
+@pytest.mark.parametrize('flag', ['_native_motion_active', '_jog_active'])
+def test_stop_during_a_native_move_or_a_jog_removes_the_reference(flag):
+    engine, api = limited_engine()
+    api.reference_axes([0, 1])
+    setattr(api, flag, True)   # the last frame still shows the board idle
     api.stop()
     assert api.homed_axes == ()
 
@@ -130,9 +143,91 @@ def test_stop_during_motion_removes_the_reference():
 def test_reset_in_motion_forgets_reference(busy, homed):
     engine, api = limited_engine()
     api.reference_axes([0, 1])
-    api._last_rx = SimpleNamespace(motion_busy=busy)
+    api._last_rx = SimpleNamespace(motion_busy=busy, fifo_free=12000)
     api.push_config()
     assert api.homed_axes == homed
+
+
+def referenced_xyz():
+    engine, api = reversed_x_engine()
+    api.reference_axes([1, 2])
+    assert tuple(sorted(api.homed_axes)) == (0, 1, 2) and any(api._backlash_offset)
+    return engine, api
+
+
+def reference_of(api):
+    return tuple(sorted(api.homed_axes)), tuple(api._backlash_offset), tuple(api._backlash_dir)
+
+
+@pytest.mark.parametrize('end', ['M30', 'M2'])
+def test_a_program_that_ends_normally_keeps_the_reference(end):
+    engine, api = referenced_xyz()
+    before, x = reference_of(api), api.position_mm[0]
+    api.run_gcode(['G0 X20', 'G0 X10', end])   # a reversal in the program, the path drained before the end
+    assert reference_of(api) == before
+    assert api.position_mm[0] == pytest.approx(x)
+
+
+def test_a_stop_request_during_a_dwell_keeps_the_reference():
+    engine, api = referenced_xyz()
+    before = reference_of(api)
+    original, fired = api._usb.poll, []
+
+    def poll():
+        if api._running and not fired:
+            fired.append(1)
+            api.request_stop()   # the 0x85 of the host: nothing streams, the board is stationary
+        return original()
+    api._usb.poll = poll
+    api.run_gcode(['G4 P1', 'M30'])
+    assert fired and reference_of(api) == before
+
+
+def test_a_stop_request_during_an_m0_pause_keeps_the_reference():
+    engine, api = referenced_xyz()
+    before, seen = reference_of(api), []
+
+    def operator(state):
+        if state == State.PAUSED and not seen:
+            seen.append(1)
+            api.request_stop()
+    api.on_state_change(operator)
+    api.run_gcode(['M0', 'G0 X20'])
+    assert seen and reference_of(api) == before
+
+
+def test_a_stop_while_records_are_submitted_removes_the_reference_without_a_program():
+    # a move outside a program: no _running; the last frame is the one from before the first record
+    engine, api = referenced_xyz()
+    api._poll()
+    send, seen = api._usb.send_motion, []
+
+    def send_then_stop(records):
+        send(records)
+        if not seen:
+            api._last_rx = SimpleNamespace(motion_busy=False, fifo_free=12000)   # stale: from before the record
+            api.stop()
+            seen.append(tuple(sorted(api.homed_axes)))
+    api._usb.send_motion = send_then_stop
+    path = api._plan_linear_actions([(1, _MoveAction(True, True, {0: 20.0}, None))], tuple(api._acc.steps))
+    assert not api._running
+    try:
+        api._run_action(path)
+    except EcutError:
+        pass
+    assert seen == [()]
+
+
+def test_estop_polls_nothing_before_the_estop_command():
+    engine, api = referenced_xyz()
+    polls, opcodes = [], []
+    original, send = api._usb.poll, api._usb.cmd
+    api._usb.poll = lambda: polls.append(1) or original()
+    api._usb.cmd = lambda opcode, params=b'': opcodes.append(opcode) or send(opcode, params)
+    api._last_rx = SimpleNamespace(motion_busy=True, fifo_free=12000)
+    api.estop()
+    assert polls == [] and api.homed_axes == ()
+    assert Cmd.ESTOP in opcodes
 
 
 def reversed_x_engine():

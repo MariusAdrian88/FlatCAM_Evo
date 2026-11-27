@@ -43,7 +43,7 @@ ECUT_DISCONNECTED = {'connected': False, 'fresh': False, 'configured': False, 'i
 def _input_text(name):
     """:return: (label, full name) of a GRBL input signal."""
     table = {'X Limit': ('X', _('X Limit')), 'Y Limit': ('Y', _('Y Limit')), 'Z Limit': ('Z', _('Z Limit')),
-             'Probe': ('P', _('Probe')), 'Door': ('D', _('Door')), 'Hold': ('H', _('Hold')),
+             'A Limit': ('A', _('A Limit')), 'Probe': ('P', _('Probe')), 'Door': ('D', _('Door')), 'Hold': ('H', _('Hold')),
              'Reset': ('R', _('Reset')), 'Cycle Start': ('CS', _('Cycle Start')), 'E-stop': ('ES', _('E-stop'))}
     return table.get(name, (name[:2], name))
 
@@ -385,7 +385,7 @@ class SenderIOController:
         if page is None:
             return
         states = self._display()
-        page.update(states)
+        page.set_states(states)
         reason = self.block_reason()
         page.set_outputs_enabled(reason is None, reason or '')
         for name in ACCESSORY:
@@ -533,7 +533,9 @@ class SenderIOController:
             self._clear_pending()
             match = re.search(r'error:\s*(\d+)', text or '')
             if match and match.group(1) == '20':
-                self._live_page().set_output_supported(pending['name'], False)
+                page = self._live_page()
+                if page is not None:
+                    page.set_output_supported(pending['name'], False)
                 self._message(_("The controller does not support this output"))
             else:
                 self._message(text or _("The request failed"), warning=True)

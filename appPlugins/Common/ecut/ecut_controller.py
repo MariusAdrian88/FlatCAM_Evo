@@ -698,6 +698,7 @@ class EcutAPI:
         self._planning_checkpoint: Optional[Callable[[], None]] = None
         # decelerated stop (request_stop): set by the worker only
         self._streaming = False
+        self._submitting = False   # records are in flight (also outside a program), until the drain ends
         self._stop_requested = False
         self._stop_deadline = 0.0
         self.stop_completed = False
@@ -1131,6 +1132,7 @@ class EcutAPI:
         # nothing moves: _shutdown() does not forget the machine reference (_forget_reference_if_moving)
         self._stop_requested = False
         self._running = False
+        self._submitting = False   # the board is stationary: the stop is not abrupt
         try:
             self._shutdown(Cmd.STOP)
             frame = self._wait_idle()
@@ -1707,13 +1709,18 @@ class EcutAPI:
         # the take-up runs as a RUNNING move: a feed hold (pause) or a release brakes it like the jog itself
         self._set_state(State.RUNNING)
         self._running = True
+        takeup_from = self._acc.steps[axis] - self._backlash_offset[axis]
         try:
             self._compensate_jog(axis, direction)
         finally:
             self._takeup_held = None
             self._running = False
         if self._takeup_cut:
-            self._lose_backlash([axis])   # the take-up did not reach its end: the offset is not known
+            # the hold came after the last take-up record: the measured counts are the end of the take-up
+            frame = self._last_rx
+            takeup_end = takeup_from + self._backlash_offset[axis]
+            if frame is None or frame.axis_positions[axis] != takeup_end:
+                self._lose_backlash([axis])   # the take-up did not reach its end: the offset is not known
             if self._state in (State.RUNNING, State.PAUSED):
                 self._set_state(State.IDLE)
             return
@@ -2044,7 +2051,10 @@ class EcutAPI:
 
     def _forget_reference_if_moving(self) -> None:
         # a stop without deceleration can lose steps: home the axes again
-        if self._running or self._jog_active or (self._last_rx is not None and self._last_rx.motion_busy):
+        # _running alone is no evidence: a dwell, an M0 pause and the end of a drained program keep the board still
+        frame = self._last_rx
+        if (self._submitting or self._native_motion_active or self._jog_active or frame is None
+                or frame.motion_busy or frame.fifo_free != 12000):
             self._homed_axes.clear()
             self._clear_backlash()
 
@@ -2497,6 +2507,7 @@ class EcutAPI:
         first_record_time = None
         paused_seconds = 0.0
         self._streaming = in_run  # request_stop() brakes only while records are streamed
+        self._submitting = True
         try:
             while True:
                 if self._stop_deadline_passed():
@@ -2544,6 +2555,7 @@ class EcutAPI:
             self._wait_for_motion(timeout=2.0 + pending_seconds)
         finally:
             self._streaming = False
+            self._submitting = False
 
     def _poll_latest(self) -> Optional[EcutRxFrame]:
         """Read all queued status reports; the newest one tells the real FIFO space."""
@@ -2725,59 +2737,6 @@ class EcutAPI:
     def _move_linear(self, action: _MoveAction) -> None:
         path = self._plan_linear_actions([(0, action)], tuple(self._acc.steps))
         self._run_action(path)
-
-    def _plan_timed(self, total: list[int], rapid: bool, period: float) -> list[list[int]]:
-        """Segment a move so each record covers at most (effective feed x period), with a trapezoidal profile."""
-        cfg = self._config
-        dist = [abs(total[i]) / (cfg.axes[i].steps_per_mm * cfg.interpolation_factor) for i in range(6)]
-        length = math.sqrt(sum(d * d for d in dist))
-        v_limit = math.inf
-        a_limit = math.inf
-        for i in range(6):
-            if dist[i] <= 0:
-                continue
-            u = dist[i] / length
-            ax = cfg.axes[i]
-            if ax.max_velocity_mm_s > 0:
-                v_limit = min(v_limit, ax.max_velocity_mm_s / u)
-            if ax.acceleration_mm_s2 > 0:
-                a_limit = min(a_limit, ax.acceleration_mm_s2 / u)
-        v = v_limit
-        if not rapid:
-            v = min(v, self._feed_mm_min * self._feed_override / 60.0)
-        if not math.isfinite(v) or v <= 0:
-            raise EcutError('Effective feed is zero or no axis velocity limit is configured')
-
-        # trapezoid (triangle when the move is too short to reach v)
-        if math.isfinite(a_limit):
-            if v * v / a_limit >= length:
-                v = math.sqrt(a_limit * length)
-                t_acc, t_cruise = v / a_limit, 0.0
-            else:
-                t_acc = v / a_limit
-                t_cruise = (length - v * v / a_limit) / v
-        else:
-            t_acc, t_cruise = 0.0, length / v
-        t_total = 2 * t_acc + t_cruise
-
-        def travelled(t: float) -> float:
-            if t_acc > 0 and t <= t_acc:
-                return 0.5 * a_limit * t * t
-            if t <= t_acc + t_cruise:
-                return (0.5 * a_limit * t_acc * t_acc if t_acc > 0 else 0.0) + v * (t - t_acc)
-            td = max(0.0, t_total - t)
-            return length - (0.5 * a_limit * td * td if t_acc > 0 else 0.0)
-
-        n = max(1, math.ceil(t_total / period))
-        while True:
-            tau = t_total / n
-            fractions = [min(1.0, max(0.0, travelled(k * tau) / length)) for k in range(1, n + 1)]
-            fractions[-1] = 1.0
-            segments = self._acc.split(total, fractions)
-            worst = max(abs(x) for seg in segments for x in seg)
-            if worst <= INT16_MAX:
-                return segments
-            n = max(n + 1, math.ceil(n * worst / INT16_MAX))
 
     def _poll(self) -> None:
         self.poll()

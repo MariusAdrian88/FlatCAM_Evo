@@ -241,7 +241,8 @@ class EcutGcodeEngine:
         return {'revision': revision, 'interpolation_factor': self.api.config.interpolation_factor,
                 'axes': [{key: int(axis.steps_per_mm) if key == 'steps_per_mm' else getattr(axis, key)
                           for key in keys} for axis in self.api.config.axes[:4]],
-                'motors': copy.deepcopy(self._motor_setup), 'hardware': hardware}
+                'motors': copy.deepcopy(self._motor_setup), 'hardware': hardware,
+                'migrated_a_off': self.api.config.migrated_a_off}
 
     def _require_tuning_idle(self, revision):
         if not isinstance(revision, str) or revision != self.get_motion_settings()['revision']:
@@ -268,6 +269,8 @@ class EcutGcodeEngine:
             for name in _ADDED_HARDWARE_FIELDS:
                 if name in template and name not in values:
                     values[name] = copy.deepcopy(template[name])
+            if 'config_version' in template and 'config_version' not in values:
+                values['config_version'] = 1   # not the default: EcutBoardConfig.from_dict migrates an old file
         if isinstance(values, dict) and isinstance(values.get('outputs'), dict):
             for name in set(values['outputs']) - set(template['outputs']):
                 if name in {f'ENABLE{i}' for i in range(1, 7)}:
@@ -305,7 +308,7 @@ class EcutGcodeEngine:
         hardware = self._validated_hardware(payload.get('hardware', snapshot['hardware']), snapshot['hardware'])
         for key, value in hardware.items():
             if key not in ('axes', 'inputs', 'outputs', 'homing', 'probe', 'spindle', 'safety', 'unverified',
-                           *_ADDED_HARDWARE_FIELDS) and value != snapshot['hardware'][key]:
+                           'config_version', *_ADDED_HARDWARE_FIELDS) and value != snapshot['hardware'][key]:
                 raise GcodeError(3, f'Hardware field {key} is read only')
         axis_fields = {'enabled', 'direction', 'step_pin', 'dir_pin', 'step_port', 'dir_port',
                        'step_active_low', 'dir_active_low', 'backlash_mm', 'backlash_compensation_enabled'}

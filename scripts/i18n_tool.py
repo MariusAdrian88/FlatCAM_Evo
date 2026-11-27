@@ -88,7 +88,8 @@ def extract(root=ROOT):
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
-            if not (isinstance(node.func, ast.Name) and node.func.id == '_'):
+            # _() and N_() (the marker of texts that are translated later, as in grbl_messages.py)
+            if not (isinstance(node.func, ast.Name) and node.func.id in ('_', 'N_')):
                 continue
             if len(node.args) != 1:
                 continue

@@ -1176,6 +1176,24 @@ class TestGrblHalController(unittest.TestCase):
         self.assertIn(b'G4 P0\n', between)
         self.assertEqual(len(releases), 3)
 
+    def test_next_block_press_of_an_ended_stream_does_not_release_the_next_job(self):
+        fake = CheckFake()
+        tool = make_stream_tool(fake, source='G1 X1\nG1 X2\n')
+        tool._grbl_caps = {'manual_tool_change': True}
+        tool._on_single_block(True)
+        tool._step_gate.release()       # a press whose stream ended (Stop, error reply) before the line write
+        written_at_first_wait = []
+
+        def operator():
+            if tool._step_waiting:
+                if not written_at_first_wait:
+                    written_at_first_wait.append(sum(1 for data in fake.written if data.startswith(b'G1')))
+                tool.on_next_block()
+        fake.read_hook = operator
+        tool.on_start()
+        self.assertEqual(ended_how(tool), 'finished')
+        self.assertEqual(written_at_first_wait, [0])    # no line went without a new press
+
     def test_line_limits_reach_the_stream(self):
         long_line = 'G1 X1.' + '0' * 114
         tool_command = '$J=G91 X' + '0' * 110

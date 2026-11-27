@@ -407,6 +407,7 @@ class GrblConsole(QtWidgets.QWidget):
     PROGRAM_BLOCK = 20000   # lines per GUI call when the program text loads
     _program_loaded = 0     # lines already in the document
     _program_generation = 0  # a new set_program stops the running load chain
+    _edit_pending = False   # Edit was clicked while the program still loads: it starts after the last block
 
     def __init__(self, tool, parent=None):
         super().__init__(parent)
@@ -864,6 +865,14 @@ class GrblConsole(QtWidgets.QWidget):
         if lines is self._program_source:
             return
         self._program_source = lines
+        if self._edit_pending:
+            # a new program replaces the one that Edit waited for
+            self._edit_pending = False
+            self.edit_button.blockSignals(True)
+            self.edit_button.setChecked(False)
+            self.edit_button.blockSignals(False)
+            self._restore_edit_status()
+            self.update_edit_controls()
         self.clear_program_selection()
         self._program_count = len(lines)
         self._program_generation += 1
@@ -891,6 +900,8 @@ class GrblConsole(QtWidgets.QWidget):
                 self.update_progress(self._acknowledged, self._program_errors)
         if end < self._program_count:
             QtCore.QTimer.singleShot(0, lambda: self._load_next_block(generation))
+        elif self._edit_pending:
+            self._enter_edit_mode()
 
     def update_progress(self, done, errors=()):
         self._acknowledged = max(0, min(done, self._program_count))
@@ -930,23 +941,40 @@ class GrblConsole(QtWidgets.QWidget):
         if not allowed and self.edit_button.isChecked():
             self.edit_button.setChecked(False)
         self.edit_button.setEnabled(allowed)
-        self.apply_button.setEnabled(allowed and self.edit_button.isChecked())
+        self.apply_button.setEnabled(allowed and self.edit_button.isChecked() and not self._edit_pending)
         self.revert_button.setEnabled(self.tool.__dict__.get('_edited_program') is not None)
 
     def set_edited(self, edited):
         self.edit_status.setText(_("Edited program") if edited else '')
         self.revert_button.setEnabled(edited)
 
+    def _restore_edit_status(self):
+        self.set_edited(self.tool.__dict__.get('_edited_program') is not None)
+
+    def _enter_edit_mode(self):
+        self._edit_pending = False
+        self._restore_edit_status()
+        self.program_view.setReadOnly(False)
+        self.program_view.setUndoRedoEnabled(True)
+        self._progress_selections = []
+        self._highlight_program_selection()
+        self.update_edit_controls()
+
     def _edit_toggled(self, checked):
         if checked:
-            # the whole program must be in the view before it is edited
-            while self._program_loaded < self._program_count:
-                self._load_next_block(self._program_generation)
-            self.program_view.setReadOnly(False)
-            self.program_view.setUndoRedoEnabled(True)
-            self._progress_selections = []
-            self._highlight_program_selection()
+            if self._program_loaded < self._program_count:
+                # the whole program must be in the view before it is edited: the edit mode starts when the load
+                # chain (one block per event loop turn) has loaded the last block
+                self._edit_pending = True
+                self.edit_status.setText(_("Loading the program..."))
+                self.update_edit_controls()
+                return
+            self._enter_edit_mode()
+            return
         else:
+            if self._edit_pending:
+                self._edit_pending = False
+                self._restore_edit_status()
             self.program_view.setReadOnly(True)
             self.program_view.setUndoRedoEnabled(False)
             # an edit that is not applied is dropped: show the program again

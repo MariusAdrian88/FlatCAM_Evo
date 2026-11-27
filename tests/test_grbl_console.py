@@ -657,6 +657,28 @@ class TestGrblConsole(unittest.TestCase):
         self.assertIn('G1 X2', sent)
         self.assertNotIn('G1 X5', sent)
 
+    def test_edit_waits_for_a_program_that_is_still_loading(self):
+        tool = make_stream_tool(CheckFake())
+        console = self.attach_console(tool)
+        console.update_edit_controls()
+        console.set_program(['G1 X%d' % i for i in range(50000)])
+        loaded = console.program_view.document().blockCount()
+        self.assertLess(loaded, 50000)
+        console.edit_button.click()
+        # no synchronous bulk load: the click loads at most 1 more block
+        self.assertLessEqual(console.program_view.document().blockCount(), loaded + console.PROGRAM_BLOCK)
+        self.assertTrue(console.program_view.isReadOnly())
+        self.assertFalse(console.apply_button.isEnabled())
+        self.assertIn('Loading the program', console.edit_status.text())
+        for _ in range(100):
+            if not console.program_view.isReadOnly():
+                break
+            _qapp.processEvents()
+        self.assertFalse(console.program_view.isReadOnly())
+        self.assertEqual(console.program_view.document().blockCount(), 50000)
+        self.assertTrue(console.apply_button.isEnabled())
+        self.assertEqual(console.edit_status.text(), '')
+
     def test_edit_is_refused_during_an_operation(self):
         tool = make_stream_tool(CheckFake())
         console = self.attach_console(tool)
@@ -2614,6 +2636,33 @@ class TestActionRules(unittest.TestCase):
             tool._on_pendant_request('jog', {'direction': 'xplus', 'step': 1.0}, tool._pendant_generation, session)
             self.assertEqual(fake.written, [])
 
+    def pendant_zero_tool(self, axes):
+        from appPlugins.Common.grbl.grbl_protocol import parse_grbl_status_report
+        tool, fake = self.zero_tool({}, mpos=(1.0, 2.0, 3.0))
+        tool._grbl_caps = {'axes': axes}
+        tool.app.options['tools_grbl_pendant_motion'] = True
+        self.situation(tool, 'idle')
+        tool._pendant = MagicMock()
+        tool._pendant_data = {}
+        mpos = '1.000,2.000,3.000' + (',4.000' if axes == 'XYZA' else '')
+        tool._pendant_report(parse_grbl_status_report('<Idle|MPos:%s|FS:0,0>' % mpos))
+        return tool, fake
+
+    def test_pendant_zero_a_needs_an_a_axis(self):
+        tool, fake = self.pendant_zero_tool('XYZ')
+        self.assertNotIn('A', tool._pendant_snapshot()['axes'])
+        for axis in ('a', 'all'):
+            tool._on_pendant_request('zero', {'axis': axis}, tool._pendant_generation)
+        writes = self.zero_writes(fake)
+        self.assertEqual(1, len(writes))        # 'all' zeroes XYZ; 'a' writes nothing
+        self.assertNotIn('A', writes[0].replace('G10', ''))
+        tool, fake = self.pendant_zero_tool('XYZA')
+        self.assertIn('A', tool._pendant_snapshot()['axes'])
+        tool._on_pendant_request('zero', {'axis': 'a'}, tool._pendant_generation)
+        writes = self.zero_writes(fake)
+        self.assertEqual(1, len(writes))
+        self.assertIn('A0', writes[0])
+
 
 
 class TestIOPage(unittest.TestCase):
@@ -2624,7 +2673,7 @@ class TestIOPage(unittest.TestCase):
         page.set_signals([('limit_x', 'X', 'X limit')], [('flood', 'F', 'Flood'), ('mist', 'M', 'Mist')])
         page.set_outputs_enabled(True)
         page.show()
-        page.update({'flood': (True, '', 'readback'), 'mist': (None, 'no report', ''),
+        page.set_states({'flood': (True, '', 'readback'), 'mist': (None, 'no report', ''),
                      'limit_x': (False, '', 'readback')})
         requests = []
         page.output_requested.connect(lambda name, wanted: requests.append((name, wanted)))

@@ -4366,8 +4366,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.set_work_position({axis: value})
 
     def on_grbl_zero(self, axis):
+        has_a = axis in ('a', 'all') and (self._grbl_caps or {}).get('axes') == 'XYZA'
+        if axis == 'a' and not has_a:
+            self.app.log.warning("Zero A refused: the controller has no A axis.")
+            return
         axes = {'x': ('X',), 'y': ('Y',), 'z': ('Z',), 'a': ('A',)}.get(axis, ('X', 'Y', 'Z'))
-        if axis == 'all' and (self._grbl_caps or {}).get('axes') == 'XYZA':
+        if axis == 'all' and has_a:
             axes += ('A',)
         self.set_work_position({letter: 0.0 for letter in axes})
 
@@ -6787,6 +6791,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._progress_latest = (program_done(done), len(lines))
 
         rx_size, max_line = self._line_limits()
+        if self._step_gate is not None:
+            self._step_gate.reset()     # a press of an ended stream (Stop, error) must not release this one
         res = stream_lines(
             program, write, readline, rx_size=rx_size, max_line=max_line, check_mode=check_mode,
             on_progress=on_progress,
@@ -7136,6 +7142,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             'wpos': None if work is None or scale is None else list(scale_position(work, scale)),
             'mpos': None if machine is None or scale is None else list(scale_position(machine, scale)),
             'motion': bool(self.app.options.get('tools_grbl_pendant_motion', False)),
+            'axes': (self._grbl_caps or {}).get('axes') or 'XYZ',
             'report_time': self._pendant_now()}
         values.update(self._pendant_recovery(self._machine_situation()))
         if ov is not None:

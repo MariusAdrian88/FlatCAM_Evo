@@ -16,6 +16,32 @@ def motion_engine(tmp_path):
     return module.EcutGcodeEngine(api, tmp_path / 'machine.json'), api
 
 
+def test_a_file_of_a_released_version_loads_with_axis_a_off(tmp_path):
+    engine, api = motion_engine(tmp_path)
+    engine.save_motion_settings(engine.get_motion_settings())
+    data = json.loads(engine.settings_path.read_text())
+    data['machine'].pop('config_version', None)    # saved when the default had all six axes on
+    data['machine']['axes'][3]['enabled'] = True
+    engine.settings_path.write_text(json.dumps(data))
+    module = importlib.import_module('appPlugins.Common.ecut.ecut_gcode_engine')
+    restored = module.EcutGcodeEngine(pwm_api(), engine.settings_path)
+    assert not restored.api.config.axes[3].enabled
+    assert restored.get_motion_settings()['migrated_a_off']
+    with pytest.raises(Exception):
+        restored.execute_line('G1 A6 F600')        # refused like a disabled A
+
+
+def test_axis_a_chosen_by_the_user_survives_a_save_and_a_reload(tmp_path):
+    engine, api = motion_engine(tmp_path)
+    payload = engine.get_motion_settings()
+    payload['hardware']['axes'][3]['enabled'] = True
+    engine.save_motion_settings(payload)
+    module = importlib.import_module('appPlugins.Common.ecut.ecut_gcode_engine')
+    restored = module.EcutGcodeEngine(pwm_api(), engine.settings_path)
+    assert restored.api.config.axes[3].enabled
+    assert not restored.get_motion_settings()['migrated_a_off']
+
+
 @pytest.mark.parametrize('name', ['ENABLE1', 'ENABLE6'])
 def test_enable_output_alias_save_materializes_defaults_and_survives_reload(tmp_path, name):
     from appPlugins.Common.ecut.ecut_controller import encode_config

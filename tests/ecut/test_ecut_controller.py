@@ -90,6 +90,17 @@ def test_enabled_mpg_refuses_a_setting_that_is_not_sent(field, value):
     ecut_controller.encode_config(cfg)
 
 
+@pytest.mark.parametrize('value', [-1, 0x100000000, 1.5, '5', True, None])
+def test_mpg_port_select_outside_the_wire_range_is_refused(value):
+    from appPlugins.Common.ecut.ecut_config import EcutConfigError
+    cfg = EcutBoardConfig()
+    cfg.mpg.port_select = value
+    with pytest.raises(EcutConfigError, match='port_select'):
+        cfg.validate()
+    cfg.mpg.port_select = 0xFFFFFFFF
+    cfg.validate()
+
+
 def test_mpg_switch_sends_config():
     cfg = EcutBoardConfig()
     cfg.mpg.enabled = True
@@ -126,6 +137,27 @@ def test_axis_a_is_off_by_default_and_a_saved_value_is_kept():
     config = EcutBoardConfig()
     config.axes[3].enabled = True
     assert EcutBoardConfig.from_dict(config.to_dict()).axes[3].enabled
+
+
+def test_a_configuration_without_the_version_marker_loads_with_axis_a_off():
+    old = EcutBoardConfig().to_dict()
+    old.pop('config_version', None)               # saved by a version where all six axes were on
+    old['axes'][3]['enabled'] = True
+    config = EcutBoardConfig.from_dict(old)
+    assert not config.axes[3].enabled and config.migrated_a_off
+    old['config_version'] = 1
+    assert not EcutBoardConfig.from_dict(old).axes[3].enabled
+
+
+def test_a_configuration_with_the_marker_keeps_axis_a_and_a_saved_one_keeps_the_marker():
+    config = EcutBoardConfig()
+    config.axes[3].enabled = True
+    saved = config.to_dict()
+    assert saved['config_version'] >= 2
+    loaded = EcutBoardConfig.from_dict(saved)
+    assert loaded.axes[3].enabled and not loaded.migrated_a_off
+    assert loaded.to_dict()['config_version'] == saved['config_version']
+    assert not EcutBoardConfig.from_dict({}).migrated_a_off      # nothing was on: nothing changed
 
 
 def test_step_conversion():

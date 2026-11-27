@@ -33,6 +33,7 @@ NATIVE_OUTPUT_COUNT = 8
 LABEL_MAX_LENGTH = 32
 SOFT_LIMIT_TOLERANCE_MAX_MM = 1.0
 BACKLASH_MAX_MM = 1.0
+CONFIG_VERSION = 2   # 2: axis A is off by default
 
 
 class EcutConfigError(EcutError, ValueError):
@@ -446,12 +447,15 @@ class EcutBoardConfig:
     # Operator names of the 16 native inputs I0..I15 and the 8 outputs O0..O7; empty = no name.
     input_labels: list[str] = field(default_factory=lambda: [''] * NATIVE_INPUT_COUNT)
     output_labels: list[str] = field(default_factory=lambda: [''] * NATIVE_OUTPUT_COUNT)
+    # not saved: a configuration of an older version had axis A on and from_dict turned it off
+    migrated_a_off: bool = field(default=False, compare=False, repr=False)
 
     def __post_init__(self):
         check_interpolation_index(self.interpolation_index)
 
     def to_dict(self) -> dict:
         return {
+            'config_version': CONFIG_VERSION,
             'vid': self.vid,
             'pid': self.pid,
             'interpolation_index': self.interpolation_index,
@@ -516,6 +520,10 @@ class EcutBoardConfig:
             cfg.safety = SafetyConfig.from_dict(d['safety'])
         if 'unverified' in d:
             cfg.unverified = UnverifiedConfig.from_dict(d['unverified'])
+        # version 1 (no marker) had all six axes on by default: axis A is now off until the user turns it on
+        if d.get('config_version', 1) < CONFIG_VERSION and len(cfg.axes) > 3 and cfg.axes[3].enabled:
+            cfg.axes[3].enabled = False
+            cfg.migrated_a_off = True
 
         return cfg
 
@@ -532,6 +540,9 @@ class EcutBoardConfig:
         if (not isinstance(self.soft_limit_tolerance_mm, (int, float)) or isinstance(self.soft_limit_tolerance_mm, bool)
                 or not 0 <= self.soft_limit_tolerance_mm <= SOFT_LIMIT_TOLERANCE_MAX_MM):
             raise EcutConfigError(f'Soft limit tolerance must be 0..{SOFT_LIMIT_TOLERANCE_MAX_MM} mm')
+        port = self.mpg.port_select
+        if type(port) is not int or not 0 <= port <= 0xFFFFFFFF:
+            raise EcutConfigError('MPG port_select must be an integer 0..4294967295')
         if self.mpg.enabled:
             # only port_select has a verified place in the 9B report
             defaults = MPGConfig()

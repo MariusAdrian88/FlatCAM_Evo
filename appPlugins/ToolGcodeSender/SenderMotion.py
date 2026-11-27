@@ -553,7 +553,8 @@ class EcutMotionDialog(QtWidgets.QDialog):
                 else:
                     self.hardware_tabs.load_settings(snapshot['hardware'])
             self._baseline = self.values()
-            self.status_label.setText('')
+            self.status_label.setText(
+                _('Axis A is now off. Turn it on if the machine has an A axis.') if snapshot.get('migrated_a_off') else '')
             self._calibration_axis_changed()
         finally:
             self._loading = False

@@ -73,12 +73,12 @@ input { width:100%; font-size:18px; padding:8px; border-radius:6px; border:0; }
     <button data-j="xminus">X-</button><button data-z="all">Zero all</button>
     <button data-j="xplus">X+</button><button data-j="zminus">Z-</button>
     <button data-j="xminus_yminus">X- Y-</button><button data-j="yminus">Y-</button>
-    <button data-j="xplus_yminus">X+ Y-</button><button data-j="aplus">A+</button>
+    <button data-j="xplus_yminus">X+ Y-</button><button data-j="aplus" class="aonly">A+</button>
     <button data-z="x">Zero X</button><button data-z="y">Zero Y</button>
-    <button data-z="z">Zero Z</button><button data-j="aminus">A-</button>
+    <button data-z="z">Zero Z</button><button data-j="aminus" class="aonly">A-</button>
   </div>
   <div class="row" style="margin-top:8px">
-    <button data-z="a">Zero A</button>
+    <button data-z="a" class="aonly">Zero A</button>
     <button data-a="home">Home</button>
   </div>
 </div>
@@ -133,6 +133,8 @@ function show(s) {
   $('ovs').textContent = 'Feed ' + (s.feed_ov == null ? '-' : s.feed_ov) + '%  Rapid ' +
     (s.rapid_ov == null ? '-' : s.rapid_ov) + '%  Spindle ' + (s.spindle_ov == null ? '-' : s.spindle_ov) + '%';
   $('motion').style.display = s.motion === true ? 'block' : 'none';
+  var hasA = (s.axes || '').indexOf('A') >= 0, aOnly = document.querySelectorAll('.aonly');
+  for (var k = 0; k < aOnly.length; k++) { aOnly[k].style.visibility = hasA ? 'visible' : 'hidden'; }
 }
 var polling = false;
 function poll() {

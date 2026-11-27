@@ -34,6 +34,12 @@ G-code Sender:
 - fixed: the text of the grblHAL error 73 ("argument", not "argrument")
 - changed: a job with an A word gets a time estimate where the rule of the controller is known: the E-Cut (F along the XYZ path, an A-only move in degrees/min also in G20, the A max velocity caps A) and a 4-axis grblHAL (the rotary fix and the inch revert of $701, else RF in $I; A is rotary by $376; $113 caps A; a G0 takes the slower of XYZ and A); the Sender reads $376 and $701 with `$+` at the connect and after a console or button write of $113, $376, $701 or $RST; an unknown rule or setting keeps no estimate (--:--:--)
 - fixed: a Configuration page write of $110, $111 or $113 updates the rates of the time estimate; a failed readback leaves them unknown
+- fixed: the error, alarm and setting texts of the GRBL messages (N_ marker) reach the translation template; grblHAL texts: the A axis settings ($103, $113, $123, $133 in degrees), backlash ($160+), dual axis offset ($170+), $43 "Homing passes", $60, $65, $7, $9 from the grblHAL source
+- fixed: the pendant shows A controls only for an A axis, and a Zero A on a 3-axis controller writes nothing; Zero All adds A only on XYZA
+- fixed: single block: a Next block press of a stream that ended (Stop, error) does not release the first line of the next job
+- fixed: the IO tab shows the A limit input of a controller with an A axis
+- fixed: Edit on a program that still loads waits for the last block instead of loading all blocks in one GUI call
+- fixed: the machine profile report of a worker thread reaches the GUI thread also when the module is first imported off the GUI thread
 
 E-Cut controller:
 
@@ -49,6 +55,10 @@ E-Cut controller:
 - fixed: a continuous jog checks its feed before any motion; the backlash take-up of a reversing jog brakes on a feed hold or a release like the jog itself
 - fixed: the feed override also slows a move whose records have no counts for a long time (a slow rotary axis); the time line advances by the override share
 - fixed: the raw run_gcode API keeps a pure A move in degrees/min in G20; a move with a real X, Y or Z displacement still converts the inch feed (G20 X0 A10 at X0 is a pure A move)
+- fixed: the end of a program (M2, M30), a Stop during a dwell or an M0 pause keep the machine reference and the backlash offsets; the reference is cleared only when records are in flight, a native move or a jog runs, or the last frame shows motion
+- fixed: a hold at the end of the backlash take-up of a jog keeps the offset when the board reached the take-up end
+- fixed: a configuration saved by an older version loads with axis A off (the old default enabled all axes); the hardware dialog says so; a new configuration keeps the A setting of the user
+- fixed: an MPG port select outside 0..4294967295 is refused with a configuration error; the unused timed planner is removed
 
 Welcome screen and recent files:
 
