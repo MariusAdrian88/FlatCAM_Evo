@@ -6,6 +6,32 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+27.11.2026
+
+G-code Sender:
+
+- fixed: Stop and E-Stop start their deadline at the press: if the brake task does not hold the port 2 s after the press (busy workers), the reset is written at once, and 7 s after the press it is written in any case; one reset byte per request
+- fixed: Close, uninstall and the shutdown of the client stop the automatic reconnect
+- fixed: the time label goes on while no line is acknowledged (a long move, a dwell, a hold) and follows a feed override
+- fixed: a continuous jog keeps its held button enabled (also the A buttons), so the jog does not stop while the button is held
+- fixed: host tool change: the job start keeps A on a 4-axis controller and Resume returns to it; M6, M06, M6.0 and M06.0 are one word for the Send / Skip / Pause policy and the stream; a feed is needed only where the re-entry has a feed move (the plunge, or a feed motion before an F word), and an unknown feed is refused like F0
+- fixed: a Fixed-plate Apply that keeps the height map keeps the levelled job and its tool change pause bound to it, so Resume works; another map change still refuses Resume
+- fixed: "Set zero from result" is refused after a change of the report units ($13) after the probe
+- fixed: a user button goes through the same setting handling as the console ($13, $RST and $10 are read back, the WCS is read back); a spindle, coolant or aux word of a console command or a button makes the IO page states unknown
+- fixed: a pendant request is bound to the machine session (port, safety generation, units) when it comes in and is dropped after a change; the jog step limit is checked again when the jog runs
+- fixed: the pendant server has a 10 s client read timeout and at most 16 open connections
+- fixed: the Import and Export buttons of the user buttons open their file dialog
+- fixed: a file error in Save or Load of the Configuration page shows a message and keeps the table
+
+E-Cut controller:
+
+- fixed: a decelerated Stop checks its 5 s deadline while the braking records are made and while the stream waits for FIFO space; at the deadline the stop is abrupt (STOP, reference cleared); before, a slow deceleration could stream braking records for 14 s
+- fixed: the G94 feed with the A axis follows the LinuxCNC rule: if X, Y or Z moves, F is the speed along the XYZ path and A ends with it; only a move of A alone takes F in degrees/min; "moves" means a real displacement, so G20 G1 X0 Y0 Z0 A10 F60 is a pure A move; the A limits still cap the move
+- fixed: G90 G0 A0 after a continuous jog moves A back: the engine decides which axes to write from the measured position
+- fixed: an identical configuration push keeps the backlash offset of each axis whose counts stay (homed or not), so the logical position of an unhomed axis does not shift
+- fixed: a probe with backlash targets the requested logical position, and the soft limit check of a native move and its board bounds use logical coordinates
+- fixed: an enabled MPG refuses a method, reverse, x1/x10/x100 or lock pin setting that is not the default; only the port select has a known place in the board configuration
+
 26.11.2026
 
 G-code Sender IO and camera:
