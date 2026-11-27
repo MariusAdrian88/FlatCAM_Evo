@@ -98,13 +98,13 @@ def recent_files(app, key):
         filename, kind = record.get('filename'), record.get('kind')
         if not isinstance(filename, str) or not filename or not isinstance(kind, str):
             continue
-        if not os.path.isfile(filename):
-            continue
         kind = kind.lower()
         kind = {'sprint_lay6': 'sprint_layout', 'hpgl': 'hpgl2'}.get(kind, kind)
         if kind == 'geometry':
             kind = {'.plt': 'hpgl2', '.svg': 'svg', '.dxf': 'dxf'}.get(os.path.splitext(filename)[1].lower())
-        if kind == key and recent_path_key(filename) not in seen:
+        if kind != key or not os.path.isfile(filename):
+            continue
+        if recent_path_key(filename) not in seen:
             seen.add(recent_path_key(filename))
             result.append(filename)
             if len(result) == 5:

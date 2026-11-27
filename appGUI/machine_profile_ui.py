@@ -47,7 +47,7 @@ def set_status_dot(app, state, tip=''):
     dot.setToolTip(tip or _("Machine profile: no check yet"))
 
 
-_LAST = {'result': None, 'dialog': None}      # the last check result and the open violations dialog
+_LAST = {'result': None, 'dialog': None, 'report': object()}
 MARKER_RADIUS_MM = 1.0
 
 
@@ -268,7 +268,8 @@ def _layout_of(layout, widget):
 
 def report_gate(app, gate):
     """Show the result of a file check (a FileGate) in the dot: green checked, yellow warnings, red rejected."""
-    _LAST['result'] = gate.result
+    report = object()
+    _LAST.update(result=gate.result, report=report)
     if getattr(getattr(app, 'ui', None), 'machine_profile_dot', None) is None:
         return      # stub apps have no status bar
     if app.headless is True:
@@ -276,22 +277,22 @@ def report_gate(app, gate):
     qt_app = QtCore.QCoreApplication.instance()
     if qt_app is not None and QtCore.QThread.currentThread() is not qt_app.thread():
         # a Tcl command or a job runs on a worker thread: the dot and the dialog belong to the GUI thread
-        _gate_bridge().reported.emit(app, gate)
+        _gate_bridge().reported.emit(app, gate, report)
         return
-    _show_gate(app, gate)
+    _show_gate(app, gate, report)
 
 
 class _GateBridge(QtCore.QObject):
     """Carries a file check result from a worker thread to the GUI thread (this object lives in the GUI thread)."""
-    reported = QtCore.pyqtSignal(object, object)
+    reported = QtCore.pyqtSignal(object, object, object)
 
     def __init__(self):
         super().__init__()
         self.reported.connect(self.on_reported)
 
-    @QtCore.pyqtSlot(object, object)
-    def on_reported(self, app, gate):
-        _show_gate(app, gate)
+    @QtCore.pyqtSlot(object, object, object)
+    def on_reported(self, app, gate, report):
+        _show_gate(app, gate, report)
 
 
 def _make_gate_bridge():
@@ -316,8 +317,10 @@ def _gate_bridge():
         return _GATE_BRIDGE
 
 
-def _show_gate(app, gate):
+def _show_gate(app, gate, report):
     """The GUI part of report_gate(): only on the GUI thread."""
+    if report is not _LAST['report']:
+        return      # a newer report arrived before this queued display
     name = app.options.get('global_machine_profile')
     if not name or name == RESERVED_NAME:
         set_status_dot(app, 'none')

@@ -40,6 +40,16 @@ G-code Sender:
 - fixed: the IO tab shows the A limit input of a controller with an A axis
 - fixed: Edit on a program that still loads waits for the last block instead of loading all blocks in one GUI call
 - fixed: the machine profile report of a worker thread reaches the GUI thread also when the module is first imported off the GUI thread
+- fixed: a grblHAL manual tool change rechecks the first move after the M6 also when the controller acknowledges the M6 before the tool change reply
+- fixed: Set work position with an inch controller and a mm display keeps the mm precision (0.10 mm no longer becomes X0)
+- fixed: a user button that selects a WCS and then fails, and a compact N10G55, show the WCS that the controller reports
+- fixed: single block: Off and On again while the stream waits on a line offers that line again (Next block is available)
+- fixed: a host tool change pause names the tool also when the T word is on a line before the M6
+- fixed: the time estimate adds a full circle for each arc turn of P (G2/G3 P3 takes 3 turns); a P that is not a whole number gives no time for the arc
+- fixed: for the E-Cut, the time estimate counts an X, Y or Z move below half a board count as an A-only move, like the engine
+- fixed: the pendant greys the positions and shows "No live status" when no status came for 3 s, also while a status request hangs
+- fixed: closing an offline simulation removes the simulated state and position from the status strip and the 3D view
+- fixed: Load settings reads a file with a UTF-8 byte-order mark; before, the first setting was lost
 
 E-Cut controller:
 
@@ -59,15 +69,30 @@ E-Cut controller:
 - fixed: a hold at the end of the backlash take-up of a jog keeps the offset when the board reached the take-up end
 - fixed: a configuration saved by an older version loads with axis A off (the old default enabled all axes); the hardware dialog says so; a new configuration keeps the A setting of the user
 - fixed: an MPG port select outside 0..4294967295 is refused with a configuration error; the unused timed planner is removed
+- fixed: G20 with A: a move whose X, Y and Z change no board count is a pure A move in the engine and in the controller, so G20 G1 X.0000001 A10 F60 no longer runs 25.4x faster
+- fixed: a manual reference needs a configured board: the board must report its configuration before and after the new counts
+- fixed: the probe record ($# PRB) is cleared when the machine coordinates are set again (a reference, a home cycle, a new configuration)
+- fixed: a feed override change after the upload of a prepared program no longer makes the program stale; the status shows the real override during the program; an override above 100 % that is set before the program runs at 100 % (with a message) and comes back after the program
 
 Welcome screen and recent files:
 
 - fixed: a good project save puts the project at the top of the recent projects (the Welcome screen and the menu), with or without the preference "Open" behavior; before, a save with that preference checked did not update the history
 - fixed: the Welcome screen does not show recent files that are no longer on the disk; it checks the history again each time it opens
+- fixed: the Welcome screen checks the disk only for the recent files of the selected type, so an unavailable network share of another type does not delay it
+- fixed: with the preference "Open" behavior, a project save does not change the folder of the next Open; the save still updates the recent projects and the OS recent list
+
+Projects:
+
+- fixed: a saved project no longer holds application settings in the tool data (the web pendant token, the console history): new Geometry tools take only project options, and the save removes them from older tool data
 
 Machine Profiles:
 
 - fixed: a G-code write that the machine profile refuses (Tcl write_gcode, a script) could crash the application: the check result changed the status dot and opened the violations dialog on a worker thread; it now goes to the GUI thread; a headless run shows no dot and no dialog, the refusal text is the feedback
+- fixed: an older check result that waits in the queue no longer turns the dot green over a newer warning
+
+Translations:
+
+- changed: the translation template (strings.pot) is made again with the new texts
 
 Preferences:
 

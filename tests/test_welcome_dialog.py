@@ -164,14 +164,24 @@ def test_child_selection_restores_details_and_keyboard_activation_opens_its_file
     assert opened == [('import_svg', (str(filename), 'geometry'))]
 
 
-def test_recent_files_match_type_limit_and_survive_bad_history(welcome, tmp_path):
+def test_recent_files_match_type_limit_and_survive_bad_history(welcome, tmp_path, monkeypatch):
+    import os
+
     dialog, app, opened = welcome
+    unrelated = r'\\offline-server\share\other.gbr'
+    isfile = os.path.isfile
+
+    def check_file(path):
+        assert path != unrelated, 'Unrelated network files must not be probed'
+        return isfile(path)
+
+    monkeypatch.setattr(os.path, 'isfile', check_file)
     paths = [str(tmp_path / ('board%d.lay6' % n)) for n in range(8)]
     for path in paths:
         with open(path, 'w', encoding='utf-8') as stream:
             stream.write('data')
     app.recent = [None, 'broken', {}, {'kind': 'sprint_lay6', 'filename': 42},
-                  {'kind': 'gerber', 'filename': 'other.gbr'}] + [
+                  {'kind': 'gerber', 'filename': unrelated}] + [
                       {'kind': 'sprint_lay6', 'filename': name} for name in paths]
     dialog.select('sprint_layout')
     assert dialog.recent_list.count() == 5

@@ -24,7 +24,7 @@ from camlib import (voronoi_path_signature, Geometry, flatten_shapely_geometry, 
                     buffer_geometry_many, scale_geometries_by_center)
 from appCommon.SafeEval import safe_eval
 from appCommon.ExclusionZones import copy_zones
-from defaults import AppDefaults
+from defaults import AppDefaults, is_project_key
 
 import shapely
 
@@ -407,7 +407,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         for key in self.app.options:
             if key.startswith('geometry_'):
                 data[key[len('geometry_'):]] = deepcopy(self._app_option(key))
-            elif key.startswith('tools_'):
+            elif key.startswith('tools_') and is_project_key(key):
                 data[key] = deepcopy(self._app_option(key))
         try:
             tooldia = first_tool_dia(self._app_option('tools_mill_tooldia'))

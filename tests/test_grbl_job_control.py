@@ -1115,6 +1115,90 @@ class TestGrblHalController(unittest.TestCase):
         self.assertLess(start, motion)
         self.assertTrue(any('Cycle Start' in text for text in emitted(tool)))
 
+    def test_manual_m6_rechecks_immediate_move_in_either_ack_order(self):
+        for early in (False, True):
+            with self.subTest(early=early):
+                fake = ToolChangeFake()
+                tool = make_stream_tool(fake, source='G21\nM6\nG0 Z10\nG0 X1\n')
+                tool._grbl_caps = {'manual_tool_change': True}
+                write = fake.write
+
+                def reply(data):
+                    if early and data == b'~' and fake.tool_waiting:
+                        fake.written.append(data)
+                        fake.tool_waiting = False
+                        fake.state = 'Idle'
+                    else:
+                        write(data)
+                        if early and data == b'\xa3':
+                            fake._send('ok')
+
+                checked = []
+
+                def operator():
+                    if fake.tool_waiting and tool._grbl_tool_change_pending and not checked:
+                        checked.append(tool._tool_resume['text'].splitlines()[0])
+                        tool._controller_state = 'Tool'
+                        tool._on_resume_button()
+
+                fake.write = reply
+                fake.read_hook = operator
+                # Set the setup before Sender builds its stream callbacks, not inside stream_lines.
+                prepare = tool._grbl_stream_run
+                def with_setup(*args, **kwargs):
+                    tool._stream_setup = type('Setup', (), {'tlo': 0.0})()
+                    return prepare(*args, **kwargs)
+                tool._grbl_stream_run = with_setup
+                tool.on_start()
+                self.assertEqual(checked, ['G0 Z10'])
+
+    def test_work_position_preserves_mm_precision_in_inch_mode(self):
+        fake = CheckFake(replies={'$G': ['[GC:G0 G54 G17 G20 G90 G94 M5 M9 T0 F0 S0]', 'ok']})
+        tool = make_stream_tool(fake)
+        tool.units = 'MM'
+        tool.app.decimals = 2
+        tool.set_work_position({'X': 0.10})
+        cmd = next(cmd for cmd in fake.commands() if cmd.startswith('G10 L20 '))
+        self.assertAlmostEqual(float(cmd.split('X')[1]) * 25.4, 0.10, places=3)
+
+    def test_macro_displays_acknowledged_wcs_even_after_error(self):
+        for select, fails in (('N10G55', False), ('G55', True)):
+            with self.subTest(select=select, fails=fails):
+                fake = CheckFake(replies={'G1 X1': ['error:2']})
+                tool = make_stream_tool(fake)
+                commands = fake._answer
+
+                def reply(cmd):
+                    if cmd == select:
+                        fake.replies['$G'] = ['[GC:G0 G55 G17 G21 G90 G94 M5 M9 T0 F0 S0]', 'ok']
+                    commands(cmd)
+
+                fake._answer = reply
+                tool.run_macro([select, 'G1 X1'] if fails else [select])
+                tool._show_active_wcs()
+                tool.ui.status_strip.set_wcs.assert_called_with('G55')
+
+    def test_single_block_rapid_toggle_reoffers_same_line(self):
+        fake = CheckFake()
+        tool = make_stream_tool(fake, source='G1 X1\n')
+        tool._on_single_block(True)
+        polls = []
+
+        def operator():
+            if not polls and tool._step_waiting:
+                polls.append(True)
+                tool._on_single_block(False)
+                tool._on_single_block(True)
+            elif polls and tool._step_waiting:
+                tool._controller_state = 'Idle'
+                tool.on_next_block()
+            elif polls and 'G1 X1' not in fake.commands():
+                fake._send('ALARM:1')
+
+        fake.read_hook = operator
+        tool.on_start()
+        self.assertEqual(ended_how(tool), 'finished')
+
     def test_single_block_and_hold_are_separate(self):
         # (a) Hold, then Next block: nothing is written; Resume writes ~; then Next block writes 1 line
         # (b) an M0 line: the controller is in Hold; Resume writes ~, Next block writes the next line
@@ -1769,12 +1853,15 @@ class TestAAxisRule(unittest.TestCase):
 
     def test_ecut_rule_has_the_limits_of_the_config(self):
         tool, fake = self.make()
-        settings = {'axes': [{}, {}, {}, {'max_velocity_mm_s': 10.0}], 'hardware': {'axes': [{}, {}, {}, {'enabled': True}]}}
+        settings = {'axes': [{}, {}, {}, {'max_velocity_mm_s': 10.0}], 'interpolation_factor': 32,
+                    'hardware': {'axes': [{'steps_per_mm': 80.0}, {'steps_per_mm': 100.0}, {'steps_per_mm': 400.0},
+                                          {'enabled': True}]}}
         for name in ('save_motion_settings', 'calibration_move', 'get_io_state', 'set_manual_output'):
             setattr(fake, name, MagicMock())
         fake.get_motion_settings = lambda: settings
         rule = tool._a_axis_rule()
-        self.assertEqual((rule.kind, rule.a_max_deg_min, rule.a_rapid_deg_min), ('ecut', 600.0, 600.0))
+        self.assertEqual((rule.kind, rule.a_max_deg_min, rule.a_rapid_deg_min, rule.xyz_counts_per_mm),
+                         ('ecut', 600.0, 600.0, (2560.0, 3200.0, 12800.0)))
         settings['hardware']['axes'][3]['enabled'] = False
         self.assertIsNone(tool._a_axis_rule())
 
@@ -1928,6 +2015,17 @@ class TestJobEstimate(unittest.TestCase):
         slow = ARule('ecut', 600.0, 600.0)
         for lines in (['G21', 'G1 A90 F6000'], ['G21', 'G1 X10 A90 F60000'], ['G21', 'G0 X60 A90'], ['G21', 'G0 A90']):
             self.assertAlmostEqual(self.total(lines, slow, rapid=60000.0), 9.0, delta=0.18, msg=lines)
+        # an X move below half a board count changes no count: the engine moves A alone, F in deg/min
+        counted = ARule('ecut', 60000.0, 60000.0, xyz_counts_per_mm=(2560.0, 2560.0, 2560.0))
+        for lines, engine in ((['G20', 'G1 X.0000001 A90 F600'], 9.0), (['G20', 'G1 X1 A90 F60'], 1.0)):
+            self.assertAlmostEqual(self.total(lines, counted, rapid=60000.0), engine, delta=engine * 0.02, msg=lines)
+
+    def test_arc_turns_add_full_circles(self):
+        # a full circle of radius 1 mm at F60: 2 pi s per turn; a P that is not a whole number >= 1 is not read
+        import math
+        for turns, seconds in (('', 2 * math.pi), (' P1', 2 * math.pi), (' P3', 6 * math.pi), (' P2.5', 0.0)):
+            self.assertAlmostEqual(self.total(['G21', 'G2 X0 Y0 I1 J0%s F60' % turns], None), seconds, places=3,
+                                   msg=turns)
 
     def test_time_label_and_end_message(self):
         tool = make_stream_tool(CheckFake(), source=gcode(5))

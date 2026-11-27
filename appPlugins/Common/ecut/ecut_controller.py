@@ -1036,6 +1036,8 @@ class EcutAPI:
         if not self._initialized or self._jog_active:
             raise EcutError('Reference requires an initialized, stopped board')
         frame = self._wait_idle()
+        if not frame.configured:
+            raise EcutError('Reference requires a configured board')
         target = list(frame.axis_positions)
         for axis in axes:
             value = self._config.homing[axis].home_offset_mm * self._axis_scale(axis)
@@ -1045,6 +1047,7 @@ class EcutAPI:
         for axis in axes:
             self._homed_axes.discard(axis)
         self._clear_backlash(axes)   # the board counts are set new
+        self._last_probe_result = None
         packet =bytearray(build_tx_packet(Cmd.SET_POSITION, bytes(32) + b'\x00\x3f'))
         struct.pack_into('>6i', packet, 6, *target)
         self._usb.cmd(packet[1], bytes(packet[2:]))
@@ -1052,6 +1055,8 @@ class EcutAPI:
         end = time.monotonic() + 1.0
         while True:
             frame = self._wait_idle()
+            if not frame.configured:
+                raise EcutError('Board no longer configured; axes stay unreferenced')
             if frame.axis_positions == tuple(target):
                 break
             if time.monotonic() >= end:
@@ -1654,6 +1659,7 @@ class EcutAPI:
         if not self._running or self._state != State.RUNNING:
             raise EcutError('Homing stopped before coordinate assignment')
         params = struct.pack('>I6iIH', 0, *target, 0, mask)
+        self._last_probe_result = None
         self._usb.cmd(Cmd.SET_POSITION, params)
         self._drain_rx()
         self._acc.steps = list(target)
@@ -2674,7 +2680,7 @@ class EcutAPI:
             except (OverflowError, ValueError) as error:
                 raise EcutError(f'line {lineno}: target exceeds the board position range') from error
             # G20: only a move with a real X, Y or Z displacement has its feed in inch/min; else degrees/min
-            linear = any(target[i] is not None and abs(target[i] - current[i]) > 1e-9 for i in range(3))
+            linear = any(total[:3])
             feed = action.feed_mm_min if linear or action.angular_feed is None else action.angular_feed
             feeds.append(feed)
             moves.append(LinearMove(tuple(target), action.rapid, feed, action.corner_deviation_mm))

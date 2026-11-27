@@ -820,11 +820,64 @@ def test_stored_position_return_ends_at_stored_a_with_axes_and_bare():
 
 
 @pytest.mark.parametrize('line, feed', [('G21 G1 A10 F60', 60), ('G20 G1 A10 F60', 60),
+                                        ('G20 G1 X.0000001 A10 F60', 60),
                                         ('G20 G1 X1 A10 F60', 1524), ('G20 G1 X1 F60', 1524),
                                         ('G20 G1 X0 Y0 Z0 A10 F60', 60), ('G91 G20 G1 X0 A10 F60', 60)])
 def test_inch_feed_scales_only_moves_with_a_linear_part(line, feed):
     engine, api = a_engine()
     assert _planned_moves(engine, line)[0][0] == pytest.approx(feed)
+
+
+def test_build_info_describes_prepared_feed_override():
+    engine, api = engine_api()
+    assert any('feed override' in row for row in engine.execute_line('$I'))
+
+
+def test_prepared_feed_override_applies_before_and_during_execution(monkeypatch):
+    engine, api = engine_api()
+    job = engine.prepare_program(['G1 X.01 F60'])
+    engine.realtime(0x92)
+    assert '|Ov:90,' in engine.status_report()
+    run = api.run_gcode
+
+    def run_with_override(lines):
+        assert '|Ov:90,' in engine.status_report()
+        assert api.feed_override * api.rate_limit == pytest.approx(.9)
+        engine.realtime(0x92)
+        assert '|Ov:80,' in engine.status_report()
+        assert api.feed_override * api.rate_limit == pytest.approx(.8)
+        return run(lines)
+
+    monkeypatch.setattr(api, 'run_gcode', run_with_override)
+    engine.execute_program(job)
+    assert '|Ov:80,' in engine.status_report()
+    engine.realtime(0x91)
+    assert '|Ov:90,' in engine.status_report()
+
+
+def test_prepared_job_runs_an_override_above_100_at_100_and_restores_it(monkeypatch):
+    engine, api = engine_api()
+    api.feed_override = 1.5
+    job = engine.prepare_program(['G1 X.01 F60'])
+    run, seen = api.run_gcode, []
+
+    def run_with_status(lines):
+        seen.append((engine.status_report().split('|Ov:')[1].split(',')[0], api.feed_override * api.rate_limit))
+        return run(lines)
+
+    monkeypatch.setattr(api, 'run_gcode', run_with_status)
+    engine.execute_program(job)
+    assert seen == [('100', 1.0)]
+    assert '|Ov:150,' in engine.status_report()
+
+
+@pytest.mark.parametrize('line, feed', [('G20 G1 X.0000001 A10 F60', 60), ('G20 G1 X1 A10 F60', 1524)])
+def test_controller_inch_feed_follows_the_board_counts_of_xyz(line, feed):
+    # the G-code of the controller API itself (the engine sends G21): no X count = an A-only move in deg/min
+    from appPlugins.Common.ecut.ecut_controller import compile_program
+    engine, api = a_engine()
+    (_lineno, path), = api._plan_program_actions(compile_program([line]))
+    assert path.feed_mm_min == pytest.approx(feed)
 
 
 def test_a_returns_to_zero_after_a_continuous_jog_moved_it_off_the_parser_position():

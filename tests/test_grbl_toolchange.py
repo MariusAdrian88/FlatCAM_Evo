@@ -969,6 +969,11 @@ class TestHostToolChangePolicy(unittest.TestCase):
         tool._on_resume_button()
         return [c for c in fake.commands()[before:] if c != '?']
 
+    def test_host_m6_prompts_for_tool_selected_on_previous_line(self):
+        tool, _fake = self.start('pause', self.PROGRAM.replace('T2 M6', 'N10T7\nM6'))
+        self.assertEqual(tool.stream_ended_sig.emit.call_args.args[0], 'tool_change')
+        self.assertIn('T7', tool.ui.status_strip.set_recovery.call_args.args[0])
+
     def test_host_tool_change_pauses_and_resumes(self):
         tool, fake = self.start('pause')
         commands = [c for c in fake.commands() if c != '?']

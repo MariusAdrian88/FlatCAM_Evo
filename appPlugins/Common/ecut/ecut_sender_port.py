@@ -915,6 +915,9 @@ class EcutSenderPort:
                         continue
                     if job is not None:
                         failure = None
+                        if not self._engine.check_mode and self._engine.api.feed_override > 1 + 1e-9:
+                            # the job runs at 100 %; the engine restores the override after the job
+                            self._emit(['[MSG:E-Cut: feed override above 100 % is not available during a program]'])
                         try:
                             self._engine.execute_program(job)
                         except Exception as error:

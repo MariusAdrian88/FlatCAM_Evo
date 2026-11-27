@@ -339,9 +339,12 @@ class TestSimulationControls(unittest.TestCase):
         tool._start_simulation()
         self.assertFalse(dialog.running)
         self.assertEqual(tool.ui.progress_bar.value(), 100)
+        self.assertEqual(tool.ui.status_strip.units_label.text(), 'mm')
         tool.grbl_ser_port.write.assert_not_called()
         dialog.close()
         self.assertIsNone(tool._simulation)
+        self.assertNotIn('Simulation', tool.ui.status_label.text())
+        self.assertEqual(tool.ui.status_strip.units_label.text(), '')
 
     def test_offline_pause_stop_and_close_wait_for_worker(self):
         tool = self.make_tool()

@@ -8,7 +8,7 @@ from appGUI.GUIElements import FCFileSaveDialog, FCMessageBox, add_case_variants
 from appCommon.RegisterFileKeywords import Extensions
 from appObjects.ProjectContext import same_path
 from camlib import dict2obj, ParseError, geometry_wkt_cache, project_json_default, deepcopy_keep_geometry
-from defaults import project_options, clean_project_options, normalize_units
+from defaults import project_options, clean_project_options, normalize_units, is_project_key
 from appCommon.machine_profile.facts import active_profile_of, project_field, project_mismatch
 from appParsers.ParseHPGL2 import HPGL2
 from appParsers.ParseGerber import Gerber
@@ -2042,7 +2042,12 @@ class appIO(QtCore.QObject):
 
         # a good save puts the project at the top of the recent projects, whatever the "Open" behavior is: the
         # Welcome screen and the menu read that history
-        self.app.file_opened.emit("project", filename)
+        if self.app.options.get("global_open_style", self.app.defaults.get("global_open_style")) is True:
+            # the "Open folder" stays the folder of the last open: all file_opened listeners except that one
+            self.app.register_recent("project", filename)
+            self.app.add_to_os_recent("project", filename)
+        else:
+            self.app.file_opened.emit("project", filename)
         self.app.file_saved.emit("project", filename)
 
         if not make_copy:
@@ -4396,6 +4401,22 @@ class appIO(QtCore.QObject):
             try:
                 flush_source(self.app)
                 objs = [obj.to_dict() for obj in self.app.collection.get_list()]
+                for obj in objs:
+                    tools = obj.get('tools')
+                    if not isinstance(tools, dict):
+                        continue
+                    # to_dict() can share tool data with the live object. Copy only the affected dictionaries.
+                    for uid, tool in tools.items():
+                        data = tool.get('data') if isinstance(tool, dict) else None
+                        if not isinstance(data, dict):
+                            continue
+                        private_keys = {key for key in data if isinstance(key, str) and key.startswith('tools_')
+                                        and not is_project_key(key)}
+                        if private_keys:
+                            if obj['tools'] is tools:
+                                obj['tools'] = tools.copy()
+                            obj['tools'][uid] = dict(tool, data={key: value for key, value in data.items()
+                                                                if key not in private_keys})
             except Exception as e:
                 self.log.error("Failed to serialize the objects for: %s because: %s" % (str(filename), str(e)))
                 self.inform.emit('[ERROR_NOTCL] %s' % _("Failed."))

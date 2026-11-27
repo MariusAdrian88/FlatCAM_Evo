@@ -101,8 +101,11 @@ class TestGrblConfiguration(unittest.TestCase):
             text = handle.read()
         self.assertIn('$100=250', text)
         self.assertIn('$700=router.local', text)
-        with open(path, 'w', encoding='utf-8') as handle:
-            handle.write(text.replace('$100=250', '$100=300').replace('$13=0', '$13=1'))
+        lines = text.replace('$100=250', '$100=300').replace('$13=0', '$13=1').splitlines()
+        lines.sort(key=lambda line: not line.startswith('$100='))
+        # an editor that writes a byte-order mark: the changed setting is the first line, right after it
+        with open(path, 'w', encoding='utf-8-sig') as handle:
+            handle.write('\n'.join(lines) + '\n')
         port.written.clear()
         page.load_from_file(path)
         differing = {page.table.item(row, 0).text() for row in range(page.table.rowCount())

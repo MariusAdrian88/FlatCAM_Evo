@@ -125,6 +125,40 @@ def test_saved_project_has_only_project_options(tmp_path):
     assert all(is_project_key(key) for key in proj['options'])
 
 
+def test_geometry_tool_defaults_exclude_private_options():
+    from unittest.mock import patch
+    from appObjects.GeometryObject import GeometryObject
+
+    app = make_app()
+    app.options.update({'tools_grbl_pendant_token': 'synthetic-token',
+                        'tools_grbl_console_history': ['synthetic-command'], 'tools_mill_feedrate': 123})
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        geo = GeometryObject('geo', app)
+    data = geo.tools[1]['data']
+    assert 'tools_grbl_pendant_token' not in data
+    assert 'tools_grbl_console_history' not in data
+    assert data['tools_mill_feedrate'] == 123
+
+
+def test_project_save_scrubs_existing_tool_data_without_changing_live_data(tmp_path):
+    from unittest.mock import patch
+    from appObjects.GeometryObject import GeometryObject
+
+    app = make_app()
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        geo = GeometryObject('geo', app)
+    private = {'tools_grbl_pendant_token': 'synthetic-token', 'tools_grbl_console_history': ['synthetic-command']}
+    data = geo.tools[1]['data']
+    data.update(private, tools_mill_feedrate=123, cutz=-0.5)
+
+    proj, _restored = save_and_load(app, [geo], tmp_path)
+
+    saved = proj['objs'][0]['tools']['1']['data']
+    assert not private.keys() & saved.keys()
+    assert saved['tools_mill_feedrate'] == 123 and saved['cutz'] == -0.5
+    assert {key: data[key] for key in private} == private
+
+
 def test_exclusion_zones_survive_save_and_load(tmp_path):
     from unittest.mock import patch
     from shapely.geometry import box
@@ -1203,22 +1237,40 @@ class TestSave(AppIOTestBase):
     def test_good_save_updates_the_recent_projects_whatever_the_open_behavior(self):
         from appMain import App
 
-        recent_app = SimpleNamespace(
-            recent=[], recent_projects=[{'kind': 'project', 'filename': self.path('Old.FlatPrj')}],
-            options={'global_recent_limit': 10}, defaults={}, log=Mock(),
-            app_obj=SimpleNamespace(load_batches=set()), flush_recent_items=Mock())
-        self.app.file_opened = Mock()
-        self.app.file_opened.emit.side_effect = lambda kind, filename: App.register_recent(
-            recent_app, kind, filename)
-        self.app.project_filename = self.path('Board.FlatPrj')
-        self.projects.save_target.return_value = self.path('Board.FlatPrj')
+        self.app.recent = []
+        self.app.flush_recent_items = Mock()
+        self.app.register_recent = lambda kind, filename: App.register_recent(self.app, kind, filename)
 
-        self.io.on_file_save_project()
-        self.run_queued_save(True)
+        self.app.add_to_os_recent = Mock()
 
-        # a good save is the newest recent project, and the menu is rebuilt from that history
-        self.assertEqual(recent_app.recent_projects[0]['filename'], self.path('Board.FlatPrj'))
-        recent_app.flush_recent_items.assert_called_once_with()
+        def opened(kind, filename):     # the 3 listeners of App.file_opened
+            self.app.register_recent(kind, filename)
+            self.app.add_to_os_recent(kind, filename)
+            App.register_folder(self.app, filename)
+
+        self.app.file_opened.emit.side_effect = opened
+        self.app.file_saved.emit.side_effect = lambda kind, filename: App.register_save_folder(self.app, filename)
+        filename = self.path('Board.FlatPrj')
+        open_folder = self.path('opened')
+        self.app.project_filename = filename
+        self.projects.save_target.return_value = filename
+
+        for open_style in (False, True):
+            with self.subTest(open_style=open_style):
+                self.app.options.update({'global_recent_limit': 10, 'global_open_style': open_style,
+                                         'global_last_folder': open_folder})
+                self.app.recent_projects = [{'kind': 'project', 'filename': self.path('Old.FlatPrj')}]
+                self.app.flush_recent_items.reset_mock()
+                self.app.add_to_os_recent.reset_mock()
+
+                self.io.on_file_save_project()
+                self.run_queued_save(True)
+
+                self.assertEqual(self.app.recent_projects[0]['filename'], filename)
+                self.app.flush_recent_items.assert_called_once_with()
+                self.app.add_to_os_recent.assert_called_once_with('project', filename)
+                self.assertEqual(App.get_last_folder(self.app), open_folder if open_style else self.directory.name)
+                self.assertEqual(self.app.options['global_last_save_folder'], self.directory.name)
 
     def test_failed_save_keeps_the_old_state(self):
         self.app.project_filename = self.path('Board_A.FlatPrj')

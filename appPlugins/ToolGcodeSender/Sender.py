@@ -1832,9 +1832,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 if not motion['hardware']['axes'][3]['enabled']:
                     return None
                 speed = float(motion['axes'][3]['max_velocity_mm_s']) * 60.0     # degrees per minute
+                counts = tuple(float(motion['hardware']['axes'][i]['steps_per_mm']) *
+                               float(motion['interpolation_factor']) for i in range(3))
             except (serial.SerialException, OSError, KeyError, IndexError, TypeError, ValueError):
                 return None
-            return SenderEstimate.ARule('ecut', speed, speed) if speed > 0.0 else None
+            return SenderEstimate.ARule('ecut', speed, speed, xyz_counts_per_mm=counts) if speed > 0.0 else None
         if not self._grbl_hal_has_a():
             return None
         settings = self._grbl_settings or {}
@@ -2374,11 +2376,16 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         """
         if changes_units and status == 'ok':
             status = self._grbl_read_report_units(op, full=self._setting_lines_change_rule(lines))
-        if status == 'ok' and any(re.search(r'\bG5[4-9](\.\d)?\b', line, re.IGNORECASE) for line in lines):
-            self._grbl_read_active_wcs(op)
+        if status == 'ok':
+            self._refresh_wcs_after_lines(op, lines)
         if status == 'ok' and any(SenderGen.has_output_word(line) for line in lines):
             self.io_result_sig.emit((None, status, ''))
         return status
+
+    def _refresh_wcs_after_lines(self, op, lines):
+        # A G word can start right after the number of another word (N10G55).
+        if any(re.search(r'G\s*0*5[4-9](?:\.\d+)?(?![\d.])', line, re.IGNORECASE) for line in lines):
+            self._grbl_read_active_wcs(op)
 
     def _macro_profile_gate(self, op, lines):
         """Hook of the machine profile check of a macro (worker thread, before the first write).
@@ -2452,6 +2459,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             for number, line in enumerate(stream):
                 text, status = self._grbl_transact(op, line, timeout=30.0)
                 if status != 'ok':
+                    self._refresh_wcs_after_lines(op, stream[:number])
                     # an output word that the controller acknowledged (or that may have run) makes the output
                     # states unknown, also when this line failed
                     done = stream[:number + (0 if status == 'error' else 1)]
@@ -4405,7 +4413,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             # the controller reads the words in its own modal units
             factor = {('MM', True): 1 / 25.4, ('IN', False): 25.4}.get((units, self._gc_inches), 1.0)
             # the rotary A is in degrees: never converted
-            axes = ' '.join('%s%s' % (letter, ('%.*f' % (decimals, value * (1.0 if letter == 'A' else factor)))
+            axes = ' '.join('%s%s' % (letter, ('%.*f' % (
+                decimals + (3 if letter != 'A' and factor < 1.0 else 0),
+                value * (1.0 if letter == 'A' else factor)))
                                       .rstrip('0').rstrip('.'))
                             for letter, value in values.items())
             cmd = 'G10 L20 P%d %s' % (p_number, axes)
@@ -6730,7 +6740,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                         self._grbl_tool_change_pending = False
             self._emit_sender_status(report, op)
 
-        def on_tool_change():
+        def on_tool_change(m6_index=None):
             with self._grbl_op_lock:
                 if (self._grbl_op is not op or op.cancel.is_set() or op.failed or
                         self.grbl_ser_port is not port or self.__dict__.get('_grbl_tool_fence_op') is not op):
@@ -6738,8 +6748,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 self._grbl_tool_change_pending = True
                 self._grbl_tool_fence_op = None
                 if stream_setup is not None:
-                    # the M6 line is in flight: every line before it is acknowledged, the rest of the program follows
-                    first = acked[0] + 1
+                    # M6 may retire before or after the reply fence; progress isn't its index.
+                    # Adapters without a manual M6 barrier retain their progress-based estimate.
+                    first = (acked[0] if m6_index is None else m6_index) + 1
                     self._tool_resume = {
                         'text': '\n'.join(program[first:]) + '\n', 'setup': stream_setup, 'tlo': tlo[0],
                         'mpos': last_mpos[0], 'version': 0,
@@ -6803,7 +6814,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             write_control=lambda data: self._grbl_stream_control(op, data),
             # the E-Cut adapter has its own M6 protocol: prepare_program() gives it the whole job
             tool_change_ack=tool_change_ack,
-            on_tool_change=on_tool_change, tool_command=tool_command,
+            on_tool_change=None if tool_change_ack else on_tool_change,
+            on_manual_tool_change=on_tool_change if tool_change_ack else None, tool_command=tool_command,
             on_tool_command_done=tool_command_done,
             step_gate=None if callable(prepare_program) else self._step_gate, on_step_wait=self._on_step_wait,
             host_tool_change=self._m6_policy == 'pause' and not check_mode)
@@ -6831,7 +6843,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if status == 'finished':
             return self._grbl_stream_finish(op, res, check_mode)
         if status == 'tool_change':
-            return self._grbl_tool_change_stop(op, res, program, prefix_count, start_index)
+            return self._grbl_tool_change_stop(op, res, lines, prefix_count, start_index)
         if status == 'cancelled':
             return 'stopped'
         if status == 'stale':
@@ -6933,15 +6945,16 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._grbl_abort_stream_locked(op, status if status in ('timeout', 'port_error') else 'error', text)
         return how
 
-    def _grbl_tool_change_stop(self, op, res, program, prefix_count, start_index):
+    def _grbl_tool_change_stop(self, op, res, lines, prefix_count, start_index):
         """
         The stream stopped before an M6 of a controller with no tool change (the worker): stop the spindle and
         leave the stream epoch clean, as a normal end does. No abort, no recovery latch.
 
         :return: 'tool_change', or the 'how' of a failure.
         """
-        m6_index = res['index'] - 1
-        if not SenderGen._has_m6(program[m6_index]):
+        next_index = start_index + res['index'] - prefix_count
+        m6_index = next_index - 1
+        if not SenderGen._has_m6(lines[m6_index]):
             m6_index -= 1       # an M0 line followed the M6 line
         text, status = self._grbl_transact(op, 'M5')
         with self._grbl_op_lock:
@@ -6952,10 +6965,14 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 return status
             if not self._grbl_commit_success_locked(op):
                 return 'stopped'
-        tool = re.search(r'T\s*(\d+)', program[m6_index], re.IGNORECASE)
+        tool = None
+        for index in range(m6_index, -1, -1):
+            tool = re.search(r'T\s*(\d+)(?![\d.])', lines[index], re.IGNORECASE)
+            if tool is not None:
+                break
         self._stream_result['tool_pause'] = {
-            'index': start_index + res['index'] - prefix_count,
-            'm6_index': start_index + m6_index - prefix_count,
+            'index': next_index,
+            'm6_index': m6_index,
             'tool': None if tool is None else int(tool.group(1))}
         return 'tool_change'
 
@@ -7755,6 +7772,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._program_paused = dialog.controller.paused
             self._on_simulation_event(dialog, 'position', value['mpos'])
         elif kind == 'position':
+            dialog.showed_status = True
             scale = 1 / 25.4 if dialog.units == 'IN' else 1.0
             pos = tuple(axis * scale for axis in value)
             state = _("Paused") if dialog.controller.paused else _("Running")
@@ -7764,7 +7782,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.ui.status_strip.set_position(pos, dialog.units)
             if self.view3d is not None:
                 self.view3d.set_tool_position(pos)
+                self.view3d.tool.visible = True
         elif kind == 'finished':
+            dialog.showed_status = True
             dialog.running = False
             dialog.start_button.setEnabled(True)
             dialog.stop_button.setEnabled(False)
@@ -7784,8 +7804,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def _close_simulation(self):
         if self._simulation is None or self._simulation.running:
             return
-        self._simulation.deleteLater()
+        dialog = self._simulation
         self._simulation = None
+        dialog.deleteLater()
+        if getattr(dialog, 'showed_status', False):
+            # Don't present virtual coordinates or Idle as observations from the real controller.
+            self._last_work = None
+            self._invalidate_coordinates()
+            self.ui.status_label.clear()
+            self.ui.status_strip.set_state(_("Status unknown") if self._grbl_port_ready() else None)
+            if self.view3d is not None:
+                self.view3d.tool.visible = False
         self._update_3d_height_map()
         self._update_sim_button()
 
@@ -7871,6 +7900,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._on_spindle_state('S' in accessory or 'C' in accessory)
         if self.view3d is not None and pos is not None:
             self.view3d.set_tool_position(pos)
+            self.view3d.tool.visible = True
         if self.view3d is not None:
             scale = self._report_scale()
             # Only this report's effective WCO is evidence for the overlay. Never reuse an

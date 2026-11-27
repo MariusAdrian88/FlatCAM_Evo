@@ -85,9 +85,10 @@ input { width:100%; font-size:18px; padding:8px; border-radius:6px; border:0; }
 <script>
 var token = new URLSearchParams(location.search).get('t') || '';
 var $ = function (id) { return document.getElementById(id); };
-function api(path, body) {
+function api(path, body, signal) {
   var opt = { headers: { 'X-Token': token } };
   if (body) { opt.method = 'POST'; opt.body = JSON.stringify(body); }
+  if (signal) { opt.signal = signal; }
   return fetch(path, opt).then(function (r) {
     if (!r.ok) { throw new Error('http ' + r.status); }
     return r.json();
@@ -136,14 +137,37 @@ function show(s) {
   var hasA = (s.axes || '').indexOf('A') >= 0, aOnly = document.querySelectorAll('.aonly');
   for (var k = 0; k < aOnly.length; k++) { aOnly[k].style.visibility = hasA ? 'visible' : 'hidden'; }
 }
-var polling = false;
+var polling = false, lastStatus = null;
+var statusTimeout = 2000, statusStaleAge = 3000;
+function markStatusUnavailable() {
+  $('offline').style.display = 'block';
+  $('state').textContent = lastStatus === null ? 'Not connected' : 'No live status';
+  $('state').className = 'grey';
+  $('pos').className = 'pos grey';
+  $('motion').style.display = 'none';
+}
 function poll() {
+  // Age the display even while a request is still pending.
+  if (lastStatus !== null && performance.now() - lastStatus >= statusStaleAge) { markStatusUnavailable(); }
   if (polling) { return; }
   polling = true;
-  api('/state').then(show).catch(function () {
+  var controller = new AbortController(), timer;
+  var deadline = new Promise(function (_, reject) {
+    timer = setTimeout(function () {
+      reject(new Error('status timeout'));
+      controller.abort();
+    }, statusTimeout);
+  });
+  Promise.race([api('/state', null, controller.signal), deadline]).then(function (s) {
+    show(s);
+    lastStatus = performance.now();
+  }).catch(function () {
     $('offline').style.display = 'block';
-    $('state').textContent = 'Not connected';
-  }).then(function () { polling = false; });
+    if (lastStatus === null || performance.now() - lastStatus >= statusStaleAge) { markStatusUnavailable(); }
+  }).finally(function () {
+    clearTimeout(timer);
+    polling = false;
+  });
 }
 document.addEventListener('click', function (e) {
   var b = e.target.closest('button');

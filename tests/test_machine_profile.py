@@ -1233,6 +1233,22 @@ def test_report_gate_from_a_worker_thread_touches_the_widgets_on_the_main_thread
     assert machine_profile_ui.DOT_COLORS['rejected'] in dot.styleSheet()
 
 
+def test_an_older_queued_result_does_not_replace_a_newer_warning():
+    from appCommon.machine_profile.writer import FileGate
+    from appGUI import machine_profile_ui
+
+    qapp, app, dot, touched, dialogs, dialog, main, threading = _gate_app(headless=False)
+    older, newer = FileGate(True, result=object()), FileGate(True, note='warning', result=object())
+    with dialog:
+        worker = threading.Thread(target=machine_profile_ui.report_gate, args=(app, older))
+        worker.start()
+        worker.join()       # the green result waits in the queue of the main thread
+        machine_profile_ui.report_gate(app, newer)
+        qapp.processEvents()
+    assert machine_profile_ui.DOT_COLORS['warning'] in dot.styleSheet()
+    assert machine_profile_ui._LAST['result'] is newer.result
+
+
 def test_gate_bridge_made_in_a_worker_thread_still_reports_on_the_main_thread(monkeypatch):
     from appCommon.machine_profile.writer import FileGate
     from appGUI import machine_profile_ui

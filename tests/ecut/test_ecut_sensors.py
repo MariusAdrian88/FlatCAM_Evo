@@ -523,6 +523,34 @@ def test_g38_reports_contact(monkeypatch):
     assert b'ok\r\n' not in lines
 
 
+@pytest.mark.parametrize('reinitialize', [False, True])
+def test_probe_record_is_cleared_when_machine_coordinates_are_reestablished(reinitialize):
+    from appPlugins.Common.ecut.ecut_gcode_engine import EcutGcodeEngine
+
+    api = sensor_api()
+    api.config.probe.max_travel_mm = 5
+    api.push_config()
+    engine = EcutGcodeEngine(api)
+    assert engine.execute_line('G91 G38.2 Z-.004 F6')[0].endswith(':1]')
+    if reinitialize:
+        api.push_config()
+    else:
+        engine.reference_axes([2])
+    assert '[PRB:0.000,0.000,0.000:0]' in engine.execute_line('$#')
+
+
+def test_probe_record_is_cleared_by_a_home_cycle():
+    from appPlugins.Common.ecut.ecut_gcode_engine import EcutGcodeEngine
+
+    api = home_switch_api()
+    engine = EcutGcodeEngine(api)
+    # the record of an earlier contact, in the machine frame before the home cycle
+    api._last_probe_result = {'position_mm': (1.0, 2.0, -3.0, 0.0, 0.0, 0.0)}
+    assert '[PRB:1.000,2.000,-3.000:1]' in engine.execute_line('$#')
+    assert engine.execute_line('$HZ') == ['ok']
+    assert '[PRB:0.000,0.000,0.000:0]' in engine.execute_line('$#')
+
+
 def test_probe_record_after_a_failed_probe_and_after_a_reset_reports_no_hit():
     from appPlugins.Common.ecut.ecut_gcode_engine import EcutGcodeEngine
     api = sensor_api()

@@ -166,9 +166,21 @@ class StepGate:
     """
 
     def __init__(self):
-        self.enabled = True
+        self.mode = (True, 0)
         self._tokens = 0
         self._lock = threading.Lock()
+
+    @property
+    def enabled(self):
+        return self.mode[0]
+
+    @enabled.setter
+    def enabled(self, enabled):
+        with self._lock:
+            was_enabled, revision = self.mode
+            if enabled != was_enabled:
+                self._tokens = 0
+                self.mode = (enabled, revision + 1)
 
     def release(self):
         with self._lock:
@@ -211,7 +223,7 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
                  on_status=None, clock=time.monotonic, stall_timeout=30.0,
                  status_request=b'?', write_control=None, tool_change_ack=False,
                  on_tool_change=None, tool_command=None, on_tool_command_done=None, reply_timeout=5.0,
-                 step_gate=None, on_step_wait=None, host_tool_change=False):
+                 step_gate=None, on_step_wait=None, host_tool_change=False, on_manual_tool_change=None):
     """
     Send `lines` to GRBL with the character-counting protocol: a new line
     is written only while the bytes of the lines in flight (each line + '\\n')
@@ -255,6 +267,7 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
         No job line is written while the state is Tool: the controller accepts no motion until
         the tool change is completed by a Cycle Start.
     :param on_tool_change: callable(), once after 0xA3 and the temporary stream's $G reply fence.
+    :param on_manual_tool_change: callable(M6 line index), at the manual tool-change reply fence.
     :param tool_command: callable() -> a queued touch-off/jog command or None, read after the fence in Tool.
         Temporary commands have separate acknowledgements; finish them before issuing Cycle Start.
     :param on_tool_command_done: callable(text), only after a successful touch-off/jog acknowledgement.
@@ -299,7 +312,7 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
     sync_needed = False     # single block: the line is acknowledged, its G4 P0 sync line is not written yet
     sync_inflight = False   # single block: the G4 P0 sync line waits for its acknowledgement
     sync_index = None
-    step_wait_index = None
+    step_wait_key = None
     poll_pending = False
     poll_sent_at = None     # a lost status reply must not stop polling forever
     manual_command = None
@@ -365,14 +378,16 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
             if used + len(data) > rx_size:
                 break
             # in Check mode the controller does not move and reports Check, never Idle: no gate
-            stepping = step_gate is not None and step_gate.enabled and poll_status and not check_mode
+            enabled, revision = step_gate.mode if step_gate is not None else (False, 0)
+            stepping = enabled and poll_status and not check_mode
             if stepping:
                 if in_flight or sync_inflight:
                     break
                 if not step_gate.ready():
                     last_progress = clock()     # waiting for the operator is no stall
-                    if step_wait_index != sent:
-                        step_wait_index = sent
+                    # A rapid off/on can happen without the stream observing the disabled mode.
+                    if step_wait_key != (sent, revision):
+                        step_wait_key = (sent, revision)
                         if on_step_wait is not None:
                             on_step_wait(sent)
                     break
@@ -528,6 +543,8 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
                         tool_fence_deadline = None
                         tool_ready = True
                         last_progress = clock()
+                        if on_manual_tool_change is not None:
+                            on_manual_tool_change(tool_index)
                         if on_tool_change is not None:
                             on_tool_change()
                         continue

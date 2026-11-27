@@ -154,7 +154,7 @@ class GrblConfiguration(QtWidgets.QWidget):
     def load_from_file(self, path):
         """Fill the Pending column of the rows that the file names; nothing is sent before Apply."""
         try:
-            with open(path, encoding='utf-8') as handle:
+            with open(path, encoding='utf-8-sig') as handle:
                 loaded = self.parse_settings(handle.read())
         except (OSError, UnicodeDecodeError, ValueError) as err:
             QtWidgets.QMessageBox.warning(self, _('Load settings'), '%s\n%s' % (_('The file could not be read.'), err))

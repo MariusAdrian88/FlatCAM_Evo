@@ -56,6 +56,30 @@ def test_reference_refused_when_the_board_does_not_confirm():
     assert api.homed_axes == ()
 
 
+@pytest.mark.parametrize('configured_at_start', [False, True])
+def test_reference_rejects_unconfigured_stationary_frames(configured_at_start):
+    from dataclasses import replace
+
+    engine, api = limited_engine()
+    poll, cmd = api._usb.poll, api._usb.cmd
+    configured = configured_at_start
+
+    def simulate_poll():
+        frame = poll()
+        return frame if configured or frame is None else replace(frame, status=0)
+
+    def simulate_cmd(opcode, params=b''):
+        nonlocal configured
+        cmd(opcode, params)
+        if opcode == Cmd.SET_POSITION:
+            configured = False
+
+    api._usb.poll, api._usb.cmd = simulate_poll, simulate_cmd
+    with pytest.raises(EcutError, match='configured'):
+        api.reference_axes([0])
+    assert api.homed_axes == ()
+
+
 def test_reference_waits_for_the_board_to_apply_the_counts():
     # the real board applies a0 about 10 ms later: the first idle frames still show the old counts
     engine, api = limited_engine()

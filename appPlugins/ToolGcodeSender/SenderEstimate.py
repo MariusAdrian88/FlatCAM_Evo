@@ -47,6 +47,11 @@ def _arc_length(start, end, words, motion, plane=17):
     values = {}
     for letter, value in words:
         values[letter] = value
+    turns = values.get('P', 1.0)
+    if not math.isfinite(turns) or turns < 1 or turns != int(turns):
+        return 0.0
+    # As in the machine profile, each turn after the first adds a full circle.
+    extra_sweep = (turns - 1) * math.tau
     first, second, first_word, second_word, _helix = _PLANES[plane]
     if start[first] is None or start[second] is None or end[first] is None or end[second] is None:
         return 0.0
@@ -63,15 +68,15 @@ def _arc_length(start, end, words, motion, plane=17):
         sweep %= 2.0 * math.pi
         if sweep < 1e-9:
             sweep = 2.0 * math.pi
-        return radius * sweep
+        return radius * (sweep + extra_sweep)
     if 'R' in values:
         radius = abs(values['R'])
-        if radius == 0.0 or chord > 2.0 * radius + 1e-9:
+        if radius == 0.0 or chord == 0.0 or chord > 2.0 * radius + 1e-9:
             return 0.0
         angle = 2.0 * math.asin(min(1.0, chord / (2.0 * radius)))
         if values['R'] < 0.0:
             angle = 2.0 * math.pi - angle
-        return radius * angle
+        return radius * (angle + extra_sweep)
     return 0.0
 
 
@@ -90,24 +95,29 @@ class ARule:
         (True), or the XYZ and A path together (False); None: not known
     :param revert: grblHAL only, `$701` bit 1: in G20 a move with A and no rotary fix takes F in in/min back to
         mm/min (True) or keeps F x 25.4 (False); None: not known
+    :param xyz_counts_per_mm: E-Cut only: the board counts per mm of X, Y and Z. A G1 with A that changes no count
+        of X, Y or Z is an A-only move for the engine (F in deg/min). None: any XYZ length counts.
     """
     kind: str
     a_max_deg_min: float
     a_rapid_deg_min: float
     rotary_fix: object = None
     revert: object = None
+    xyz_counts_per_mm: object = None
 
 
-def _a_move_seconds(motion, length_mm, d_a, feed_mm, a_feed, imperial, rule, rapid_mm_min):
+def _a_move_seconds(motion, length_mm, d_a, feed_mm, a_feed, imperial, rule, rapid_mm_min, moves_xyz=None):
     """
     The seconds of a G0/G1/G2/G3 block (G94) that changes A by `d_a` degrees, with no acceleration model.
 
     :param length_mm: the XYZ path of the block (mm, the helix of an arc included)
     :param feed_mm: the modal F in mm/min (F x 25.4 when it was given in G20)
     :param a_feed: the modal F as it was written (deg/min for an A-only move of the E-Cut)
+    :param moves_xyz: True when X, Y or Z moves; None: when the XYZ length is not 0
     :return: the seconds, or None when a setting that the rule needs is not known
     """
-    moves_xyz = length_mm > 1e-9
+    if moves_xyz is None:
+        moves_xyz = length_mm > 1e-9
     if motion == 0:
         seconds = d_a / rule.a_rapid_deg_min * 60.0
         if moves_xyz and rapid_mm_min > 0.0:
@@ -234,9 +244,17 @@ def line_parts(lines, rapid_mm_min, units, a_rule=None):
                     rate = rapid_mm_min / 25.4 if state.units == 20 else rapid_mm_min
                 if d_a > 0.0:
                     imperial = state.units == 20
+                    moves_xyz = None
+                    if a_rule.xyz_counts_per_mm is not None and state.motion == 1:
+                        # the engine: a G1 that moves X, Y and Z by less than half a board count changes no count
+                        # (the work offset is not known here: half a count is the threshold)
+                        factor = 25.4 if imperial else 1.0
+                        moves_xyz = any(abs(end[a] - start[a]) * factor * counts >= 0.5
+                                        for a, counts in zip('XYZ', a_rule.xyz_counts_per_mm)
+                                        if end[a] is not None and start[a] is not None)
                     seconds = _a_move_seconds(state.motion, length * (25.4 if imperial else 1.0), d_a,
                                               feed * (25.4 if imperial else 1.0), a_feed, imperial, a_rule,
-                                              rapid_mm_min)
+                                              rapid_mm_min, moves_xyz)
                     if seconds is None:
                         return None
                     if state.motion == 0:

@@ -104,8 +104,7 @@ class EcutGcodeEngine:
         self.check_mode = False
         self._homing = False
         self._preparing = False
-        self._probe = None  # machine position of the last probe contact, for $#
-        self._probe_ok = False  # the last probe cycle found its contact (the $# PRB flag)
+        self._program_feed_request = None   # the feed override set before a prepared job, restored after it
         self._check_snapshot = None
         self._parser = _Parser(position=self._measured_position())
         self._active_parser = None
@@ -427,7 +426,7 @@ class EcutGcodeEngine:
             if any(line.startswith('G21 G90 G38.2 ') for line in lines):
                 # the probe retracts after the contact: the machine is not at the programmed target
                 parser.position = self._measured_position()
-                record = [f'[PRB:{self._coordinates(self._probe)}:1]']
+                record = [self._probe_report()]
         self._parser, self._wcs, self._stored = parser, wcs, stored
         if ended:
             parser.motion, parser.plane, parser.distance, parser.feed_mode = 1, 17, 90, 94
@@ -457,7 +456,7 @@ class EcutGcodeEngine:
         return (self._program_epoch, tuple(frame.axis_positions) if frame else (),
                 json.dumps(self.api.config.to_dict(), sort_keys=True, allow_nan=False),
                 self._program_state(), json.dumps(self._host, sort_keys=True),
-                self.api.feed_override, self._rapid_override, self._spindle_override,
+                self._rapid_override, self._spindle_override,
                 self.check_mode, self._program_owner, tuple(self.api._acc.steps))
 
     def _planning_checkpoint(self):
@@ -473,6 +472,8 @@ class EcutGcodeEngine:
         if not start[1]:
             raise GcodeError(8, 'Program preparation requires measured starting counts')
         virtual = copy.copy(self)
+        virtual.api = copy.copy(self.api)
+        virtual.api.feed_override = 1
         virtual._parser = copy.deepcopy(self._parser)
         virtual._parser.position = (list(self._parser.position) if self.check_mode
                                     else self._measured_position())
@@ -527,7 +528,7 @@ class EcutGcodeEngine:
                 raise
         flush()
         try:
-            self.api._plan_program_actions(compile_program(normalized, checkpoint=self.api._planning_checkpoint))
+            virtual.api._plan_program_actions(compile_program(normalized, checkpoint=self.api._planning_checkpoint))
         except (EcutError, ValueError, OverflowError) as error:
             failure = GcodeError(20, str(error))
             match = re.search(r'line (\d+)', str(error))
@@ -545,8 +546,14 @@ class EcutGcodeEngine:
             raise GcodeError(8, 'Prepared program is stale; prepare it again')
         self._program_epoch += 1
         epoch = self._program_epoch
+        if not self.check_mode:
+            requested_feed = self.api.feed_override
+            # Plan at the same baseline as preflight, then apply realtime changes to the stream only.
+            # An override above 100 % runs at 100 % (the port says so) and comes back after the job.
+            self._program_feed_request = requested_feed
+            self.api.feed_override = 1
+            self.api.rate_limit = self._program_rate(requested_feed)
         self._program_running = True
-        self.api.rate_limit = 1
         try:
             for batch in prepared.batches:
                 if self._program_epoch != epoch:
@@ -561,11 +568,16 @@ class EcutGcodeEngine:
                 self._restore_program_state(batch.final)
                 if batch.ended and not self.check_mode:
                     self._rapid_override = self._spindle_override = 100
+                    self._program_feed_request = None
                     self.api.feed_override = 1
                     self.api.rate_limit = 1
                 self._save()
         finally:
             self._active_parser = None
+            if not self.check_mode:
+                kept = self._program_feed_request
+                self._program_feed_request = None
+                self.api.feed_override = self._effective_feed_override() if kept is None else kept
             self._program_running = False
             self.api.rate_limit = 1
             if not self.check_mode:
@@ -752,9 +764,10 @@ class EcutGcodeEngine:
                 length = feed_path_length([t - p for p, t in zip(parser.position, target)])
             # G94 feed is stored in mm/min of the linear part; a pure rotary move uses the modal angular feed
             # (degrees/min as written). A mixed move keeps the inch feed of its linear part.
-            # "Moves" means an actual displacement of X, Y or Z, not a word that is present.
+            # Compare rounded endpoint counts, including the precision of the normalized motion words.
             pure_rotary = bool(axes) and not arc and not any(
-                abs(target[i] - parser.position[i]) > 1e-9 for i in range(3))
+                round(float(f'{target[i]:.9f}') * self.api._axis_scale(i), 0)
+                != round(float(f'{parser.position[i]:.9f}') * self.api._axis_scale(i), 0) for i in range(3))
             feed = (parser.angular_feed if pure_rotary else parser.feed) if parser.feed_mode == 94 else length * parser.feed
             # Path control: only the end of the programmed move gets the mode's corner limit. G61's 0 would
             # stop at every chord vertex of an arc, so interior vertices keep the junction setting, or the
@@ -957,14 +970,12 @@ class EcutGcodeEngine:
         for name, on in coolant:
             self.api.set_output(name, on)
         if lines:
-            probed = any(line.startswith('G21 G90 G38.2 ') for line in lines)
-            if probed:
-                self._probe_ok = False  # a probe cycle starts: the old result is gone, like GRBL does
             self.api.run_gcode(lines)
-            if probed:
-                point = self.api.last_probe_result['position_mm']
-                self._probe = list(point[:self._axis_count()])
-                self._probe_ok = True
+
+    def _probe_report(self):
+        result = self.api.last_probe_result
+        point = result['position_mm'] if result is not None else [0.0] * 4
+        return f'[PRB:{self._coordinates(point)}:{int(result is not None)}]'
 
     def _system(self, text):
         if text == '$':
@@ -979,7 +990,8 @@ class EcutGcodeEngine:
                     '[OPT:V,1,128]',
                     '[NEWOPT:PROBE]' if self.api.config.unverified.probing else '[NEWOPT:NOPROBE]',
                     '[AXS:4:XYZA]' if self._axis_count() == 4 else '[AXS:3:XYZ]',
-                    '[MSG:Host lookahead for prepared motion batches; prepared-job overrides unavailable]', 'ok']
+                    '[MSG:Host lookahead for prepared motion batches; live feed override up to 100 % during execution]',
+                    'ok']
         if text == '$G':
             p = self._parser
             coolant = ' '.join(f'M{m}' for m in sorted(p.coolant)) or 'M9'
@@ -990,7 +1002,7 @@ class EcutGcodeEngine:
             rows += [f'[G{28+i*2}:{self._coordinates(v)}]' for i, v in enumerate(self._stored)]
             return rows + [f'[G92:{self._coordinates(self._parser.g92)}]',
                            f'[TLO:{self._report_value(self._parser.tlo):.3f}]',
-                           f'[PRB:{self._coordinates(self._probe or [0.0] * 4)}:{int(self._probe_ok)}]',
+                           self._probe_report(),
                            'ok']
         if text == '$C':
             if not self.check_mode:
@@ -1182,7 +1194,7 @@ class EcutGcodeEngine:
         kind = 'MPos' if self._host[10] else 'WPos'
         if kind == 'WPos':
             position = [p - o for p, o in zip(position, offset)]
-        override = round((self.api.rate_limit if self._program_running else self.api.feed_override) * 100)
+        override = round(self._effective_feed_override() * 100)
         speed = getattr(self.api, '_spindle_rpm', 0)
         # the accessory field of the sender protocol: S = spindle CW, C = spindle CCW
         accessory = {'SPINDLE_CW': '|A:S', 'SPINDLE_CCW': '|A:C'}.get(getattr(self.api, '_spindle_direction', None), '')
@@ -1200,13 +1212,23 @@ class EcutGcodeEngine:
             _, self._wcs, self._stored = self._check_snapshot
         self.check_mode = False
         self._check_snapshot = None
-        self._probe, self._probe_ok = None, False  # a reset clears the probe record
         self._rapid_override = self._spindle_override = 100
         self.api.feed_override = 1
         self.api.rate_limit = 1
+        self._program_feed_request = None   # a reset restores 100 %, also after a running program
         self._parser = _Parser(position=self._measured_position())
         # The G-code Sender detects the adapter by this banner (its banner check).
         return ["E-Cut host adapter 1.0 ['$' for help]"]
+
+    def _effective_feed_override(self):
+        return self.api.feed_override * (self.api.rate_limit if self._program_running else 1)
+
+    def _program_rate(self, feed):
+        safety = self.api.config.safety
+        baseline = self.api.feed_override
+        if not baseline:
+            return 1.0  # a zero ceiling cannot plan motion
+        return max(safety.min_feedrate_override_pct / 100, min(feed, baseline)) / baseline
 
     def realtime(self, code):
         if code == ord('?'):
@@ -1217,9 +1239,10 @@ class EcutGcodeEngine:
             if code == 0x90:
                 rate = 1.0
             else:
-                rate = self.api.rate_limit + {0x91: .1, 0x92: -.1, 0x93: .01, 0x94: -.01}[code]
+                rate = self._effective_feed_override() + {0x91: .1, 0x92: -.1, 0x93: .01, 0x94: -.01}[code]
             above = rate > 1.0 + 1e-9
-            self.api.rate_limit = rate
+            self._program_feed_request = None   # the operator changed it: the job end keeps the new value
+            self.api.rate_limit = self._program_rate(rate)
             if above:
                 return ['[MSG:E-Cut: feed override above 100 % is not available during a program]']
             return []
@@ -1272,4 +1295,3 @@ class EcutGcodeEngine:
         else:
             raise GcodeError(20, f'Realtime 0x{code:02x} hardware effect is not verified')
         return []
-

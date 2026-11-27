@@ -19,6 +19,7 @@ class FakeAPI:
     def __init__(self):
         self.connected = False
         self.state = State.IDLE
+        self.feed_override = 1.0    # the port reads it before a prepared job, as on the real EcutAPI
         self.calls = []
         self.callback = None
         self.fail_poll = False
@@ -796,6 +797,65 @@ def test_prepared_sender_batches_real_engine_linear_motion():
         expected = round(0.02 * api.config.axes[0].steps_per_mm * api.config.interpolation_factor)
         assert api._usb.positions[0] == before[0] + expected
         assert b'ok' not in b''.join(port.readlines())
+    finally:
+        port.close()
+
+
+def test_feed_override_after_upload_ready_does_not_discard_prepared_motion(monkeypatch):
+    from threading import Event
+
+    from appPlugins.Common.ecut.ecut_sender_port import EcutSenderPort
+
+    api = make_board_api()
+    port = EcutSenderPort(api=api, timeout=0.01)
+    ready, release = Event(), Event()
+    try:
+        port.readline()
+        wait_for(lambda: not port._startup_pending and not port._active)
+        line = 'G91 G1 X.01 F60'
+        before = api._usb.positions[0]
+        port.prepare_program([line])
+        service = port._service_controls
+
+        def service_after_upload():
+            if port._prepared_ready and not ready.is_set():
+                ready.set()
+                assert release.wait(2)
+            service()
+
+        monkeypatch.setattr(port, '_service_controls', service_after_upload)
+        port.write((line + '\n').encode('ascii'))
+        assert ready.wait(2)
+        assert api._usb.positions[0] == before
+        port.write(b'\x92?')
+        release.set()
+        replies = []
+        wait_for(lambda: replies.extend(port.readlines()) or any(b'|Ov:90,' in row for row in replies))
+        wait_for(lambda: port._prepared_job is None and not port._active)
+        scale = api.config.axes[0].steps_per_mm * api.config.interpolation_factor
+        assert api._usb.positions[0] == before + round(.01 * scale)
+    finally:
+        release.set()
+        port.close()
+
+
+def test_prepared_job_tells_that_an_override_above_100_runs_at_100():
+    from appPlugins.Common.ecut.ecut_sender_port import EcutSenderPort
+
+    api = make_board_api()
+    port = EcutSenderPort(api=api, timeout=0.01)
+    try:
+        port.readline()
+        wait_for(lambda: not port._startup_pending and not port._active)
+        api.feed_override = 1.5
+        line = 'G91 G1 X.01 F60'
+        port.prepare_program([line])
+        port.write((line + '\n').encode('ascii'))
+        replies = []
+        wait_for(lambda: replies.extend(port.readlines()) or (port._prepared_job is None and not port._active))
+        replies.extend(port.readlines())
+        assert any(b'feed override above 100 %' in row for row in replies)
+        assert api.feed_override == 1.5
     finally:
         port.close()
 
