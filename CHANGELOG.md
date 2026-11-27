@@ -23,7 +23,7 @@ G-code Sender:
 - fixed: the Import and Export buttons of the user buttons open their file dialog
 - fixed: a file error in Save or Load of the Configuration page shows a message and keeps the table
 - fixed: the job time estimate reads lower case G-code; a line that is not read gives no estimate (--:--:--) instead of 0 s
-- fixed: the feed override scales only the feed time of the estimate; dwell (G4) and rapid (G0) time stay; G93 blocks are feed time; the Start dialog total follows the current feed override
+- fixed: the feed override scales only the feed time of the estimate and the rapid override (25 / 50 / 100 %) only the rapid (G0) time; dwell (G4) time stays; G93 blocks are feed time; the Start dialog total follows the current feed and rapid overrides
 - fixed: a G-code file saved as UTF-8 with BOM: the stream cleaner removes U+FEFF, so the estimate is made and the port never gets the bytes EF BB BF
 - fixed: host tool change: a late completion of the pause after Stop, Reset, E-Stop or a disconnect is dropped, so a stopped job can not be resumed; Resume refuses when the controller session changed
 - fixed: host tool change: the job start keeps the units that the controller reports (G20/G21), so Resume of a program with no unit word keeps its scale; the elapsed time goes on across the pause and the end message gives the whole job time
@@ -31,6 +31,7 @@ G-code Sender:
 - fixed: a request of a replaced IO page writes no E-Cut output; a macro that fails after an output word makes the IO states unknown
 - fixed: the pendant gives the positions and their units label from the same conversion, in the units of its jog step
 - fixed: the time estimate follows G17, G18 and G19 for arcs (also a full circle in XZ or YZ); "Focus the command line" shows the Console page first
+- fixed: the text of the grblHAL error 73 ("argument", not "argrument")
 
 E-Cut controller:
 

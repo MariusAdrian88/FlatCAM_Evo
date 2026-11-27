@@ -89,7 +89,7 @@ ERROR_TEXTS = {
     58: N_("Port is not available"),
     71: N_("Unknown operation found in expression."),
     72: N_("Divide by zero in expression attempted."),
-    73: N_("Too large or too small argrument provided."),
+    73: N_("Too large or too small argument provided."),
     74: N_("Argument is not valid for the operation"),
     75: N_("Expression is not valid."),
     76: N_("Either NAN (not a number) or infinity was returned from expression."),

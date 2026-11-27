@@ -84,15 +84,15 @@ def line_seconds(lines, rapid_mm_min, units):
     :return: 1 value (s) per line, or None when no estimate is possible (a job with an A word, a line that is not read)
     """
     parts = line_parts(lines, rapid_mm_min, units)
-    return None if parts is None else [feed_s + fixed_s for feed_s, fixed_s in parts]
+    return None if parts is None else [feed_s + rapid_s + dwell_s for feed_s, rapid_s, dwell_s in parts]
 
 
 def line_parts(lines, rapid_mm_min, units):
     """
-    The duration of each stream line in 2 parts: the seconds that the feed override scales (G1/G2/G3, G93 blocks)
-    and the seconds that it does not scale (G0 rapids, G4 dwell).
+    The duration of each stream line in 3 parts: the seconds that the feed override scales (G1/G2/G3, G93 blocks),
+    the seconds that the rapid override scales (G0 rapids) and the seconds that no override scales (G4 dwell).
 
-    :return: 1 (feed seconds, fixed seconds) per line, or None when no estimate is possible
+    :return: 1 (feed seconds, rapid seconds, dwell seconds) per line, or None when no estimate is possible
         (a job with an A word, a line that is not read)
     """
     state = _ModalState(pos=(0.0, 0.0, 0.0))
@@ -121,8 +121,9 @@ def line_parts(lines, rapid_mm_min, units):
             feed *= factor              # the modal feed is in the units of the block that gave the F word
             state.units = new_units
         info = state.advance(line)
-        fixed_s = dwell_seconds(line)
+        dwell_s = dwell_seconds(line)
         feed_s = 0.0
+        rapid_s = 0.0
         if info is not None:
             if 'A' in info['letters']:
                 return None
@@ -153,36 +154,41 @@ def line_parts(lines, rapid_mm_min, units):
                     rate = rapid_mm_min / 25.4 if state.units == 20 else rapid_mm_min
                 if length > 0.0 and rate > 0.0:
                     if state.motion == 0:
-                        fixed_s += length / rate * 60.0     # the feed override does not change a rapid
+                        rapid_s += length / rate * 60.0     # the feed override does not change a rapid
                     else:
                         feed_s += length / rate * 60.0
-        out.append((feed_s, fixed_s))
+        out.append((feed_s, rapid_s, dwell_s))
     return out
 
 
 def cumulative(parts):
-    """:return: the running totals (feed seconds, fixed seconds) of the `line_parts` (None stays None)."""
+    """:return: the running totals (feed seconds, rapid seconds, dwell seconds) of the `line_parts` (None stays None)."""
     if parts is None:
         return None
-    return list(zip(itertools.accumulate(feed_s for feed_s, _fixed in parts),
-                    itertools.accumulate(fixed_s for _feed, fixed_s in parts)))
+    return list(zip(itertools.accumulate(feed_s for feed_s, _rapid, _dwell in parts),
+                    itertools.accumulate(rapid_s for _feed, rapid_s, _dwell in parts),
+                    itertools.accumulate(dwell_s for _feed, _rapid, dwell_s in parts)))
 
 
-def remaining(cumulative_list, done, feed_override_pct):
+def remaining(cumulative_list, done, feed_override_pct, rapid_override_pct=100):
     """
-    :param cumulative_list: the running totals (feed seconds, fixed seconds) of the lines
+    :param cumulative_list: the running totals (feed seconds, rapid seconds, dwell seconds) of the lines
     :param done: the number of lines that are done
-    :param feed_override_pct: the feed override (percent)
-    :return: the seconds that are left: the feed seconds are scaled by the feed override, dwell and rapid are not
+    :param feed_override_pct: the feed override (percent), None or <= 0 counts 100
+    :param rapid_override_pct: the rapid override (percent), None or <= 0 counts 100
+    :return: the seconds that are left: the feed seconds are scaled by the feed override, the rapid seconds by the
+        rapid override, the dwell is not scaled
     """
     if not cumulative_list:
         return 0.0
     index = min(max(done, 0), len(cumulative_list))
-    spent_feed, spent_fixed = cumulative_list[index - 1] if index > 0 else (0.0, 0.0)
-    pct = feed_override_pct if feed_override_pct and feed_override_pct > 0 else 100
+    spent_feed, spent_rapid, spent_dwell = cumulative_list[index - 1] if index > 0 else (0.0, 0.0, 0.0)
+    feed_pct = feed_override_pct if feed_override_pct and feed_override_pct > 0 else 100
+    rapid_pct = rapid_override_pct if rapid_override_pct and rapid_override_pct > 0 else 100
     feed_left = max(cumulative_list[-1][0] - spent_feed, 0.0)
-    fixed_left = max(cumulative_list[-1][1] - spent_fixed, 0.0)
-    return feed_left * 100.0 / pct + fixed_left
+    rapid_left = max(cumulative_list[-1][1] - spent_rapid, 0.0)
+    dwell_left = max(cumulative_list[-1][2] - spent_dwell, 0.0)
+    return feed_left * 100.0 / feed_pct + rapid_left * 100.0 / rapid_pct + dwell_left
 
 
 def clock_text(seconds):

@@ -455,7 +455,7 @@ class TestProgressCoalescing(unittest.TestCase):
         self.console_of(tool)
         now = [1000]
         tool._stream_clock = MagicMock(elapsed=lambda: now[0])
-        tool.job_cumulative = [(10.0, 0.0), (100.0, 0.0)]
+        tool.job_cumulative = [(10.0, 0.0, 0.0), (100.0, 0.0, 0.0)]
         tool._feed_override_pct = 100
         tool._progress_latest = (1, 2)
         tool._progress_shown = None
@@ -465,6 +465,17 @@ class TestProgressCoalescing(unittest.TestCase):
         tool._feed_override_pct = 50
         tool._flush_stream_ui()
         self.assertEqual(tool.ui.time_label.setText.call_args.args[0], '00:00:11  /  ≈ 00:03:00 left')
+
+    def test_time_label_follows_the_rapid_override_of_a_status_report(self):
+        tool = make_stream_tool(CheckFake(), source=gcode(5))
+        self.console_of(tool)
+        tool._stream_clock = MagicMock(elapsed=lambda: 1000)
+        tool.job_cumulative = [(0.0, 10.0, 0.0), (0.0, 100.0, 0.0)]         # 90 s of rapids after line 1
+        tool._on_status_report({'state': 'Run', 'ov': (100, 25, 100)})
+        tool._progress_latest = (1, 2)
+        tool._progress_shown = None
+        tool._flush_stream_ui()
+        self.assertEqual(tool.ui.time_label.setText.call_args.args[0], '00:00:01  /  ≈ 00:06:00 left')
 
     def pending_console_lines_are_all_shown_at_the_end(self):
         tool = make_stream_tool(CheckFake())
@@ -1678,7 +1689,7 @@ class TestJobEstimate(unittest.TestCase):
 
     def test_remaining_and_clock(self):
         from appPlugins.ToolGcodeSender.SenderEstimate import remaining, clock_text
-        feed_only = [(1.0, 0.0), (3.0, 0.0), (6.0, 0.0)]
+        feed_only = [(1.0, 0.0, 0.0), (3.0, 0.0, 0.0), (6.0, 0.0, 0.0)]
         self.assertAlmostEqual(remaining(feed_only, 1, 100), 5.0)
         self.assertAlmostEqual(remaining(feed_only, 1, 200), 2.5)
         self.assertEqual(clock_text(3723), '01:02:03')
@@ -1732,6 +1743,15 @@ class TestJobEstimate(unittest.TestCase):
         self.assertAlmostEqual(left(job, 200, done=2), 61.2)
         # G93 blocks are feed controlled
         self.assertAlmostEqual(left(['G21', 'G93 G1 X10 F2'], 200), 15.0)
+
+    def test_rapid_override_scales_only_the_rapid_time(self):
+        from appPlugins.ToolGcodeSender.SenderEstimate import cumulative, line_parts, remaining
+        total = cumulative(line_parts(['G21', 'G1 X60 F600', 'G0 X0', 'G4 P2'], 3000, 'MM'))     # 6 s, 1.2 s, 2 s
+        self.assertAlmostEqual(remaining(total, 0, 100, 100), 9.2)
+        self.assertAlmostEqual(remaining(total, 0, 100, 25), 6.0 + 4.8 + 2.0)
+        self.assertAlmostEqual(remaining(total, 0, 50, 100), 12.0 + 1.2 + 2.0)
+        self.assertAlmostEqual(remaining(total, 0, 100, None), 9.2)
+        self.assertAlmostEqual(remaining(total, 0, 100), 9.2)
 
 
 if __name__ == '__main__':

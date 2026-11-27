@@ -605,6 +605,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     _grbl_settings = None
     job_cumulative = None
     _feed_override_pct = 100
+    _rapid_override_pct = 100
     _stream_clock = None
     CAMERA_MODE_DISABLED_PAGES = ('console',)
 
@@ -6022,7 +6023,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         cumulative = self.job_cumulative
         dialog.layout().insertWidget(0, QtWidgets.QLabel('%s ≈ %s' % (
             _("Estimated time"), SenderEstimate.clock_text(
-                SenderEstimate.remaining(cumulative, 0, self._feed_override_pct) if cumulative else None))))
+                SenderEstimate.remaining(cumulative, 0, self._feed_override_pct, self._rapid_override_pct)
+                if cumulative else None))))
         if beginning_only:
             dialog.start_radio.setEnabled(False)
             reason = QtWidgets.QLabel(_("A new height map must start at the beginning.\n"
@@ -7226,7 +7228,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             cumulative = self.job_cumulative
             self._pendant_set(
                 done=latest[0], total=latest[1], elapsed=None if clock is None else clock.elapsed() / 1000.0,
-                remaining=SenderEstimate.remaining(cumulative, latest[0], self._feed_override_pct)
+                remaining=SenderEstimate.remaining(cumulative, latest[0], self._feed_override_pct,
+                                                self._rapid_override_pct)
                 if cumulative else None)
         if latest is not None and latest != self._progress_shown:
             self._progress_shown = latest
@@ -7247,7 +7250,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def _show_job_time(self, done, total):
         """The elapsed time and the estimated time that is left, under the progress bar."""
         cumulative = self.job_cumulative
-        left = None if not cumulative else SenderEstimate.remaining(cumulative, done, self._feed_override_pct)
+        left = None if not cumulative else SenderEstimate.remaining(
+            cumulative, done, self._feed_override_pct, self._rapid_override_pct)
         self.ui.time_label.setText('%s  /  ≈ %s %s' % (self._elapsed_text(), SenderEstimate.clock_text(left),
                                                        _("left")))
 
@@ -7780,6 +7784,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._apply_machine_state()
         if 'ov' in report:
             self._feed_override_pct = report['ov'][0]
+            self._rapid_override_pct = report['ov'][1]
             self.ui.ov_values_label.setText(_('F: %d%%  R: %d%%  S: %d%%') % report['ov'])
             # the accessory field comes with 'Ov'; without it, no accessory is on
             accessory = report.get('accessory', '')
