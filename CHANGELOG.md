@@ -32,6 +32,8 @@ G-code Sender:
 - fixed: the pendant gives the positions and their units label from the same conversion, in the units of its jog step
 - fixed: the time estimate follows G17, G18 and G19 for arcs (also a full circle in XZ or YZ); "Focus the command line" shows the Console page first
 - fixed: the text of the grblHAL error 73 ("argument", not "argrument")
+- changed: a job with an A word gets a time estimate where the rule of the controller is known: the E-Cut (F along the XYZ path, an A-only move in degrees/min also in G20, the A max velocity caps A) and a 4-axis grblHAL (the rotary fix and the inch revert of $701, else RF in $I; A is rotary by $376; $113 caps A; a G0 takes the slower of XYZ and A); the Sender reads $376 and $701 with `$+` at the connect and after a console or button write of $113, $376, $701 or $RST; an unknown rule or setting keeps no estimate (--:--:--)
+- fixed: a Configuration page write of $110, $111 or $113 updates the rates of the time estimate; a failed readback leaves them unknown
 
 E-Cut controller:
 

@@ -77,6 +77,7 @@ def make_audit_tool(units='MM', storage=None, heights_valid=False, cls=None):
     tool.grbl_work_offset = (0.0, 0.0, 0.0)
     tool.grbl_ser_port = None
     tool._grbl_grblhal = False
+    tool._grbl_identity = None      # set by _grbl_init_state() in __init__
     tool.probing_shapes = None
     tool.solid_geo = None
     tool.mouse_events_connected = False

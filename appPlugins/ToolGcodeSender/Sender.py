@@ -1782,7 +1782,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if self._grbl_close_port(port=port, attempt=attempt):
             self.app.inform.emit("[ERROR_NOTCL] %s: %s" % (_("Could not connect to the controller on port"), port_name))
 
-    def _grbl_read_report_units(self, op):
+    def _grbl_read_report_units(self, op, full=False):
         """
         Read $13 (the report units of GRBL) into self._grbl_report_inches: True (inches), False (mm) or
         None (not known). A worker thread, under the operation `op`; no motion.
@@ -1793,11 +1793,62 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         text, status = self._grbl_transact(op, '$$', timeout=5.0, echo=False)
         value = parse_grbl_setting(text, 13) if status == 'ok' else None
         self._grbl_report_inches = (value == 1.0) if value in (0.0, 1.0) else None
-        self._grbl_settings = ({number: parse_grbl_setting(text, number) for number in (22, 110, 111)}
-                               if status == 'ok' else None)
+        settings = ({number: parse_grbl_setting(text, number) for number in (22, 110, 111, 113)}
+                    if status == 'ok' else None)
         if status == 'ok':
             self._grbl_note_pin_report(text)
+            if self._grbl_hal_has_a():
+                if full:
+                    # plain `$$` of grblHAL lists only the legacy settings: `$+` also lists $376 and $701. A
+                    # failed `$+` leaves the keys None (no estimate for a job with A); the connect goes on.
+                    more, more_status = self._grbl_transact(op, '$+', timeout=5.0, echo=False)
+                    for number in (113, 376, 701):
+                        found = parse_grbl_setting(more, number) if more_status == 'ok' else None
+                        if found is not None or number != 113:
+                            settings[number] = found
+                else:
+                    # $376 and $701 change only through a write, which reads them back with `full`
+                    old = self._grbl_settings or {}
+                    settings.update({number: old.get(number) for number in (376, 701)})
+        self._grbl_settings = settings
         return status
+
+    def _grbl_hal_has_a(self):
+        """:return: True when the identity of the controller is grblHAL with an A axis."""
+        identity = self._grbl_identity
+        return (identity is not None and (identity['firmware'] or '').lower() == 'grblhal'
+                and 'A' in (identity['axis_letters'] or '').upper())
+
+    def _a_axis_rule(self):
+        """
+        The rule of the controller for the time of a move with the rotary A axis (GUI thread).
+
+        :return: a SenderEstimate.ARule, or None when the rule or a setting that it needs is not known
+        """
+        port = self.grbl_ser_port
+        if port is not None and self._ecut_settings_capable(port):
+            try:
+                motion = port.get_motion_settings()
+                if not motion['hardware']['axes'][3]['enabled']:
+                    return None
+                speed = float(motion['axes'][3]['max_velocity_mm_s']) * 60.0     # degrees per minute
+            except (serial.SerialException, OSError, KeyError, IndexError, TypeError, ValueError):
+                return None
+            return SenderEstimate.ARule('ecut', speed, speed) if speed > 0.0 else None
+        if not self._grbl_hal_has_a():
+            return None
+        settings = self._grbl_settings or {}
+        speed = settings.get(113)
+        rotary = settings.get(376)
+        if speed is None or not speed > 0.0 or rotary is None or not int(rotary) & 1:
+            return None
+        options = settings.get(701)
+        if options is None:
+            fix = True if 'RF' in self._grbl_identity['options'] else None
+            revert = None
+        else:
+            fix, revert = bool(int(options) & 1), bool(int(options) & 2)
+        return SenderEstimate.ARule('grblhal', speed, speed, fix, revert)
 
     def _grbl_note_pin_report(self, text):
         """The IO tab learns from a `$$` reply whether the controller reports the pins."""
@@ -1838,7 +1889,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     self._native_jog_port = op.port
                 self._grbl_apply_capabilities()
             self._grbl_identity_pending = False
-        status = self._grbl_read_report_units(op)
+        status = self._grbl_read_report_units(op, full=True)
         if status == 'ok':
             self._grbl_read_active_wcs(op)
         return status
@@ -2295,14 +2346,24 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         GUI thread, before the lines of a console command or a macro are sent: a $13 or $RST line makes the
         report units and the Configuration table unknown.
 
-        :return: True if the lines change a setting that the Sender reads back ($13, $RST or $10).
+        :return: True if the lines change a setting that the Sender reads back ($13, $RST, $10, or $113, $376,
+            $701 of the rule of the time estimate for a move with A).
         """
         changes_units = any(re.match(r'\$13\s*=|\$RST', line, re.IGNORECASE) for line in lines)
         if changes_units:
             self._grbl_report_inches = None
             self._invalidate_configuration()
+        changes_rule = self._setting_lines_change_rule(lines)
+        if changes_rule and self._grbl_settings is not None:
+            # unknown until the read-back: the units and the Configuration table are not touched
+            self._grbl_settings = {**self._grbl_settings, 113: None, 376: None, 701: None}
         # $10 sets the pin reporting of grblHAL: the IO tab reads it again
-        return changes_units or any(re.match(r'\$10\s*=', line) for line in lines)
+        return changes_units or changes_rule or any(re.match(r'\$10\s*=', line) for line in lines)
+
+    @staticmethod
+    def _setting_lines_change_rule(lines):
+        """:return: True if a line writes $113, $376 or $701 (the A rule of the time estimate), or is $RST."""
+        return any(re.match(r'\$(113|376|701)\s*=|\$RST', line, re.IGNORECASE) for line in lines)
 
     def _setting_lines_done(self, op, lines, changes_units, status):
         """
@@ -2312,7 +2373,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         :return: the status of the last transaction ('ok' or the failure).
         """
         if changes_units and status == 'ok':
-            status = self._grbl_read_report_units(op)
+            status = self._grbl_read_report_units(op, full=self._setting_lines_change_rule(lines))
         if status == 'ok' and any(re.search(r'\bG5[4-9](\.\d)?\b', line, re.IGNORECASE) for line in lines):
             self._grbl_read_active_wcs(op)
         if status == 'ok' and any(SenderGen.has_output_word(line) for line in lines):
@@ -2543,6 +2604,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     with self._grbl_op_lock:
                         if self._grbl_active_locked(op):
                             self._grbl_report_inches = None
+                rates = {int(number): None for number in changes if number in ('110', '111', '113', '376', '701')}
+                if rates:
+                    # unknown until the readback: a failed readback must not leave the old rate in the estimate
+                    with self._grbl_op_lock:
+                        if self._grbl_active_locked(op):
+                            self._grbl_settings = {**(self._grbl_settings or {}), **rates}
                 for number, value in changes.items():
                     text, status = self._grbl_transact(op, '$%s=%s' % (number, value), timeout=5.0, echo=False)
                     outcomes[number] = (status, text.strip())
@@ -2558,6 +2625,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     with self._grbl_op_lock:
                         if self._grbl_active_locked(op):
                             self._grbl_report_inches = {'0': False, '1': True}.get(values.get('13'))
+                            # the estimate reads the rates from these settings: keep $376 and $701
+                            self._grbl_settings = {
+                                **(self._grbl_settings or {}),
+                                **{number: parse_grbl_setting(text, number) for number in (22, 110, 111, 113)},
+                                **{int(number): None for number in changes if number in ('376', '701')}}
             except (serial.SerialException, OSError) as err:
                 read_status = str(err)
                 raise
@@ -5744,7 +5816,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             arc_segment=float(self.app.options.get("tools_grbl_arc_segment", 0.5)), units=target.units,
             decimals=target.coords_decimals, profile=profile,
             poll_ms=int(self.app.options.get("tools_grbl_status_ms", 200)), seq=seq, generation=generation,
-            rapid_mm_min=self._rapid_mm_min(active_profile_of(self.app)), m6_policy=self._effective_m6_policy())
+            rapid_mm_min=self._rapid_mm_min(active_profile_of(self.app)), m6_policy=self._effective_m6_policy(),
+            a_rule=self._a_axis_rule())
 
     def _effective_m6_policy(self):
         """:return: 'send', 'skip' or 'pause' on a controller with no manual or automatic tool change and no

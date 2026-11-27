@@ -417,6 +417,7 @@ class _StartInputs:
     block_delete: bool = True   # the lines that start with '/' are skipped
     rapid_mm_min: float = 3000.0  # the rapid rate for the time estimate
     m6_policy: str = 'native'   # 'send', 'skip', 'pause' (a controller with no tool change) or 'native'
+    a_rule: object = None       # the SenderEstimate.ARule of the controller (a job with an A word), else None
 
 
 @dataclasses.dataclass
@@ -458,7 +459,8 @@ class _PreparedRestart:
 
 
 def _cumulative(lines, inputs):
-    return SenderEstimate.cumulative(SenderEstimate.line_parts(lines, inputs.rapid_mm_min, inputs.units))
+    return SenderEstimate.cumulative(
+        SenderEstimate.line_parts(lines, inputs.rapid_mm_min, inputs.units, inputs.a_rule))
 
 
 def prepare_job(inputs, profile_compute, limits=(GRBL_RX_BUFFER, GRBL_MAX_LINE)):

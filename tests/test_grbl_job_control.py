@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import collections
 import time
+from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -1643,6 +1644,176 @@ class TestEstopEverywhere(unittest.TestCase):
                 self.assertIn(b'!', fake.written)
 
 
+class TestAAxisRule(unittest.TestCase):
+    """The rule of the time estimate for a move with A: what the Sender knows of the controller."""
+
+    @staticmethod
+    def make(identity='[FIRMWARE:grblHAL]\n[AXS:4:XYZA]\n[NEWOPT:ENUMS,RF]', replies=None, source=None):
+        from appPlugins.Common.grbl.grbl_protocol import parse_grbl_identity
+        fake = CheckFake(replies=replies)
+        tool = make_stream_tool(fake, source=source)
+        tool._grbl_identity = parse_grbl_identity(identity)
+        return tool, fake
+
+    @staticmethod
+    def read(tool, full=True):
+        op = tool._grbl_reserve('units')
+        status = tool._grbl_read_report_units(op, full=full)
+        tool._grbl_release(op)
+        return status
+
+    SETTINGS = {'$$': ['$13=0', '$110=3000', '$113=500', 'ok'], '$+': ['$113=500', '$376=1', '$701=1', 'ok']}
+
+    def test_a_failed_write_of_the_rule_keeps_the_report_units(self):
+        tool, fake = self.make(replies=dict(self.SETTINGS, **{'$113=': ['error:3']}))
+        self.read(tool)
+        self.assertIsNotNone(tool._a_axis_rule())
+        lines = ['$113=100']
+        changed = tool._setting_lines_begin(lines)
+        self.assertTrue(changed)
+        self.assertFalse(tool._grbl_report_inches)
+        self.assertIsNotNone(tool._grbl_report_inches)
+        self.assertIsNone(tool._a_axis_rule())          # unknown until a read-back
+        op = tool._grbl_reserve('command')
+        tool._grbl_transact(op, lines[0], timeout=5.0, echo=False)
+        tool._grbl_release(op)
+        self.assertIsNotNone(tool._grbl_report_inches)
+
+    def test_a_write_of_the_rule_asks_for_the_full_listing_and_a_start_does_not(self):
+        tool, fake = self.make(replies=self.SETTINGS, source='G21\nG1 A90 F600\n')
+        tool._console = lambda: MagicMock()
+        self.read(tool)
+        rule = tool._a_axis_rule()
+        self.read(tool, full=False)
+        self.assertEqual(fake.commands().count('$+'), 1)
+        self.assertEqual(tool._a_axis_rule(), rule)         # 376 and 701 keep their values
+        tool.on_start()
+        self.assertEqual(fake.commands().count('$+'), 1)
+        self.assertEqual(tool._a_axis_rule(), rule)
+
+    def test_a_configuration_write_with_a_failed_readback_leaves_the_rule_unknown(self):
+        tool, fake = self.make(replies=dict(self.SETTINGS))
+        self.read(tool)
+        self.assertEqual(tool._a_axis_rule().a_max_deg_min, 500.0)
+        fake.replies['$$'] = ['error:3']
+        tool.configuration_result_sig = MagicMock()
+        tool._grbl_mpg_owned = tool._grbl_sd_owned = False
+        tool._grbl_identity_pending = False
+        tool.app.worker_task.emit.side_effect = lambda task: task['fcn'](*task['params'])
+        page = SimpleNamespace(tool=tool, identity=(tool.grbl_ser_port, tool._grbl_safety_generation),
+                               values={'113': '500'}, epoch=1, status=MagicMock())
+        tool._configuration_request(page, {'113': '250'})
+        self.assertIn('$113=250', fake.commands())
+        self.assertIsNone(tool._grbl_settings[113])
+        self.assertIsNone(tool._a_axis_rule())
+
+    def test_a_configuration_write_updates_the_rule_values(self):
+        tool, fake = self.make(replies=dict(self.SETTINGS))
+        self.read(tool)
+        self.assertEqual((tool._grbl_settings[110], tool._grbl_settings[113]), (3000.0, 500.0))
+        fake.replies['$$'] = ['$13=0', '$110=1200', '$113=250', 'ok']
+        tool.configuration_result_sig = MagicMock()
+        tool._grbl_mpg_owned = tool._grbl_sd_owned = False
+        tool._grbl_identity_pending = False
+        tool.app.worker_task.emit.side_effect = lambda task: task['fcn'](*task['params'])
+        page = SimpleNamespace(tool=tool, identity=(tool.grbl_ser_port, tool._grbl_safety_generation),
+                               values={'113': '500', '110': '3000'}, epoch=1, status=MagicMock())
+        tool._configuration_request(page, {'113': '250', '110': '1200'})
+        self.assertEqual((tool._grbl_settings[110], tool._grbl_settings[113]), (1200.0, 250.0))
+        self.assertEqual((tool._grbl_settings[376], tool._grbl_settings[701]), (1.0, 1.0))
+        self.assertEqual(tool._a_axis_rule().a_max_deg_min, 250.0)
+
+    def test_rule_of_a_grblhal_follows_the_settings(self):
+        tool, _fake = self.make()
+        tool._grbl_settings = {113: 500.0, 376: 1.0}
+        rule = tool._a_axis_rule()
+        self.assertEqual((rule.kind, rule.a_max_deg_min, rule.a_rapid_deg_min, rule.rotary_fix, rule.revert),
+                         ('grblhal', 500.0, 500.0, True, None))         # RF in $I, no $701
+        tool._grbl_settings = {113: 500.0, 376: 1.0, 701: 2.0}
+        rule = tool._a_axis_rule()
+        self.assertEqual((rule.rotary_fix, rule.revert), (False, True))     # $701 wins over RF
+        for settings in ({113: 500.0, 376: 0.0}, {376: 1.0}, {113: 500.0}, {113: 0.0, 376: 1.0}, None):
+            tool._grbl_settings = settings
+            self.assertIsNone(tool._a_axis_rule(), settings)
+
+    def test_an_old_grblhal_without_rf_has_an_unknown_rotary_fix(self):
+        tool, _fake = self.make(identity='[FIRMWARE:grblHAL]\n[AXS:4:XYZA]\n[NEWOPT:ENUMS]')
+        tool._grbl_settings = {113: 500.0, 376: 1.0}
+        self.assertIsNone(tool._a_axis_rule().rotary_fix)
+
+    def test_other_controllers_have_no_rule(self):
+        tool, _fake = self.make(identity='[FIRMWARE:grblHAL]\n[AXS:3:XYZ]')
+        tool._grbl_settings = {113: 500.0, 376: 1.0}
+        self.assertIsNone(tool._a_axis_rule())
+        tool, _fake = self.make(identity='[VER:1.1h:]\n[OPT:V,15,128]')
+        tool._grbl_settings = {113: 500.0, 376: 1.0}
+        self.assertIsNone(tool._a_axis_rule())
+
+    def test_ecut_rule_has_the_limits_of_the_config(self):
+        tool, fake = self.make()
+        settings = {'axes': [{}, {}, {}, {'max_velocity_mm_s': 10.0}], 'hardware': {'axes': [{}, {}, {}, {'enabled': True}]}}
+        for name in ('save_motion_settings', 'calibration_move', 'get_io_state', 'set_manual_output'):
+            setattr(fake, name, MagicMock())
+        fake.get_motion_settings = lambda: settings
+        rule = tool._a_axis_rule()
+        self.assertEqual((rule.kind, rule.a_max_deg_min, rule.a_rapid_deg_min), ('ecut', 600.0, 600.0))
+        settings['hardware']['axes'][3]['enabled'] = False
+        self.assertIsNone(tool._a_axis_rule())
+
+    def test_connect_read_takes_113_376_701_from_the_full_listing(self):
+        tool, fake = self.make(replies={'$$': ['$13=0', '$113=500', 'ok'],
+                                        '$+': ['$113=500', '$376=1', '$701=1', 'ok']})
+        self.assertEqual(self.read(tool), 'ok')
+        self.assertEqual({key: tool._grbl_settings[key] for key in (113, 376, 701)}, {113: 500.0, 376: 1.0, 701: 1.0})
+        self.assertTrue(tool._a_axis_rule().rotary_fix)
+
+    def test_a_failed_full_listing_leaves_the_keys_unknown(self):
+        tool, fake = self.make(replies={'$$': ['$13=0', '$113=500', 'ok'], '$+': ['error:3']})
+        self.assertEqual(self.read(tool), 'ok')
+        self.assertEqual(tool._grbl_report_inches, False)
+        self.assertEqual((tool._grbl_settings[113], tool._grbl_settings[376], tool._grbl_settings[701]),
+                         (500.0, None, None))
+        self.assertIsNone(tool._a_axis_rule())
+
+    def test_stock_grbl_and_three_axis_grblhal_do_not_ask_for_the_full_listing(self):
+        for identity in ('[VER:1.1h:]\n[OPT:V,15,128]', '[FIRMWARE:grblHAL]\n[AXS:3:XYZ]'):
+            tool, fake = self.make(identity=identity)
+            self.assertEqual(self.read(tool), 'ok')
+            self.assertNotIn('$+', fake.commands())
+
+    def test_a_console_setting_of_the_rule_is_read_back(self):
+        tool, fake = self.make(replies={'$$': ['$13=0', '$113=500', 'ok'],
+                                        '$+': ['$113=500', '$376=1', '$701=3', 'ok']})
+        self.read(tool)
+        self.assertEqual((tool._a_axis_rule().rotary_fix, tool._a_axis_rule().revert), (True, True))
+        fake.replies['$+'] = ['$113=500', '$376=1', '$701=0', 'ok']
+        lines = ['$701=0']
+        changed = tool._setting_lines_begin(lines)
+        self.assertTrue(changed)
+        op = tool._grbl_reserve('command')
+        self.assertEqual(tool._setting_lines_done(op, lines, changed, 'ok'), 'ok')
+        tool._grbl_release(op)
+        self.assertEqual((tool._a_axis_rule().rotary_fix, tool._a_axis_rule().revert), (False, False))
+
+    def test_start_of_a_job_with_a_has_an_estimate(self):
+        from appPlugins.ToolGcodeSender.SenderEstimate import line_parts, cumulative
+        lines = ['G21', 'G1 X10 A90 F600', 'G1 A0 F600']
+        tool, fake = self.make(replies={'$$': ['$13=0', '$113=500', 'ok'],
+                                        '$+': ['$113=500', '$376=1', '$701=1', 'ok']},
+                               source='\n'.join(lines) + '\n')
+        tool._console = lambda: MagicMock()
+        self.assertEqual(self.read(tool), 'ok')         # the read of the connect
+        seen = []
+        apply_prepared = tool._apply_prepared
+        tool._apply_prepared = lambda prepared: (seen.append(prepared.cumulative), apply_prepared(prepared))[1]
+        tool.on_start()
+        self.assertEqual(len(seen), 1)
+        self.assertIsNotNone(seen[0])
+        expected = cumulative(line_parts(lines, 3000, 'MM', tool._a_axis_rule()))
+        self.assertAlmostEqual(sum(seen[0][-1]), sum(expected[-1]))
+        self.assertGreater(sum(expected[-1]), 9.0)
+
+
 class TestJobEstimate(unittest.TestCase):
     def test_line_seconds(self):
         from appPlugins.ToolGcodeSender.SenderEstimate import line_seconds
@@ -1677,6 +1848,68 @@ class TestJobEstimate(unittest.TestCase):
     def test_a_word_gives_no_estimate(self):
         from appPlugins.ToolGcodeSender.SenderEstimate import line_seconds
         self.assertIsNone(line_seconds(['G21', 'G1 X10 F600', 'G1 A90 F600'], 3000, 'MM'))
+
+    @staticmethod
+    def hal(a_max=100000.0, fix=True, revert=None):
+        from appPlugins.ToolGcodeSender.SenderEstimate import ARule
+        return ARule('grblhal', a_max, a_max, fix, revert)
+
+    @staticmethod
+    def total(lines, rule, rapid=3000.0, units='MM'):
+        from appPlugins.ToolGcodeSender.SenderEstimate import line_seconds
+        seconds = line_seconds(lines, rapid, units, rule)
+        return None if seconds is None else sum(seconds)
+
+    def test_grblhal_rotary_fix_times_the_xyz_path(self):
+        rule = self.hal(fix=True)
+        self.assertAlmostEqual(self.total(['G21', 'G1 X10 A90 F600'], rule), 1.0)
+        self.assertAlmostEqual(self.total(['G21', 'G1 A90 F600'], rule), 9.0)
+        self.assertAlmostEqual(self.total(['G20', 'G1 X1 A90 F60'], rule), 1.0)
+
+    def test_grblhal_without_rotary_fix_times_xyz_and_a_together(self):
+        self.assertAlmostEqual(self.total(['G21', 'G1 X10 A90 F600'], self.hal(fix=False)),
+                               (100 + 8100) ** 0.5 / 600 * 60, places=4)
+
+    def test_grblhal_inch_a_only_follows_the_revert_flag(self):
+        lines = ['G20', 'G1 A90 F60']
+        self.assertAlmostEqual(self.total(lines, self.hal(revert=False)), 90 / (60 * 25.4) * 60, places=4)
+        self.assertAlmostEqual(self.total(lines, self.hal(revert=True)), 90.0, places=3)
+        self.assertIsNone(self.total(lines, self.hal(revert=None)))
+        self.assertAlmostEqual(self.total(['G21', 'G1 A90 F60'], self.hal(revert=None)), 90.0)
+
+    def test_grblhal_unknown_rotary_fix_only_matters_for_xyz_with_a(self):
+        rule = self.hal(fix=None)
+        self.assertIsNone(self.total(['G21', 'G1 X10 A90 F600'], rule))
+        self.assertAlmostEqual(self.total(['G21', 'G1 A90 F600'], rule), 9.0)
+        self.assertAlmostEqual(self.total(['G21', 'G1 X10 F600'], rule), 1.0)
+
+    def test_a_speed_caps_a_move(self):
+        self.assertAlmostEqual(self.total(['G21', 'G1 A90 F6000'], self.hal(a_max=500.0)), 10.8)
+        self.assertAlmostEqual(self.total(['G21', 'G93', 'G1 A90 F60'], self.hal(a_max=500.0)), 10.8)
+
+    def test_a_is_not_scaled_by_a_unit_change(self):
+        seconds = self.total(['G21', 'G1 A90 F600', 'G20', 'G1 A180 F600'], self.hal(revert=False))
+        self.assertAlmostEqual(seconds, 9.0 + 90 / (600 * 25.4) * 60, places=4)
+
+    def test_rapid_with_a_takes_the_slower_axis_and_follows_the_rapid_override(self):
+        from appPlugins.ToolGcodeSender.SenderEstimate import cumulative, line_parts, remaining
+        parts = line_parts(['G21', 'G0 X60 A90'], 3000, 'MM', self.hal(a_max=500.0))
+        self.assertAlmostEqual(parts[1][1], 10.8)
+        self.assertEqual((parts[1][0], parts[1][2]), (0.0, 0.0))
+        self.assertAlmostEqual(remaining(cumulative(parts), 0, 100, 50), 21.6)
+
+    def test_ecut_rule_matches_the_engine(self):
+        # the times that the E-Cut engine plans (records of 1 ms, no acceleration), measured on the simulated board
+        from appPlugins.ToolGcodeSender.SenderEstimate import ARule
+        rule = ARule('ecut', 60000.0, 60000.0)
+        for lines, engine in ((['G21', 'G1 X10 A90 F600'], 1.0), (['G21', 'G1 A90 F600'], 9.0),
+                              (['G20', 'G1 A90 F600'], 9.0), (['G20', 'G1 X1 A90 F60'], 1.0),
+                              (['G21', 'G0 X60 A90'], 0.09)):
+            self.assertAlmostEqual(self.total(lines, rule, rapid=60000.0), engine, delta=engine * 0.02, msg=lines)
+        # an A speed of 10 deg/s: the engine takes 9 s for each of these
+        slow = ARule('ecut', 600.0, 600.0)
+        for lines in (['G21', 'G1 A90 F6000'], ['G21', 'G1 X10 A90 F60000'], ['G21', 'G0 X60 A90'], ['G21', 'G0 A90']):
+            self.assertAlmostEqual(self.total(lines, slow, rapid=60000.0), 9.0, delta=0.18, msg=lines)
 
     def test_time_label_and_end_message(self):
         tool = make_stream_tool(CheckFake(), source=gcode(5))
