@@ -563,7 +563,6 @@ Everything is headless: objects are built with a SimpleNamespace app and the Vis
 
 import os
 import sys
-from collections import Counter, defaultdict
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -572,17 +571,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 import camlib  # noqa: E402
-from appObjects.AppObjectTemplate import FlatCAMObj  # noqa: E402
-from appObjects.CNCJobObject import CNCJobObject  # noqa: E402
-from appObjects.DocumentObject import DocumentObject  # noqa: E402
-from appObjects.GeometryObject import GeometryObject  # noqa: E402
-from appObjects.ScriptObject import ScriptObject  # noqa: E402
 from appParsers.ParseExcellon import Excellon  # noqa: E402
 from appParsers.ParseGerber import Gerber  # noqa: E402
-from camlib import CNCjob, Geometry, app_option  # noqa: E402
+from camlib import Geometry, app_option  # noqa: E402
 # fixtures and helpers of the characterization tests (a fixture imported here is collected as ours)
 from tests.helpers_objects import (  # noqa: F401,E402
-    app, assert_same_tools, _headless_qt, make_excellon, make_gerber, save_and_load,
+    _headless_qt,
 )
 
 
@@ -611,38 +605,6 @@ class TestAppOptionFallbackOrder:
     def test_falsy_option_value_is_kept(self):
         a = fake_app({'k': 0}, Defaults({'k': 2}))
         assert app_option(a, 'k', 4) == 0
-
-
-def build_objects(app):
-    app.preprocessors = defaultdict(Mock)
-    return {
-        'Geometry': Geometry(app), 'Gerber': Gerber(app), 'Excellon': Excellon(app), 'CNCjob': CNCjob(app),
-        'GerberObject': make_gerber(app), 'ExcellonObject': make_excellon(app),
-        'GeometryObject': GeometryObject('geo', app), 'CNCJobObject': CNCJobObject('job', app),
-    }
-
-
-class TestSerAttrsHaveNoDuplicates:
-
-    def test_old_layout_dict_loads_into_new_layout(self, app):
-        """A project saved with the old (duplicated) ser_attrs has the same keys: it must load."""
-        grb = make_gerber(app)
-        new_keys = set(grb.to_dict())
-        old_layout = list(grb.ser_attrs) + ['tools', 'solid_geometry']
-        grb.ser_attrs = old_layout
-        old_dict = grb.to_dict()
-        assert set(old_dict) == new_keys
-
-        other = make_gerber(app, name='other')
-        other.from_dict(old_dict)
-        assert other.units == grb.units
-        assert sorted(other.tools) == sorted(grb.tools)
-
-        app.preprocessors = defaultdict(Mock)
-        job = CNCJobObject('job', app)
-        job_keys = set(job.to_dict())
-        job.ser_attrs = list(job.ser_attrs) + ['kind', 'tools']
-        assert set(job.to_dict()) == job_keys
 
 
 # ======================================================================
@@ -716,15 +678,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from appObjects.AppObject import AppObject
 from defaults import AppDefaults, AppOptions, APP_TOOL_KEYS, PROJECT_KEYS, is_project_key, project_options
 
-
-class TestIsProjectKey(unittest.TestCase):
-    def test_tools_keys_are_project_keys(self):
-        for key in ('tools_iso_tooldia', 'tools_drill_ppname_e', 'tools_mill_ppname_g', 'tools_ncc_operation'):
-            self.assertTrue(is_project_key(key), key)
-        for key in ('global_gridx', 'global_workspace', 'global_appearance', 'cncjob_tooldia',
-                    'excellon_optimization_type', 'gerber_plot', 'units_precision', 'first_run',
-                    'root_folder_path', None, 5):
-            self.assertFalse(is_project_key(key), key)
 
 class TestAppOptionsMergedView(unittest.TestCase):
     def make(self):

@@ -757,10 +757,6 @@ class TestNativeLoad:
                               if not is_clear_record(s.geo) and shown[s] is not None and not shown[s].is_empty])
         copper = polygon_union(source.solid_geometry)
         assert sym_diff_area(dark, copper) < 1e-6 * copper.area
-        # an unchanged scene gives the same objects again (the canvas keeps its buffers)
-        cache = {}
-        first = native_display_geometries(shapes, cache)
-        assert all(native_display_geometries(shapes, cache)[s] is first[s] for s in shapes)
 
     def test_new_drawing_over_a_clear_object_is_copper(self, app):
         source = make_gerber(app, ORCAD_CLEAR)

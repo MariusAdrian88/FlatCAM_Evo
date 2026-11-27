@@ -24,18 +24,17 @@ def parse(text):
 
 
 @lru_cache(maxsize=None)
-def real(name, extension):
-    """Parse each real fixture once per test session; tests using it only read the result."""
+def real(name, extension, mode='regions'):
+    """Read-only fixtures, cached by import mode; geometry checks need no source-feature decomposition."""
     from appParsers.ParsePADS import PADSParser
-    return PADSParser(circle_steps=128).parse_file(FIXTURES / (name + extension))
+    app = SimpleNamespace(options={'gerber_board_import_mode': mode})
+    return PADSParser(app=app, circle_steps=128).parse_file(FIXTURES / (name + extension))
 
 
 @pytest.mark.parametrize('extension', ['.asc', '.pcb'])
 def test_source_primitives_preserve_ascii_and_native_board_geometry(extension):
-    from appParsers.ParsePADS import PADSParser
-    baseline = PADSParser(app=SimpleNamespace(options={'gerber_board_import_mode': 'regions'}),
-                          circle_steps=128).parse_file(FIXTURES / ('LCORE_2' + extension))
-    parsed = real('LCORE_2', extension)
+    baseline = real('LCORE_2', extension)
+    parsed = real('LCORE_2', extension, mode='primitives')
     records = [r for layer in parsed.layers.values() for t in layer['tools'].values()
                if t['type'] == 'C' for r in t['geometry']]
     assert any(isinstance(r.get('follow'), Point) for r in records)
@@ -1009,8 +1008,7 @@ class TestPadsImportWorker:
         assert self.app.worker_task.emit.call_args.args[0]['params'] == ['next.kicad_pcb']
         self.app.projects.inform_busy.assert_not_called()
 
-    @pytest.mark.parametrize('name', ['LCORE_2.pcb', 'TMS1mmX19.pcb'])
-    def test_native_board_exports_both_copper_layers_and_drills(self, name, tmp_path):
+    def test_native_board_exports_both_copper_layers_and_drills(self, tmp_path):
         from PyQt6 import QtWidgets
         from shapely.affinity import scale
         from appParsers.ParseGerber import Gerber
@@ -1018,11 +1016,13 @@ class TestPadsImportWorker:
         from appParsers.ParsePADS import PADSParser
 
         self._export_options()
-        stem, extension = name.split('.')
+        # LCORE covers the shared native import/export path, including pours. The native decoder tests cover both
+        # board versions and slot imports; shared Excellon roundtrip tests check slot export and unit conversion.
+        name = 'LCORE_2.pcb'
         filename = str(FIXTURES / name)
         # The parse itself is tested above: the session's parse of the fixture stands in for the worker's parse.
         # Parse before the patch: real() calls PADSParser.parse_file, which the patch replaces.
-        board = real(stem, '.' + extension)
+        board = real('LCORE_2', '.pcb', mode='primitives')
         with patch.object(PADSParser, 'parse_file', lambda parser, path, **kwargs: board), \
                 patch.object(QtWidgets.QFileDialog, 'getOpenFileName', return_value=(filename, '')) as chooser:
             self.io.on_file_import_pads()
@@ -1038,9 +1038,8 @@ class TestPadsImportWorker:
             reports = [label.text().lower() for label in selection.findChildren(QtWidgets.QLabel)
                        if label.isVisible()]
             disclosures = [('romansim', 'substitut', 'glyph', 'shapes', 'metrics', 'case is preserved'),
-                           ('plating', 'read from the file'), ('teardrop', 'not reproduced')]
-            if name.startswith('LCORE'):
-                disclosures.append(('pours', 'reconstructed', 'not original pads'))
+                           ('plating', 'read from the file'), ('teardrop', 'not reproduced'),
+                           ('pours', 'reconstructed', 'not original pads')]
             for disclosure in disclosures:
                 assert any(all(term in report for term in disclosure) for report in reports), \
                     'Missing import-dialog disclosure: %s' % (disclosure,)
@@ -1066,15 +1065,11 @@ class TestPadsImportWorker:
             for pour in (item['geometry'] for item in parsed.pours if item['layer'] == layer):
                 assert pour.area > 1
                 assert scale(pour, xfact=1 / 25.4, yfact=1 / 25.4, origin=(0, 0)).difference(artwork).area < 0.001
-        if name.startswith('LCORE'):
-            holes = next(obj for obj in drills if max(tool['tooldia'] for tool in obj.tools.values()) > 1 / 25.4)
-            assert sorted((round(tool['tooldia'] * 25.4, 6), len(tool['drills']))
-                          for tool in holes.tools.values()) == [(1.6, 2), (2.0, 2)]
-            assert any(point.distance(Point(5.17633 / 25.4, -19.31867 / 25.4)) < 1e-9
-                       for tool in holes.tools.values() for point in tool['drills'])
-        else:
-            assert sum(len(tool['drills']) for obj in drills for tool in obj.tools.values()) == 83
-            assert sum(len(tool['slots']) for obj in drills for tool in obj.tools.values()) == 3
+        holes = next(obj for obj in drills if max(tool['tooldia'] for tool in obj.tools.values()) > 1 / 25.4)
+        assert sorted((round(tool['tooldia'] * 25.4, 6), len(tool['drills']))
+                      for tool in holes.tools.values()) == [(1.6, 2), (2.0, 2)]
+        assert any(point.distance(Point(5.17633 / 25.4, -19.31867 / 25.4)) < 1e-9
+                   for tool in holes.tools.values() for point in tool['drills'])
         for obj in drills:
             reparsed = Excellon(self.app)
             assert reparsed.parse_lines(obj.source_file.splitlines()) != 'fail'

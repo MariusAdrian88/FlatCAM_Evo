@@ -559,23 +559,6 @@ def test_new_can_create_before_the_deferred_update_worker_starts(welcome_startup
     assert checking == [True]
 
 
-def test_welcome_preserves_the_native_titlebar_restore_geometry(welcome_startup, qapp, monkeypatch):
-    from tests.test_titlebar import TitleWindow
-    app, settings = welcome_startup
-    app.ui.deleteLater()
-    app.ui = TitleWindow()
-    monkeypatch.setattr('appGUI.MainGUI.cursor_screen', lambda: app.ui.screen())
-    app.ui.setGeometry(115, 23, 900, 400)
-    geometry = app.ui.geometry()
-    appMain.App._setup_startup(app)
-    qapp.processEvents()
-    assert not app.ui.isVisible()
-    app._welcome_dialog.continue_button.click()
-    qapp.processEvents()
-    assert app.ui.isVisible() and app.ui.geometry() == geometry
-    app.ui.hide()
-
-
 def test_disabled_welcome_presents_the_workspace_directly(welcome_startup, qapp):
     app, settings = welcome_startup
     app.options['global_welcome'] = False

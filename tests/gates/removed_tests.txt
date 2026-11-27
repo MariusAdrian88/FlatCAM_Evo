@@ -1,6 +1,97 @@
 # Format: <test id>  # <reason>   (one per line; blank and # lines are ignored)
 # Tests removed on purpose.
 
+# 2026-11-27: owner-approved removal of general GUI tests to meet the existing test budget.
+tests/test_gui.py::DialogFilterTests::test_excellon_gcode_and_hpgl2_dialogs_show_upper_case_files  # GUI tests retired by owner
+tests/test_gui.py::DialogFilterTests::test_gerber_dialog_shows_upper_and_lower_case_files  # GUI tests retired by owner
+tests/test_gui.py::GerberSaveFilterTests::test_each_file_type_shows_its_files_and_all_files_is_last  # GUI tests retired by owner
+tests/test_gui.py::GerberSaveFilterTests::test_the_chosen_file_type_adds_its_extension  # GUI tests retired by owner
+tests/test_gui.py::SaveDialogExtensionTests::test_a_name_with_an_extension_of_the_filter_in_any_case_is_kept  # GUI tests retired by owner
+tests/test_gui.py::TestIconColors::test_failed_write_restores_previously_changed_icons  # GUI tests retired by owner
+tests/test_gui.py::TestIconColors::test_invalid_image_does_not_change_any_files  # GUI tests retired by owner
+tests/test_gui.py::TestIconColors::test_only_single_color_icons_change_and_remain_recolorable  # GUI tests retired by owner
+tests/test_gui.py::TestJumpTo::test_canvas_pixel_roundtrip_after_pan_zoom_and_resize  # GUI tests retired by owner
+tests/test_gui.py::TestJumpTo::test_jump_centers_target_without_changing_zoom  # GUI tests retired by owner
+tests/test_gui.py::TestJumpTo::test_jump_click_matches_target_and_canvas  # GUI tests retired by owner
+tests/test_gui.py::TestJumpTo::test_relative_reference_is_captured_before_dialog  # GUI tests retired by owner
+tests/test_gui.py::TestQtStyle::test_startup_restores_names_and_handles_legacy_or_invalid_values  # GUI tests retired by owner
+tests/test_gui.py::TestRenameCompleter::test_rename_with_unregistered_old_name  # GUI tests retired by owner
+tests/test_gui.py::TestRenameKeepsNamesUnique::test_name_entry_and_gcode_export_number_the_name_of_another_object  # GUI tests retired by owner
+tests/test_gui.py::TestRenameKeepsNamesUnique::test_project_tree_and_rename_object_number_the_name_of_another_object  # GUI tests retired by owner
+tests/test_gui.py::test_choice_combo_unknown_value_never_keeps_the_previous_selection  # GUI tests retired by owner
+tests/test_gui.py::test_clear_gui_settings_answered_no_keeps_the_theme  # GUI tests retired by owner
+tests/test_gui.py::test_clear_gui_settings_answered_yes_clears_to_the_light_theme  # GUI tests retired by owner
+tests/test_gui.py::test_drag_that_leaves_the_tool_table_unblocks_its_signals  # GUI tests retired by owner
+tests/test_gui.py::test_legacy_preferences_migrate_and_round_trip[dark-dark-custom]  # GUI tests retired by owner
+tests/test_gui.py::test_micron_field_shows_the_units_of_the_project_and_keeps_micrometers  # GUI tests retired by owner
+tests/test_gui.py::test_path_completion_after_open_gerber_lists_only_gerber_files  # GUI tests retired by owner
+tests/test_gui.py::test_path_completion_goes_down_into_a_folder_and_ends_with_the_file  # GUI tests retired by owner
+tests/test_gui.py::test_path_completion_lists_the_folders_first_then_the_files  # GUI tests retired by owner
+tests/test_gui.py::test_path_completion_never_lists_a_network_path_and_a_lone_slash_is_no_path  # GUI tests retired by owner
+tests/test_gui.py::test_path_completion_quotes_a_name_for_tcl[a[1].gbr-open_gerber {{{d}/a[1].gbr}} ]  # GUI tests retired by owner
+tests/test_gui.py::test_path_completion_quotes_a_name_for_tcl[b$x;#.gbr-open_gerber {{{d}/b$x;#.gbr}} ]  # GUI tests retired by owner
+tests/test_gui.py::test_path_completion_quotes_a_name_for_tcl[c{x.gbr-open_gerber {d}/c//{{x.gbr ]  # GUI tests retired by owner
+tests/test_gui.py::test_path_completion_quotes_a_name_for_tcl[i/U0001f600j k.gbr-open_gerber {{{d}/i/U0001f600j k.gbr}} ]  # GUI tests retired by owner
+tests/test_gui.py::test_real_registered_actions_keep_command_defaults[connect_editmenu_signals-menuedit_center_in_origin]  # GUI tests retired by owner
+tests/test_gui.py::test_real_registered_actions_keep_command_defaults[connect_toolbar_signals-replot_btn]  # GUI tests retired by owner
+tests/test_gui.py::test_startup_separates_scheme_from_stylesheet[auto-True-dark-custom]  # GUI tests retired by owner
+tests/test_gui.py::test_startup_separates_scheme_from_stylesheet[light-True-light-default]  # GUI tests retired by owner
+tests/test_gui.py::test_tcl_shell_line_completes_paths_and_keywords  # GUI tests retired by owner
+tests/test_gui.py::test_theme_preferences_confirm_revert_and_save[True-global_appearance-dark-True]  # GUI tests retired by owner
+tests/test_gui.py::test_typed_number_over_the_maximum_keeps_the_previous_value[FCDoubleSpinner]  # GUI tests retired by owner
+tests/test_gui.py::test_typed_number_reaches_the_slots_of_the_keypad_enter[FCDoubleSpinner]  # GUI tests retired by owner
+tests/test_layout_changes.py::test_layout_transitions_keep_actions_and_toolbar_state[True-False]  # GUI tests retired by owner
+tests/test_layout_changes.py::test_normal_startup_restores_layout_and_custom_toolbar_state[False-minimal-preset]  # GUI tests retired by owner
+tests/test_layout_changes.py::test_normal_startup_restores_layout_and_custom_toolbar_state[False-standard-custom]  # GUI tests retired by owner
+tests/test_layout_changes.py::test_normal_startup_restores_layout_and_custom_toolbar_state[False-standard-invalid]  # GUI tests retired by owner
+tests/test_layout_changes.py::test_ui_layout_activation_and_restoration[1-compact]  # GUI tests retired by owner
+tests/test_layout_changes.py::test_ui_layout_activation_and_restoration[2-minimal]  # GUI tests retired by owner
+tests/test_layout_changes.py::test_view_restore_layout_restores_hidden_toolbars[assets/resources]  # GUI tests retired by owner
+tests/test_startup.py::test_welcome_preserves_the_native_titlebar_restore_geometry  # Window geometry check depended on the retired GUI helper
+tests/test_titlebar.py::TestTitleBar::test_main_window_fullscreen_preserves_geometry_and_maximized_state  # GUI tests retired by owner
+tests/test_titlebar.py::TestTitleBar::test_maximized_startup_preserves_restore_geometry  # GUI tests retired by owner
+tests/test_titlebar.py::TestTitleBar::test_window_created_by_the_splash_keeps_its_saved_geometry  # GUI tests retired by owner
+tests/test_titlebar.py::TestTitleBarPreferences::test_custom_titlebar_changes_persist_and_restart_only_after_confirmation  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_categories_order_collapse_state_and_expand_link  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_category_keyboard_selection_and_enter_never_start_a_file_action  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_checkbox_persists_same_preference_and_informational_tabs_only_continue  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_child_selection_restores_details_and_keyboard_activation_opens_its_file  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_dismissal_leaves_workspace_alive[continue]  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_dismissal_leaves_workspace_alive[escape]  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_keyboard_can_reach_and_open_the_last_recent_file_on_a_compact_screen  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_layout_keeps_actions_accessible_on_a_small_logical_screen[360]  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_manufacturing_and_cad_icons_render_in_both_themes[assets/resources]  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_missing_recent_and_cancelled_browse_keep_welcome  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_new_object_uses_an_untitled_project_without_discarding_current[False]  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_new_object_uses_an_untitled_project_without_discarding_current[True]  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_recent_files_match_type_limit_and_survive_bad_history  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_recent_list_hides_files_that_are_no_longer_on_the_disk  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_recent_opens_exact_file_with_correct_handler[document-Document-.FlatDoc-open_document]  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_recent_opens_exact_file_with_correct_handler[dxf-geometry-.dxf-import_dxf]  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_recent_opens_exact_file_with_correct_handler[hpgl2-geometry-.plt-open_hpgl2]  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_recent_opens_exact_file_with_correct_handler[pads-pads-.asc-on_file_import_pads]  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_recent_opens_exact_file_with_correct_handler[sprint_layout-sprint_lay6-.lay6-on_file_import_sprint_layout]  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_return_activates_the_focused_action[continue_button]  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_return_activates_the_focused_action[new_button]  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_saved_startup_choice_survives_preferences_cancel  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_search_and_creation_availability  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_search_keeps_valid_category_and_reserves_no_match_for_zero_results  # GUI tests retired by owner
+tests/test_welcome_dialog.py::test_single_file_browse_preserves_vector_object_choice  # GUI tests retired by owner
+
+# 2026-11-27: remove design-only checks and repeated workflows; retain manufacturing behavior.
+tests/test_clearing_speed.py::TestConnectArrays::test_joins_the_paths_of_the_coordinate_tuples  # copied old algorithm; connection geometry and lifts covered by Paint and clearing goldens
+tests/test_clearing_speed.py::TestSeedBands::test_banded_rings_are_the_rings_cut_one_by_one  # replaced by per-pocket cutter-sweep coverage, including holes and islands
+tests/test_fused_solid.py::TestNew_fused_solid_cutout::test_valid_polygonal[mixed_dark_clear_dark-False]  # type-only check; real cutout paths covered by cutout goldens
+tests/test_fused_solid.py::TestNew_fused_solid_cutout::test_valid_polygonal[overlapping_list-True]  # type-only check; convex cutout covered by slot_convex golden
+tests/test_ortools.py::test_64bit_without_ortools_is_false  # availability flag only; route solver failure fallback retained
+tests/test_ortools.py::test_distance_matrix_is_scaled_rounded_and_symmetric  # internal distance representation; complete routes and sub-mm route quality retained
+tests/test_ortools.py::test_route_of_holes_less_than_1_mm_apart_is_not_random[optimized_ortools_meta]  # same behavior retained without a one-value parameter
+tests/test_ortools.py::test_route_visits_every_location_once_from_the_first[optimized_ortools_basic]  # same behavior retained without a one-value parameter
+tests/test_pads_parser.py::TestPadsImportWorker::test_native_board_exports_both_copper_layers_and_drills[LCORE_2.pcb]  # same workflow retained without a one-value parameter
+tests/test_pads_parser.py::TestPadsImportWorker::test_native_board_exports_both_copper_layers_and_drills[TMS1mmX19.pcb]  # repeated shared workflow; both native decoder versions and slot imports retained, shared slot exporter roundtrip retained
+tests/test_preferences.py::TestIsProjectKey::test_tools_keys_are_project_keys  # key classification only; actual project and preference boundaries retained
+tests/test_preferences.py::TestSerAttrsHaveNoDuplicates::test_old_layout_dict_loads_into_new_layout  # synthetic duplicate private serialization fields; real old-project save/load tests retained
+
 # 2026-11-21: EVO defaults isolation (#86); an existing EVO profile must take precedence, including an empty one.
 tests/test_preferences.py::TestLegacyCompatibility::test_startup_loads_legacy_file_over_empty_stable_file[empty]  # Replaced by test_startup_applies_only_evo_preferences_when_enabled and TestStartupDefaultsIsolation; legacy import now runs before the EVO file is created.
 

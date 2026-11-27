@@ -23,9 +23,7 @@ tests/test_eagle_brd.py  # 18 s (old test_eagle_brd_e2e.py)
 tests/test_clipper_fuse.py  # 16 s
 tests/test_grbl_console.py  # 16 s
 tests/test_sub.py  # 15 s
-tests/test_layout_changes.py  # 14 s
 tests/test_tcl_small_commands.py  # 12 s
-tests/test_titlebar.py  # 12 s
 tests/ecut/test_ecut_settings_sender.py  # 7 s
 tests/test_grbl_toolchange.py  # 6 s
 tests/test_ortools.py  # old test_ortools_optimizer.py (5.6 s)
