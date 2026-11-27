@@ -643,6 +643,36 @@ def test_beginner_level_keeps_the_stored_tool_values(fc_drilling_ui):
     tool.change_level('a')
     assert tool._effective_tool_data(1)['tools_drill_multidepth'] is True
 
+@pytest.mark.parametrize('object_pp, tool_pp, expected', [
+    ('default', None, 'default'),
+    ('GRBL_11_no_M6', 'GRBL_11_no_M6', 'GRBL_11_no_M6'),
+    ('default', 'GRBL_11_no_M6', 'GRBL_11_no_M6'),
+    (None, None, 'GRBL_11'),
+    ('Check_points', None, 'Check_points'),
+])
+def test_plugin_preprocessor_uses_saved_values_before_preferences(
+        fc_drilling_ui, monkeypatch, object_pp, tool_pp, expected):
+    key = 'tools_drill_ppname_e'
+    exc = _load(fc_drilling_ui, 'e_ui_pp_pref')
+    for storage, value in [(exc.obj_options, object_pp),
+                           *[(tool['data'], tool_pp) for tool in exc.tools.values()]]:
+        if value is None:
+            storage.pop(key, None)
+        else:
+            storage[key] = value
+
+    monkeypatch.setitem(fc_drilling_ui.options, key, 'GRBL_11')
+    tool = _open(fc_drilling_ui, exc.obj_options['name'])
+    assert tool.ui.pp_excellon_name_cb.get_value() == expected
+    assert exc.obj_options.get(key) == object_pp
+    assert all(tool['data'].get(key) == tool_pp for tool in exc.tools.values())
+
+def test_new_excellon_drilling_uses_preferred_preprocessor(fc_drilling_ui, monkeypatch):
+    monkeypatch.setitem(fc_drilling_ui.options, 'tools_drill_ppname_e', 'GRBL_11_no_M6')
+    _load(fc_drilling_ui, 'e_ui_pp_new')
+    tool = _open(fc_drilling_ui, 'e_ui_pp_new')
+    assert tool.ui.pp_excellon_name_cb.get_value() == 'GRBL_11_no_M6'
+
 def test_apply_to_all_with_a_totals_row_current_never_blanks_the_tools(fc_drilling_ui):
     exc = _load(fc_drilling_ui, 'e_ui_all')
     tool = _open(fc_drilling_ui, 'e_ui_all')
