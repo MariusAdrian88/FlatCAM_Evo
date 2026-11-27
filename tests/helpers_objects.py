@@ -323,6 +323,7 @@ def make_app_0b(**option_overrides):
         plotcanvas=plotcanvas, pool=None, abort_flag=False,
         proc_container=MagicMock(), shell=Mock(), collection=Mock(), call_source='app',
         preprocessors=defaultdict(Mock), splash=None, worker_task=Mock(), app_obj=Mock(),
+        headless=False,     # App.headless (appMain.py): the readers default to False; report_gate reads it directly
     )
 
 
