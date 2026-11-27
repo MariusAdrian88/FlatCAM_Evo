@@ -2040,8 +2040,9 @@ class appIO(QtCore.QObject):
             self.inform.emit('[ERROR_NOTCL] %s: %s' % (_("The project was not saved"), filename))
             return
 
-        if self.app.options.get("global_open_style", self.app.defaults.get("global_open_style")) is False:
-            self.app.file_opened.emit("project", filename)
+        # a good save puts the project at the top of the recent projects, whatever the "Open" behavior is: the
+        # Welcome screen and the menu read that history
+        self.app.file_opened.emit("project", filename)
         self.app.file_saved.emit("project", filename)
 
         if not make_copy:

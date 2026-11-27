@@ -1200,6 +1200,26 @@ class TestSave(AppIOTestBase):
         self.assertFalse(self.app.should_we_save)
         self.app.file_saved.emit.assert_called_once_with('project', self.path('Board_B.FlatPrj'))
 
+    def test_good_save_updates_the_recent_projects_whatever_the_open_behavior(self):
+        from appMain import App
+
+        recent_app = SimpleNamespace(
+            recent=[], recent_projects=[{'kind': 'project', 'filename': self.path('Old.FlatPrj')}],
+            options={'global_recent_limit': 10}, defaults={}, log=Mock(),
+            app_obj=SimpleNamespace(load_batches=set()), flush_recent_items=Mock())
+        self.app.file_opened = Mock()
+        self.app.file_opened.emit.side_effect = lambda kind, filename: App.register_recent(
+            recent_app, kind, filename)
+        self.app.project_filename = self.path('Board.FlatPrj')
+        self.projects.save_target.return_value = self.path('Board.FlatPrj')
+
+        self.io.on_file_save_project()
+        self.run_queued_save(True)
+
+        # a good save is the newest recent project, and the menu is rebuilt from that history
+        self.assertEqual(recent_app.recent_projects[0]['filename'], self.path('Board.FlatPrj'))
+        recent_app.flush_recent_items.assert_called_once_with()
+
     def test_failed_save_keeps_the_old_state(self):
         self.app.project_filename = self.path('Board_A.FlatPrj')
         self.projects.save_target.return_value = self.path('Board_B.FlatPrj')
@@ -1211,6 +1231,7 @@ class TestSave(AppIOTestBase):
         self.projects.adopt_filename.assert_not_called()
         self.assertTrue(self.app.should_we_save)
         self.app.file_saved.emit.assert_not_called()
+        self.app.file_opened.emit.assert_not_called()
 
     def test_change_during_the_save_keeps_the_project_dirty(self):
         self.app.project_filename = self.path('Board_A.FlatPrj')

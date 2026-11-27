@@ -84,7 +84,8 @@ def unique_recent(records):
 
 
 def recent_files(app, key):
-    """Read the existing histories, including their legacy kind names. Never reinterpret HPGL as DXF."""
+    """Read the existing histories, including their legacy kind names. Never reinterpret HPGL as DXF.
+    A file that is no longer on the disk is skipped: the Welcome screen shows no dead links."""
     if key is None:
         return []
     history = getattr(app, 'recent_projects' if key == 'project' else 'recent', [])
@@ -96,6 +97,8 @@ def recent_files(app, key):
             continue
         filename, kind = record.get('filename'), record.get('kind')
         if not isinstance(filename, str) or not filename or not isinstance(kind, str):
+            continue
+        if not os.path.isfile(filename):
             continue
         kind = kind.lower()
         kind = {'sprint_lay6': 'sprint_layout', 'hpgl': 'hpgl2'}.get(kind, kind)

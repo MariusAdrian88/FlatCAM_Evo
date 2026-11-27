@@ -398,6 +398,9 @@ def test_a_file_opened_with_other_slashes_is_one_history_record(tmp_path):
         appMain.App.register_recent(app, 'excellon' if name.endswith('.drl') else 'gerber', name)
     assert [record['filename'] for record in app.recent] == [native, os.path.join(str(tmp_path), 'b.drl')]
     app.recent.append({'kind': 'gerber', 'filename': other})      # an old history file with the copy
+    os.makedirs(os.path.dirname(native), exist_ok=True)
+    with open(native, 'w', encoding='utf-8') as stream:
+        stream.write('data')
     assert recent_files(app, 'gerber') == [native]
 
 

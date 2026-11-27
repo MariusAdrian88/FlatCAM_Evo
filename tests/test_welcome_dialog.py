@@ -167,6 +167,9 @@ def test_child_selection_restores_details_and_keyboard_activation_opens_its_file
 def test_recent_files_match_type_limit_and_survive_bad_history(welcome, tmp_path):
     dialog, app, opened = welcome
     paths = [str(tmp_path / ('board%d.lay6' % n)) for n in range(8)]
+    for path in paths:
+        with open(path, 'w', encoding='utf-8') as stream:
+            stream.write('data')
     app.recent = [None, 'broken', {}, {'kind': 'sprint_lay6', 'filename': 42},
                   {'kind': 'gerber', 'filename': 'other.gbr'}] + [
                       {'kind': 'sprint_lay6', 'filename': name} for name in paths]
@@ -180,6 +183,31 @@ def test_recent_files_match_type_limit_and_survive_bad_history(welcome, tmp_path
     app.recent = [{'kind': 'geometry', 'filename': 'unknown.format'}]
     dialog.filter_entry.setText('no matching file type')
     assert dialog.recent_list.count() == 0
+
+
+def test_recent_list_hides_files_that_are_no_longer_on_the_disk(welcome, qapp, tmp_path):
+    from appGUI.WelcomeDialog import WelcomeDialog
+
+    dialog, app, opened = welcome
+    present = tmp_path / 'saved.FlatPrj'
+    present.write_text('{}', encoding='utf-8')
+    app.recent_projects = [{'kind': 'project', 'filename': str(tmp_path / 'deleted.FlatPrj')},
+                           {'kind': 'project', 'filename': str(present)}]
+    first = WelcomeDialog(app, app.ui)
+    try:
+        assert first.recent_list.count() == 1
+        assert first.recent_list.item(0).data(QtCore.Qt.ItemDataRole.UserRole) == str(present)
+    finally:
+        first.deleteLater()
+        qapp.processEvents()
+    # a Welcome screen opened again checks the history again
+    present.unlink()
+    again = WelcomeDialog(app, app.ui)
+    try:
+        assert again.recent_list.count() == 0
+    finally:
+        again.deleteLater()
+        qapp.processEvents()
 
 
 @pytest.mark.parametrize('key,history_kind,suffix,handler', [
@@ -207,6 +235,7 @@ def test_missing_recent_and_cancelled_browse_keep_welcome(welcome, monkeypatch):
     dialog, app, opened = welcome
     app.recent = [{'kind': 'gerber', 'filename': 'missing-welcome-test.gbr'}]
     dialog.select('gerber')
+    assert dialog.recent_list.count() == 0
     dialog.open_recent(dialog.recent_list.item(0))
     assert dialog.isVisible() and not opened
     monkeypatch.setattr(QtWidgets.QFileDialog, 'getOpenFileName', lambda **kwargs: ('', ''))
