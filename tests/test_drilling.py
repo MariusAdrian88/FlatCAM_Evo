@@ -673,6 +673,95 @@ def test_new_excellon_drilling_uses_preferred_preprocessor(fc_drilling_ui, monke
     tool = _open(fc_drilling_ui, 'e_ui_pp_new')
     assert tool.ui.pp_excellon_name_cb.get_value() == 'GRBL_11_no_M6'
 
+@pytest.mark.parametrize('edit_before_save', [False, True])
+def test_database_drilling_settings_survive_project_reopen(
+        fc_drilling_ui, monkeypatch, tmp_path, edit_before_save):
+    import json
+    from appHandlers.appIO import appIO
+    from appCommon.ProjectFile import load_project_file
+    from appHandlers.appHistory import history_of
+    from camlib import dict2obj
+
+    fc = fc_drilling_ui
+    monkeypatch.setitem(fc.options, 'excellon_autoload_db', True)
+    monkeypatch.setitem(fc.options, 'tools_drill_ppname_e', 'GRBL_11_no_M6')
+    exc = _load(fc, 'e_ui_db_save')
+    database = tmp_path / 'tools.FlatDB'
+    records = {str(uid): {'name': 'drill', 'tooldia': entry['tooldia'], 'data': {
+        'tool_target': 2, 'tol_min': 0.0, 'tol_max': 0.0,
+        'tools_drill_ppname_e': 'GRBL_11_no_M6', 'tools_drill_feedrate_z': 123.0,
+        'tools_drill_toolchange': False}} for uid, entry in exc.tools.items()}
+    records['1']['tooldia'] = 0.7
+    records['1']['data'].update(tol_min=0.79, tol_max=0.81)
+    database.write_text(json.dumps(records), encoding='utf-8')
+    monkeypatch.setattr(fc, 'tools_database_path', lambda: str(database))
+
+    if edit_before_save:
+        tool = _open(fc, exc.obj_options['name'])
+        tool.change_level('a')
+        assert tool.ui.feedrate_z_entry.get_value() == 123.0
+        assert exc.tools[1]['tooldia'] == 0.7
+        xmin, _, xmax, _ = exc.tools[1]['solid_geometry'][0].bounds
+        assert xmax - xmin == pytest.approx(0.7)
+        tool.ui.pp_excellon_name_cb.set_value('Fanuc')
+        _edit(tool.ui.feedrate_z_entry, 234.0)
+        first_job = _generate(fc, monkeypatch, tool)
+        assert first_job is not None
+        assert first_job.pp_excellon_name == 'Fanuc'
+        assert 'F234.00' in first_job.gcode
+    else:
+        # An older saved project has no DB initialization marker; its settings still take precedence.
+        for entry in exc.tools.values():
+            entry['data'].update(tools_drill_ppname_e='Fanuc', tools_drill_feedrate_z=234.0,
+                                 tools_drill_toolchange=False)
+
+    path = str(tmp_path / 'drilling.FlatPrj')
+    io = appIO(fc)
+    with monkeypatch.context() as saving:
+        saving.setattr(fc.collection, 'get_list', lambda: [exc])
+        assert io.save_project(path, silent=True)
+    fc.check_project_file_size(filename=path, should_quit=False)
+    project = load_project_file(path, object_hook=dict2obj)
+    saved = project['objs'][0]
+    assert all(entry['data']['tools_drill_ppname_e'] == 'Fanuc' for entry in saved['tools'].values())
+    assert all(entry['data']['tools_drill_feedrate_z'] == 234.0 for entry in saved['tools'].values())
+
+    for record in records.values():
+        record['data'].update(tools_drill_ppname_e='default', tools_drill_feedrate_z=345.0)
+    database.write_text(json.dumps(records), encoding='utf-8')
+    if edit_before_save:
+        tool = _open(fc, exc.obj_options['name'])
+        assert tool.ui.pp_excellon_name_cb.get_value() == 'Fanuc'
+        assert tool.ui.feedrate_z_entry.get_value() == 234.0
+
+    restored_name = 'e_ui_db_restored_' + str(edit_before_save)
+    saved['obj_options']['name'] = restored_name
+    monkeypatch.setattr(fc, 'worker_task', SimpleNamespace(emit=lambda task: task['fcn'](*task['params'])))
+    io.restore_project_objects(project, path, True, False)
+    QtWidgets.QApplication.processEvents()
+    tool = _open(fc, restored_name)
+    assert tool.ui.pp_excellon_name_cb.get_value() == 'Fanuc'
+    assert tool.ui.feedrate_z_entry.get_value() == 234.0
+    next_job = _generate(fc, monkeypatch, tool)
+    assert next_job is not None
+    assert next_job.pp_excellon_name == 'Fanuc'
+    assert 'F234.00' in next_job.gcode
+
+    # Explicit reload remains available and undoable in the interactive application.
+    with monkeypatch.context() as interactive:
+        interactive.setattr(fc, 'headless', False)
+        fc.should_we_save = False
+        assert tool.on_tool_db_load()
+        tool.update_ui()
+        assert tool.ui.pp_excellon_name_cb.get_value() == 'default'
+        assert tool.ui.feedrate_z_entry.get_value() == 345.0
+        assert fc.should_we_save
+        obj = tool.excellon_obj
+        assert tuple(obj.obj_options[key] for key in ('xmin', 'ymin', 'xmax', 'ymax')) == pytest.approx(obj.bounds())
+        assert history_of(fc).undo()
+        assert tool.ui.pp_excellon_name_cb.get_value() == 'Fanuc'
+        assert tool.ui.feedrate_z_entry.get_value() == 234.0
+
 def test_apply_to_all_with_a_totals_row_current_never_blanks_the_tools(fc_drilling_ui):
     exc = _load(fc_drilling_ui, 'e_ui_all')
     tool = _open(fc_drilling_ui, 'e_ui_all')

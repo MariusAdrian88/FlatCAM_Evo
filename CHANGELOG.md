@@ -8,6 +8,12 @@ CHANGELOG for FlatCAM Evo
 
 27.11.2026
 
+Drilling:
+
+- fixed: with Excellon "Auto load from DB" enabled, database-loaded tool settings and later edits (including the postprocessor and feed rate) are saved in the project; before, the form could change while the saved Excellon tools kept the previous values
+- changed: automatic database loading initializes a newly imported object once; reopening Drilling or a saved project keeps its stored choices, including older projects; the "Load from DB" button still applies current database settings explicitly and supports Undo
+- fixed: a database tolerance match that changes a drill diameter also updates the source object's geometry, tool table, plot and bounds; loading settings from the database marks the project as modified
+
 G-code Sender:
 
 - fixed: Stop and E-Stop start their deadline at the press: if the brake task does not hold the port 2 s after the press (busy workers), the reset is written at once, and 7 s after the press it is written in any case; one reset byte per request

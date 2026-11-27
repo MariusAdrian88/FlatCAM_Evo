@@ -1229,8 +1229,10 @@ class ToolDrilling(Geometry, AppTool):
         autoload = self.app.options.get(
             "excellon_autoload_db",
             app_defaults.get("excellon_autoload_db", AppDefaults.factory_defaults.get("excellon_autoload_db")))
-        # on_tool_db_load() builds the tool UI when it replaces the tools; if it fails or is cancelled, the UI is
-        # built here from the new object anyway
+        # Autoload initializes a newly imported object once. Saved project choices (including old projects) and
+        # later edits take precedence; the Load from DB button can still replace them explicitly.
+        autoload = autoload and not obj.loaded_from_dict and not obj.obj_options.get('tools_drill_db_loaded', False)
+        # on_tool_db_load() builds the tool UI on success; failures still show the object's current tools.
         if not (autoload and self.on_tool_db_load()):
             self.build_tool_ui()
 
@@ -1625,8 +1627,20 @@ class ToolDrilling(Geometry, AppTool):
                 self.app.inform.emit('[WARNING_NOTCL] %s' % (
                     _("Tools %s have the same diameter %s but different data, the data of the first one is used. "
                       "Different: %s") % (', '.join(str(i) for i in tool_ids), dia, ', '.join(keys))))
-            self.excellon_tools = merge_same_diameter_tools(new_tools_dict)
-            self.tools_are_object_tools = False
+            new_tools_dict = merge_same_diameter_tools(new_tools_dict)
+            with self.history_step(_("Drilling: load tools from database")):
+                if self.tools_are_object_tools:
+                    # Keep database settings and subsequent form edits in the object that project saving serializes.
+                    self.excellon_obj.tools = new_tools_dict
+                    self.excellon_obj.obj_options['tools_drill_db_loaded'] = True
+                    # Tolerance matches can change diameters: the saved hole geometry must follow them too.
+                    self.excellon_obj.create_geometry()
+                self.excellon_tools = new_tools_dict
+                if self.tools_are_object_tools:
+                    self.app.app_obj.object_changed.emit(self.excellon_obj)
+            if self.tools_are_object_tools:
+                self.excellon_obj.build_ui()
+                self.excellon_obj.plot()
             self.build_tool_ui()
             return True
         return False
@@ -1737,7 +1751,7 @@ class ToolDrilling(Geometry, AppTool):
         The Undo / Redo step (a snapshot of the Excellon object) for an action of the user on the tools (apply to all,
         Order). The parameter edits are not recorded: each widget has its own undo. It is
         used only in the handlers of the user's actions, never in a UI rebuild. If self.excellon_tools is not the dict
-        of the object (after a Tools DB load or a drag and drop of the rows) the edit does not reach the object and
+        of the object (a multi-object job or a drag and drop of the rows) the edit does not reach the object and
         there is nothing to record.
         """
         obj = self.excellon_obj

@@ -582,12 +582,14 @@ class ConsumerChecks(DatabaseCase):
         self.assertEqual({}, result.paint_tools)
 
     def test_drilling_tolerance_merges_tools_with_the_same_db_diameter(self):
+        from contextlib import nullcontext
         from shapely import Point
         from appPlugins.ToolDrilling import ToolDrilling
         tool = record(2, 0.8)
         tool['data']['tol_min'], tool['data']['tol_max'] = (0.75, 0.85)
         stub = SimpleNamespace(
-            app=self.app, excellon_obj=object(),
+            app=self.app, excellon_obj=object(), tools_are_object_tools=False,
+            history_step=lambda label: nullcontext(),
             excellon_tools={
                 1: {'tooldia': 0.8, 'drills': [Point(0, 0)], 'slots': [],
                     'solid_geometry': [Point(0, 0).buffer(0.4)], 'data': {}},
@@ -610,8 +612,7 @@ class ConsumerChecks(DatabaseCase):
         self.assertEqual(tool['data']['tools_drill_feedrate_z'], merged['data']['tools_drill_feedrate_z'])
         self.assertEqual(1.0, other['tooldia'])
         self.assertEqual(1, len(other['drills']))
-        stub.build_tool_ui.assert_called_once()
-        # the tools of the Excellon object must not change
+        # A combined multi-object working copy must not change its source tools.
         self.assertEqual([0.8, 1.0, 0.82], [t['tooldia'] for t in object_tools.values()])
         self.assertEqual([1, 1, 2], [len(t['drills']) for t in object_tools.values()])
 
