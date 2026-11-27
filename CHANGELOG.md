@@ -25,6 +25,12 @@ G-code Sender:
 - fixed: the job time estimate reads lower case G-code; a line that is not read gives no estimate (--:--:--) instead of 0 s
 - fixed: the feed override scales only the feed time of the estimate; dwell (G4) and rapid (G0) time stay; G93 blocks are feed time; the Start dialog total follows the current feed override
 - fixed: a G-code file saved as UTF-8 with BOM: the stream cleaner removes U+FEFF, so the estimate is made and the port never gets the bytes EF BB BF
+- fixed: host tool change: a late completion of the pause after Stop, Reset, E-Stop or a disconnect is dropped, so a stopped job can not be resumed; Resume refuses when the controller session changed
+- fixed: host tool change: the job start keeps the units that the controller reports (G20/G21), so Resume of a program with no unit word keeps its scale; the elapsed time goes on across the pause and the end message gives the whole job time
+- fixed: after a $13 change the report units are unknown until the readback succeeds; a failed readback shows "position unknown" instead of positions in the old units
+- fixed: a request of a replaced IO page writes no E-Cut output; a macro that fails after an output word makes the IO states unknown
+- fixed: the pendant gives the positions and their units label from the same conversion, in the units of its jog step
+- fixed: the time estimate follows G17, G18 and G19 for arcs (also a full circle in XZ or YZ); "Focus the command line" shows the Console page first
 
 E-Cut controller:
 
@@ -37,6 +43,9 @@ E-Cut controller:
 - fixed: the feed override and Hold take the planned speed from the time line of the path, so a slow feed slows as selected (0.6 mm/min at 10 % takes 10x the time), and a Hold or override that starts during the acceleration continues from the real speed
 - fixed: with backlash compensation, the reported position applies the offset of a reversal only when the board has reached it, also with status frames at any interval and for a path that starts with a reversal; near a reversal the error is at most the backlash
 - changed: moves with X, Y or Z and A join one blended path, so a G64 arc with A no longer stops at each chord; at a joint X, Y and Z keep the corner speed of the same XYZ corner without A, an XYZ reversal stops, and the A speed step is limited by the A acceleration; a move of A alone keeps its own path
+- fixed: a continuous jog checks its feed before any motion; the backlash take-up of a reversing jog brakes on a feed hold or a release like the jog itself
+- fixed: the feed override also slows a move whose records have no counts for a long time (a slow rotary axis); the time line advances by the override share
+- fixed: the raw run_gcode API keeps a pure A move in degrees/min in G20; a move with a real X, Y or Z displacement still converts the inch feed (G20 X0 A10 at X0 is a pure A move)
 
 Welcome screen and recent files:
 

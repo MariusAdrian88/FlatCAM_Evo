@@ -1651,6 +1651,18 @@ class TestJobEstimate(unittest.TestCase):
         # the modal feed keeps its physical value when the units change
         self.assertAlmostEqual(line_seconds(['G21', 'G1 X25.4 F600', 'G20', 'G1 X0'], 3000, 'MM')[3], 2.54)
 
+    def test_native_arcs_follow_the_selected_plane(self):
+        import math
+        from appPlugins.ToolGcodeSender.SenderEstimate import line_seconds
+        # a full circle of radius 10 in the ZX plane (center words I, K), then in the YZ plane (J, K)
+        seconds = line_seconds(['G21 G90', 'G18', 'G0 X0 Y0 Z0', 'G2 I0 K10 F600'], 3000, 'MM')
+        self.assertAlmostEqual(seconds[3], 6.2832, delta=0.01)
+        seconds = line_seconds(['G21 G90', 'G19', 'G0 X0 Y0 Z0', 'G3 J0 K10 F600'], 3000, 'MM')
+        self.assertAlmostEqual(seconds[3], 6.2832, delta=0.01)
+        # a half circle in the ZX plane with a helix of 10 mm in Y: hypot(10 pi, 10) at 600 mm/min
+        seconds = line_seconds(['G21 G90', 'G18', 'G0 X0 Y0 Z0', 'G2 X0 Y10 Z20 K10 F600'], 3000, 'MM')
+        self.assertAlmostEqual(seconds[3], math.hypot(10 * math.pi, 10.0) / 10.0, delta=0.01)
+
     def test_a_word_gives_no_estimate(self):
         from appPlugins.ToolGcodeSender.SenderEstimate import line_seconds
         self.assertIsNone(line_seconds(['G21', 'G1 X10 F600', 'G1 A90 F600'], 3000, 'MM'))

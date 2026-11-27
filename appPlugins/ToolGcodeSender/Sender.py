@@ -2067,7 +2067,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         # This is an immutable worker-published snapshot, not a serial transaction.
         self.app.worker_task.emit({'fcn': read_settings, 'params': []})
 
-    def _ecut_settings_task(self, op, dialog, action, args):
+    def _ecut_settings_task(self, op, dialog, action, args, guard=None):
+        """`guard`: a callable that returns the reason why the request is old (checked in the worker), or None."""
         port = op.port
         if dialog is not None:
             dialog.set_busy(True)
@@ -2081,6 +2082,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                              and not op.cancel.is_set() and not self._grbl_close_pending)
                 if not valid:
                     raise ValueError(_("The controller operation was cancelled."))
+                if guard is not None:
+                    old = guard()
+                    if old is not None:
+                        raise ValueError(old)
                 method = getattr(port, {'load': 'get_motion_settings', 'save': 'save_motion_settings',
                                         'calibrate': 'calibration_move', 'output': 'set_manual_output',
                                         'reference': 'reference_axes'}[action])
@@ -2382,9 +2387,14 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         def task(op):
             if not self._macro_profile_gate(op, stream):
                 return False
-            for line in stream:
+            for number, line in enumerate(stream):
                 text, status = self._grbl_transact(op, line, timeout=30.0)
                 if status != 'ok':
+                    # an output word that the controller acknowledged (or that may have run) makes the output
+                    # states unknown, also when this line failed
+                    done = stream[:number + (0 if status == 'error' else 1)]
+                    if any(SenderGen.has_output_word(done_line) for done_line in done):
+                        self.io_result_sig.emit((None, 'ok', ''))
                     self.app.inform.emit('[ERROR_NOTCL] %s: %s -> %s' % (
                         _("The macro stopped"), line, code_text(grbl_reply_error(text), self._grbl_grblhal) or status))
                     return False
@@ -2526,6 +2536,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     return
                 if '10' in changes:
                     self.sender_io.pin_report = None        # not known until the readback succeeds
+                if '13' in changes:
+                    # the report units are not known until the readback succeeds: a failed readback must not
+                    # leave the old units trusted, the positions are not shown until the next read
+                    with self._grbl_op_lock:
+                        if self._grbl_active_locked(op):
+                            self._grbl_report_inches = None
                 for number, value in changes.items():
                     text, status = self._grbl_transact(op, '$%s=%s' % (number, value), timeout=5.0, echo=False)
                     outcomes[number] = (status, text.strip())
@@ -5670,13 +5686,18 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if position is None:
             prepared.error = refused
             return
-        # the positions and the feed of GRBL are in the report units ($13); the JobStart holds the program units
-        scale = grbl_report_scale(inputs.units, self._grbl_report_inches)
+        # the positions and the feed of GRBL are in the report units ($13); the JobStart holds the units that the
+        # controller runs the first line in ($G G20/G21), not the units of the CNCJob object
+        start_units = {'inch': 'IN', 'mm': 'MM'}.get(modal['units'])
+        if start_units is None:
+            prepared.error = refused
+            return
+        scale = grbl_report_scale(start_units, self._grbl_report_inches)
         feed = None if modal['feed'] is None else modal['feed'] * scale
         live = tuple(v * scale for v in position[:3])
         if (self.__dict__.get('_grbl_caps') or {}).get('axes') == 'XYZA' and len(position) > 3:
             live += (position[3],)      # the rotary A is in degrees: no unit scale
-        start = SenderGen.JobStart.from_live(live, inputs.units, modal, feed=feed,
+        start = SenderGen.JobStart.from_live(live, start_units, modal, feed=feed,
                                              spindle=modal['spindle'], speed=modal['speed'],
                                              coolant=modal['coolant'] or ())
         numbers = prepared.numbers or list(range(1, len(lines) + 1))
@@ -6062,7 +6083,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             # the Resume rechecked the preamble and the rest of the job with a fresh read of the controller
             self._clear_tool_pause()
             self._start_stream_launch(op, target, lines, numbers, check_mode, poll_ms, req,
-                                      (resume_lines, resume_from, resumed_lines))
+                                      (resume_lines, resume_from, resumed_lines), keep_clock=True)
             return
         profile = active_profile_of(self.app)
         if (profile is not None and self._stream_setup_key is not None and
@@ -6148,13 +6169,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if not self._pause_map_current(pause):
             self.app.inform.emit('[ERROR_NOTCL] %s' % self._pause_map_text())
             return False
+        if pause.generation != self._grbl_safety_generation:
+            self._clear_tool_pause()
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("The job was stopped. The Resume was refused."))
+            return False
         op = self._grbl_reserve('stream', motion=True)
         if op is None:
             return False
         target = pause.target
         profile = active_profile_of(self.app)
         context = SimpleNamespace(op=op, target=target, source=self._job_text(target), seq=self._start_seq,
-                                  generation=self._grbl_safety_generation, lines=pause.lines,
+                                  generation=pause.generation, lines=pause.lines,
                                   numbers=pause.numbers, check_mode=False, poll_ms=pause.poll_ms, req=None,
                                   start_line=pause.index + 1, profile=profile, resume=pause)
         spindle_dwell = float(self.app.options.get("tools_grbl_spindle_dwell", 3.0))
@@ -6287,8 +6312,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.app.inform.emit('[WARNING_NOTCL] %s' % _(
                 "The program or machine state changed while the job was prepared. Press Start again."))
 
-    def _start_stream_launch(self, op, target, lines, numbers, check_mode, poll_ms, req, restart):
-        """The stream starts (GUI thread): the lock of the view, the 3D preparation and the stream thread."""
+    def _start_stream_launch(self, op, target, lines, numbers, check_mode, poll_ms, req, restart, keep_clock=False):
+        """
+        The stream starts (GUI thread): the lock of the view, the 3D preparation and the stream thread.
+        `keep_clock`: the Resume of a host tool change goes on with the elapsed time of the job.
+        """
         self._program_paused = False
         if not check_mode:
             self._lock_execution_view()
@@ -6318,6 +6346,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
             self.app.worker_task.emit({'fcn': prepare_task, 'params': []})
 
+        launch_seq, launch_generation = self._start_seq, self._grbl_safety_generation
+
         def worker_task():
             how = 'error'
             try:
@@ -6336,6 +6366,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                         self._grbl_read_active_wcs(op)
                     except Exception as err:
                         self.app.log.error("ToolGcodeSender.on_start() -> %s" % str(err))
+                if how == 'tool_change' and 'tool_pause' in self._stream_result:
+                    # the pause belongs to this job: a Stop, Reset, E-Stop or disconnect before the GUI completion
+                    # changes the sequence or the generation, and the completion is dropped
+                    self._stream_result['tool_pause'].update(seq=launch_seq, generation=launch_generation)
                 # the operation is released after the status map; the GUI hears about it after the release
                 self._grbl_release(op)
                 self.stream_ended_sig.emit(how)
@@ -6346,8 +6380,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._console_pending.clear()
         self._progress_latest = None
         self._progress_shown = None
-        self._stream_clock = QtCore.QElapsedTimer()
-        self._stream_clock.start()
+        if not keep_clock or self._stream_clock is None:
+            self._stream_clock = QtCore.QElapsedTimer()
+            self._stream_clock.start()
         self._show_job_time(0, len(lines))
         self._stream_ui_timer.start()
         try:
@@ -7014,7 +7049,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return
         state = report['state'].split(':')[0]
         wco = report.get('wco', self._last_wco)
-        scale = self._report_scale()
+        # the snapshot and the jog step of the pendant are in the Sender units (the 'units' label below)
+        scale = self._camera_report_scale()
         work = work_position(report, wco)
         machine = self._report_machine_position(report, wco)
         ov = report.get('ov')
@@ -8136,8 +8172,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._grbl_tool_command_busy = False
         result = self._stream_result or {}
         if how == 'tool_change':
-            pause = result['tool_pause']
+            pause = result.get('tool_pause')
+            with self._grbl_op_lock:
+                retired = (pause is None or pause.get('seq') != self._start_seq or
+                           pause.get('generation') != self._grbl_safety_generation or self.grbl_ser_port is None)
+            if retired:
+                # Stop, Reset, E-Stop or a disconnect retired the job before this completion ran
+                how = 'rejected'
+                self._invalidate_coordinates()
+        if how == 'tool_change':
             self._tool_pause = SimpleNamespace(
+                seq=pause['seq'], generation=pause['generation'],
                 index=pause['index'], m6_index=pause['m6_index'], tool=pause['tool'], lines=self.job_lines,
                 numbers=self.job_line_numbers, check_mode=False,
                 poll_ms=int(self.app.options.get("tools_grbl_status_ms", 200)), target=self._target(),

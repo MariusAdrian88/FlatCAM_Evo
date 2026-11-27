@@ -582,7 +582,12 @@ class SenderIOController:
             self._clear_pending()
             return
         pending['accepted'] = True
-        tool._ecut_settings_task(op, None, 'output', (entry['pin'], wanted != entry['inverted'], self.revision))
+
+        def guard():
+            return None if self._current(pending) else _("The request is old")
+
+        tool._ecut_settings_task(op, None, 'output', (entry['pin'], wanted != entry['inverted'], self.revision),
+                                 guard)
 
     def on_ecut_output_result(self, port, result, error):
         """The result of the output write (dialog None, action 'output')."""

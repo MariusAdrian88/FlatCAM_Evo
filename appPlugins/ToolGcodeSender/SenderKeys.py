@@ -57,6 +57,7 @@ def _hold_resume(tool):
 
 
 def _console_focus(tool):
+    tool._console().show_page('console')       # the entry lives on the Console page: show it first
     tool.ui.grbl_command_entry.setFocus()
 
 

@@ -180,6 +180,39 @@ class TestGrblConfiguration(unittest.TestCase):
         page.apply_changes()
         self.assertEqual(port.written, [])
 
+    def test_failed_readback_after_a_report_units_change_never_shows_old_units(self):
+        tool, port, page = self.make_configuration()
+        page.refresh_button.click()
+        original = port._answer
+
+        def fail_readback(command):
+            if command == '$$':
+                port._send('error:3')
+            else:
+                original(command)
+        port._answer = fail_readback
+        page.table.item(0, 3).setText('1')              # $13 = 1: inch reports
+        page.apply_changes()
+        self.assertEqual(port.settings['13'], '1')
+        tool.units = 'MM'
+        from appPlugins.Common.grbl.grbl_protocol import parse_grbl_status_report
+        tool._on_status_report(parse_grbl_status_report('<Idle|MPos:1.000,2.000,3.000|WCO:0.000,0.000,0.000>'))
+        shown = tool.ui.status_label.text()
+        self.assertNotIn('X 1.000', shown)
+        self.assertIn('position unknown', shown)
+
+    def test_focus_the_command_line_shows_the_console_page(self):
+        from appPlugins.ToolGcodeSender import SenderKeys
+        tool, port, page = self.make_configuration()
+        console = tool._console()
+        console.show_page('program')
+        self.assertFalse(console.is_page_current(console.page('console')))
+        action = next(a for a in SenderKeys.actions() if a.id == 'sender.console_focus')
+        action.run(tool, True)
+        self.assertTrue(console.is_page_current(console.page('console')))
+        entry = tool.ui.grbl_command_entry
+        self.assertIs(entry.window().focusWidget(), entry)
+
     def test_unknown_string_edit_and_external_motion_ownership(self):
         tool, port, page = self.make_configuration()
         self.assertEqual(port.written, [])
@@ -2337,6 +2370,18 @@ class TestActionRules(unittest.TestCase):
         self.assertGreaterEqual(state['report_age'], 60.0)
         self.assertNotIn('report_time', state)
 
+    def test_pendant_coordinates_and_their_units_label_agree(self):
+        from appPlugins.Common.grbl.grbl_protocol import parse_grbl_status_report
+        tool, fake = self.make()
+        call, posted = self.pendant_state(tool)
+        tool.units = 'MM'
+        tool._target().units = 'IN'             # the selected CNCJob is in inch, the Sender (and its jog) in mm
+        tool._grbl_report_inches = False
+        tool._pendant_report(parse_grbl_status_report('<Idle|MPos:25.400,50.800,76.200|FS:0,0>'))
+        state = call()
+        self.assertEqual(state['units'], 'MM')
+        self.assertEqual([round(v, 3) for v in state['mpos']], [25.4, 50.8, 76.2])
+
     def test_pendant_state_shows_the_recovery_need(self):
         from appPlugins.Common.grbl.grbl_protocol import parse_grbl_status_report
         tool, fake = self.make()
@@ -3083,6 +3128,32 @@ class TestIOTab(unittest.TestCase):
                 self.assertIs(self.shown(self.page, 'Aux 0'), False)
                 self.assertTrue(tool.run_macro([line]))
                 self.assertIs(self.shown(self.page, 'Aux 0'), None if clears else False)
+
+    def test_a_retired_page_cannot_run_a_queued_ecut_output_write(self):
+        tool, fake, io = self.make()
+        fake.set_manual_output = MagicMock(return_value={})
+        io.kind, io.revision, io.ecut_state = 'ecut', 1, {}
+        io.ecut_outputs = [{'names': ['FLOOD'], 'pin': 3, 'inverted': False}]
+        io.inputs_spec, io.outputs_spec = [], [('FLOOD', 'O3', 'FLOOD')]
+        io._build_page()
+        tasks = []
+        tool.app.worker_task.emit.side_effect = tasks.append
+        io.on_output_requested('FLOOD', True)
+        self.assertEqual(len(tasks), 1, self.page.message.text())
+        io.detach()                                       # the page is retired, the worker has not run yet
+        tasks[0]['fcn']()
+        fake.set_manual_output.assert_not_called()
+
+    def test_a_partly_failed_macro_keeps_the_aux_state_unknown(self):
+        tool, fake, io = self.make(ident=self.IDENT + ['[FIRMWARE:grblHAL]', '[AUX IO:0,1,0,0]'], hal=True)
+        io.evaluate()
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000|A:>')
+        tool._controller_state = 'Idle'
+        io.on_output_requested('Aux 0', False)
+        self.assertIs(self.shown(self.page, 'Aux 0'), False)
+        fake.replies = {'BAD': ['error:3']}
+        tool.run_macro(['M64 P0', 'BAD', 'M65 P0'])
+        self.assertIsNone(self.shown(self.page, 'Aux 0'))
 
     def test_macro_that_sets_the_report_units_reads_them_back(self):
         tool, fake, io = self.make()

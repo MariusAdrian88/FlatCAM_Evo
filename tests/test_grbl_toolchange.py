@@ -1185,6 +1185,45 @@ class TestHostToolChangePolicy(unittest.TestCase):
                 written = self.resume(tool, fake)
                 self.assertIn(expected, written)
 
+    def test_stop_retires_a_delayed_tool_change_completion(self):
+        from tests.grbl_stream_helpers import make_stream_tool
+        fake = ToolPauseFake()
+        tool = make_stream_tool(fake, source=self.PROGRAM)
+        tool.app.collection.get_by_name.return_value.z_move = 5.0
+        tool.app.options['tools_grbl_m6_policy'] = 'pause'
+        delivered = []
+        tool.stream_ended_sig.emit.side_effect = delivered.append      # the GUI completion is queued
+        tool.on_start()
+        self.assertEqual(delivered, ['tool_change'])
+        tool._hold_now()                                                # Stop, before the completion runs
+        tool._on_stream_ended(delivered[0])
+        before = len(fake.written)
+        tool._on_resume_button()
+        sent = [c for c in fake.commands()[before:] if c != '?']
+        self.assertIsNone(tool._tool_pause)
+        self.assertFalse([c for c in sent if c.startswith(('G0', 'G1', 'X'))], sent)
+
+    def test_resume_keeps_the_units_of_the_controller_at_the_start(self):
+        # an MM object, the controller in G20: the program runs in inch; the Resume stays in inch
+        fake = ToolPauseFake()
+        fake.gc = '[GC:G0 G54 G17 G20 G90 G94 M5 M9 T0 F0 S0]'
+        tool, fake = self.start('pause', 'G90\nG1 X1 F10\nT2 M6\nX2\n', fake)
+        self.assertIsNotNone(tool._tool_pause, [str(c) for c in tool.app.inform.emit.call_args_list])
+        written = self.resume(tool, fake)
+        self.assertIn('G20', written)
+        self.assertNotIn('G21', written)
+        self.assertIn('G0 X1.0000 Y0.0000', written)
+        self.assertIn('X2', written)
+
+    def test_the_elapsed_time_of_a_job_goes_on_across_the_tool_change_pause(self):
+        tool, fake = self.start('pause')
+        self.assertIsNotNone(tool._tool_pause)
+        tool._stream_clock = MagicMock(elapsed=lambda: 60000)      # one minute since the Start, the pause included
+        self.assertEqual(tool._elapsed_text(), '00:01:00')
+        self.resume(tool, fake)
+        self.assertEqual(tool._elapsed_text(), '00:01:00')
+        self.assertTrue(any('00:01:00' in str(c) for c in tool.app.inform.emit.call_args_list))
+
     def test_live_f0_needs_a_feed_only_where_the_re_entry_has_a_feed_move(self):
         program = 'G21 G90\nT2 M6\nG0 X10 Y10\nG1 Z-1 F300\nX20\n'
         for name, mpos, starts in (('travel z', (0.0, 0.0, 5.0), True), ('plunge needed', (0.0, 0.0, 0.0), False)):

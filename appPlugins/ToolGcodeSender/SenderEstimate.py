@@ -37,22 +37,27 @@ def rapid_rate(settings=None, profile_rapid=None):
     return DEFAULT_RAPID_MM_MIN
 
 
-def _arc_length(start, end, words, motion):
-    """:return: the length of a G2/G3 arc in the XY plane, or 0.0 if it can not be told."""
+# G17, G18, G19: the 2 axes of the plane (right-handed, G2 turns clockwise), their center words, the helix axis
+_PLANES = {17: ('X', 'Y', 'I', 'J', 'Z'), 18: ('Z', 'X', 'K', 'I', 'Y'), 19: ('Y', 'Z', 'J', 'K', 'X')}
+
+
+def _arc_length(start, end, words, motion, plane=17):
+    """:return: the length of a G2/G3 arc in the plane G17/G18/G19 (no helix part), or 0.0 if it can not be told."""
     values = {}
     for letter, value in words:
         values[letter] = value
-    if start['X'] is None or start['Y'] is None or end['X'] is None or end['Y'] is None:
+    first, second, first_word, second_word, _helix = _PLANES[plane]
+    if start[first] is None or start[second] is None or end[first] is None or end[second] is None:
         return 0.0
-    chord = math.hypot(end['X'] - start['X'], end['Y'] - start['Y'])
-    if 'I' in values or 'J' in values:
-        cx = start['X'] + values.get('I', 0.0)
-        cy = start['Y'] + values.get('J', 0.0)
-        radius = math.hypot(start['X'] - cx, start['Y'] - cy)
+    chord = math.hypot(end[first] - start[first], end[second] - start[second])
+    if first_word in values or second_word in values:
+        cx = start[first] + values.get(first_word, 0.0)
+        cy = start[second] + values.get(second_word, 0.0)
+        radius = math.hypot(start[first] - cx, start[second] - cy)
         if radius == 0.0:
             return 0.0
-        a0 = math.atan2(start['Y'] - cy, start['X'] - cx)
-        a1 = math.atan2(end['Y'] - cy, end['X'] - cx)
+        a0 = math.atan2(start[second] - cy, start[first] - cx)
+        a1 = math.atan2(end[second] - cy, end[first] - cx)
         sweep = (a0 - a1) if motion == 2 else (a1 - a0)
         sweep %= 2.0 * math.pi
         if sweep < 1e-9:
@@ -93,6 +98,7 @@ def line_parts(lines, rapid_mm_min, units):
     state = _ModalState(pos=(0.0, 0.0, 0.0))
     state.units = 20 if str(units).upper().startswith('IN') else 21
     feed = 0.0
+    plane = 17
     out = []
     for raw in lines:
         # the controller reads lower case words: read them as the stream does
@@ -104,6 +110,8 @@ def line_parts(lines, rapid_mm_min, units):
         for letter, value in _words(masked):
             if letter == 'G' and value in (20.0, 21.0):
                 new_units = int(value)
+            elif letter == 'G' and value in (17.0, 18.0, 19.0):
+                plane = int(value)
         if new_units is not None and new_units != state.units:
             # the known position changes its unit with the units
             factor = 25.4 if state.units == 20 else 1.0 / 25.4
@@ -122,7 +130,7 @@ def line_parts(lines, rapid_mm_min, units):
                 if letter == 'F':
                     feed = value
             # a native full circle has no axis word: its end is its start
-            full_circle = state.motion in (2, 3) and any(letter in 'IJ' for letter, _value in info['words'])
+            full_circle = state.motion in (2, 3) and any(letter in 'IJK' for letter, _value in info['words'])
             if (info['axes'] or full_circle) and not info['blocked'] and state.inverse \
                     and state.motion in (1, 2, 3):
                 # G93: the block takes 60 / F seconds, with the F word of that block
@@ -134,10 +142,12 @@ def line_parts(lines, rapid_mm_min, units):
                 delta = [end[a] - start[a] for a in 'XYZ' if end[a] is not None and start[a] is not None]
                 length = math.sqrt(sum(d * d for d in delta))
                 if state.motion in (2, 3):
-                    arc = _arc_length(start, end, info['words'], state.motion)
+                    arc = _arc_length(start, end, info['words'], state.motion, plane)
                     if arc:
-                        dz = (end['Z'] - start['Z']) if end['Z'] is not None and start['Z'] is not None else 0.0
-                        length = math.hypot(arc, dz)
+                        helix = _PLANES[plane][4]       # the third axis of the plane
+                        dh = (end[helix] - start[helix]) if end[helix] is not None and start[helix] is not None \
+                            else 0.0
+                        length = math.hypot(arc, dh)
                 rate = feed
                 if state.motion == 0:
                     rate = rapid_mm_min / 25.4 if state.units == 20 else rapid_mm_min
