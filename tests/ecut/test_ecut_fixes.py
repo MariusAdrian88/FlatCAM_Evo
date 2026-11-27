@@ -93,6 +93,23 @@ def test_g20_inches_and_g91_incremental():
     assert api3.position_mm[0] == pytest.approx(6.0, abs=1e-3)
 
 
+def _planned_records(program):
+    api = make_api(steps_per_mm=100, interpolation=0)
+    api.config.axes[3].enabled = True
+    api.run_gcode(program)
+    return len(sent_deltas(api))
+
+
+def test_inch_mode_keeps_the_rotary_feed_in_degrees_per_minute():
+    assert _planned_records(["G20", "G1 A10 F60"]) == pytest.approx(_planned_records(["G21", "G1 A10 F60"]), rel=0.01)
+    # an X word without an X displacement (at X0) is still a rotary move; relative moves too
+    assert _planned_records(["G20", "G1 X0 A10 F60"]) == pytest.approx(_planned_records(["G21", "G1 X0 A10 F60"]), rel=0.01)
+    assert _planned_records(["G20", "G91", "G1 X0 A10 F60"]) == pytest.approx(
+        _planned_records(["G21", "G91", "G1 X0 A10 F60"]), rel=0.01)
+    # a move with X displacement still converts the inch feed
+    assert _planned_records(["G20", "G1 X1 F60"]) == pytest.approx(_planned_records(["G21", "G1 X25.4 F1524"]), rel=0.01)
+
+
 @pytest.mark.parametrize('bad, word', [
     ("G2 X1 Y1 I1", 'G2'), ("S1000", 'S1000'), ("M3", 'M3'), ("T1.5", 'T1.5'), ("G99", 'G99'),
     ("G28", 'G28'), ("N10 G0 X1", 'N10'),

@@ -73,6 +73,7 @@ class _Modal:
     absolute: bool = True
     motion: Optional[str] = None
     feed_mm_min: Optional[float] = None
+    angular_feed: Optional[float] = None   # the F number as written: degrees/min of a move without X, Y, Z
     spindle_rpm: float = 0.0
     selected_tool: Optional[int] = None
 
@@ -105,6 +106,7 @@ class _MoveAction:
     words: dict          # axis index -> value in mm
     feed_mm_min: Optional[float]
     corner_deviation_mm: Optional[float] = None   # limit for the corner at the END of the move (LinearMove)
+    angular_feed: Optional[float] = None   # F as written: the feed of a move without an X, Y, Z displacement
 
 
 @dataclass(frozen=True)
@@ -246,7 +248,7 @@ def _compile_line(line: str, lineno: int, modal: _Modal) -> tuple[_Modal, list]:
         elif letter == 'F':
             if v <= 0:
                 raise bad(letter, raw, 'invalid')
-            new = replace(new, feed_mm_min=v * scale)
+            new = replace(new, feed_mm_min=v * scale, angular_feed=v)
         elif letter == 'P':
             if not dwell or duration is not None or v < 0:
                 raise bad(letter, raw, 'invalid')
@@ -297,7 +299,8 @@ def _compile_line(line: str, lineno: int, modal: _Modal) -> tuple[_Modal, list]:
                 raise EcutError(f'line {lineno}: {new.motion} requires one XYZ axis')
             actions.append(_ProbeAction(False, new.absolute, axis_words, new.feed_mm_min))
         else:
-            actions.append(_MoveAction(new.motion == 'G0', new.absolute, axis_words, new.feed_mm_min))
+            actions.append(_MoveAction(new.motion == 'G0', new.absolute, axis_words, new.feed_mm_min,
+                                      angular_feed=new.angular_feed))
     if dwell:
         actions.append(_DwellAction(duration))
     if manual is not None:
@@ -514,7 +517,8 @@ class _HoldableRecords:
                     break
             else:
                 self.stopped = False
-            rate = 1.0 if nominal == 0 else min(1.0, target / nominal)
+            # a window without counts has no speed to ramp: the time line still advances by the override share
+            rate = limit_rate if nominal == 0 else min(1.0, target / nominal)
             s = min(float(self._count), self._s + rate)
             self._seek(s)
             fraction = s - self._index
@@ -1690,6 +1694,8 @@ class EcutAPI:
         if self._jog_active:
             raise EcutError('A continuous jog is already active')
         self._jog_cancel.clear()
+        # the arguments and the feed are checked before the take-up moves the axis
+        next(iter_jog_segments(self._config, tuple(self._acc.steps), axis, direction, feed_mm_min, lambda: False), None)
 
         def held():
             keep = should_continue is None or should_continue()
@@ -1698,12 +1704,18 @@ class EcutAPI:
         # the take-up of a reversal is part of the jog: it ends at the release too
         self._takeup_held = lambda: (should_continue is None or should_continue()) and not self._jog_cancel.is_set()
         self._takeup_cut = False
+        # the take-up runs as a RUNNING move: a feed hold (pause) or a release brakes it like the jog itself
+        self._set_state(State.RUNNING)
+        self._running = True
         try:
             self._compensate_jog(axis, direction)
         finally:
             self._takeup_held = None
+            self._running = False
         if self._takeup_cut:
             self._lose_backlash([axis])   # the take-up did not reach its end: the offset is not known
+            if self._state in (State.RUNNING, State.PAUSED):
+                self._set_state(State.IDLE)
             return
         # the soft bound of the jog runs on the logical position
         start = tuple(steps - offset for steps, offset in zip(self._acc.steps, self._backlash_offset))
@@ -2493,6 +2505,8 @@ class EcutAPI:
                 # Native FUN_100082f0 gates up to two four-record reports on >7000 free.
                 if packet % 2 == 0 and not self._wait_for_stream_space(in_run, records):
                     return
+                if records.stopped and self._takeup_held is not None:
+                    break   # the take-up braked to 0 by a hold or release: it is not resumed
                 if records.stopped:
                     paused_from = time.monotonic()
                     self._wait_while_paused()
@@ -2500,9 +2514,11 @@ class EcutAPI:
                 self._require_motion_allowed()
                 if in_run and not self._running:
                     return  # stop() during the run: do not send the rest of this move
-                if self._takeup_held is not None and not self._takeup_held():
-                    self._takeup_cut = True   # jog release during the backlash take-up
-                    break
+                if self._takeup_held is not None:
+                    if not self._takeup_held() and self._state == State.RUNNING:
+                        self._set_state(State.PAUSED)   # jog release: brake like a feed hold
+                    if self._state == State.PAUSED:
+                        self._takeup_cut = True   # hold or release during the backlash take-up
                 chunk = records.take(per_packet)
                 if not chunk:
                     if records.done:
@@ -2551,7 +2567,7 @@ class EcutAPI:
             if self._stop_deadline_passed():
                 self._abort_requested_stop()
                 return False
-            if records is None or records.stopped:
+            if (records is None or records.stopped) and self._takeup_held is None:
                 self._wait_while_paused()
             self._require_motion_allowed()
             if in_run and not self._running:
@@ -2633,6 +2649,7 @@ class EcutAPI:
         virtual = _StepAccumulator(self._config)
         virtual.steps = [start_steps[i] - offsets[i] for i in range(6)]
         moves = []
+        feeds = []
         for lineno, action in actions:
             if self._planning_checkpoint is not None:
                 self._planning_checkpoint()
@@ -2644,7 +2661,11 @@ class EcutAPI:
                 total = virtual.total_deltas(target)
             except (OverflowError, ValueError) as error:
                 raise EcutError(f'line {lineno}: target exceeds the board position range') from error
-            moves.append(LinearMove(tuple(target), action.rapid, action.feed_mm_min, action.corner_deviation_mm))
+            # G20: only a move with a real X, Y or Z displacement has its feed in inch/min; else degrees/min
+            linear = any(target[i] is not None and abs(target[i] - current[i]) > 1e-9 for i in range(3))
+            feed = action.feed_mm_min if linear or action.angular_feed is None else action.angular_feed
+            feeds.append(feed)
+            moves.append(LinearMove(tuple(target), action.rapid, feed, action.corner_deviation_mm))
             virtual.advance(total)
         moves, end = apply_backlash(moves, BacklashState(tuple(start_steps), tuple(dirs), tuple(offsets)), self._config)
         segments = plan_path_segments(self._config, tuple(start_steps), moves, feed_override=self._feed_override,
@@ -2657,7 +2678,7 @@ class EcutAPI:
             if move.offset_counts is not None:
                 changed.update(i for i in range(6) if move.offset_counts[i] != previous[i])
                 previous = move.offset_counts
-        return _PlannedPathAction(tuple(start_steps), target_steps, segments, actions[-1][1].feed_mm_min,
+        return _PlannedPathAction(tuple(start_steps), target_steps, segments, feeds[-1],
                                   (tuple(dirs), tuple(offsets)), (end.dirs, end.offsets), frozenset(changed))
 
     def _plan_program_actions(self, actions):

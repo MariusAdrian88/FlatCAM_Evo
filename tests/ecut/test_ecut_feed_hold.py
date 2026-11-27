@@ -274,3 +274,24 @@ def test_stop_requested_near_the_drain_end_does_not_raise_the_timeout(monkeypatc
     assert State.ERROR not in run.states
     assert run.stop_at - run.requested < 5.0  # the board went idle: the normal end of the stop
     assert run.homed == (0, 1)
+
+
+def test_feed_override_scales_the_time_of_a_sparse_pulse_feed():
+    """A rotary feed of 2 counts/degree gives windows without counts: the override still scales the time."""
+    config = EcutBoardConfig()
+    config.interpolation_index = 0
+    config.axes[3].enabled = True
+    config.axes[3].steps_per_mm = 2.0
+    blocks = plan_linear_path(config, (0,) * 6, [LinearMove((None, None, None, 1.0, None, None), False, 6.0)])
+    path = list(iter_path_segments(blocks, junction_deviation_mm=config.junction_deviation_mm))
+    state = {'rate': 1.0}
+    records = _HoldableRecords(path, config, lambda: False, lambda: state['rate'])
+    out = []
+    while len(out) < 100:
+        out.extend(records.take(4))
+    state['rate'] = 0.1                 # the override while the path runs
+    while not records.done:
+        out.extend(records.take(64))
+    expected = 100 + (len(path) - 100) * 10
+    assert abs(len(out) - expected) <= 0.05 * expected
+    assert [sum(r[i] for r in out) for i in range(6)] == [sum(r[i] for r in path) for i in range(6)]

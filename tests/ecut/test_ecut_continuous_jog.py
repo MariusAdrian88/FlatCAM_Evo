@@ -75,7 +75,7 @@ def test_release_during_the_backlash_take_up_stops_the_records(monkeypatch):
             api.jog_stop()              # release in the take-up of the reversal
     api._usb.send_motion = counting
     api.jog_start(0, 0, 120)
-    assert len(packets) == 1
+    assert len(packets) < 25            # it brakes within a few records, the take-up is 1000
     assert api.state == State.IDLE and not api.jogging
 
 
@@ -308,3 +308,39 @@ def test_delayed_reports_and_prefetch_do_not_false_trip_on_coarse_steps(monkeypa
     assert not queue
     assert api.position_steps[0] == 12
     assert api.state == State.IDLE
+
+
+def backlash_jog_api(monkeypatch):
+    api, clock = jog_api(monkeypatch, reverse=True)
+    api.config.axes[0].backlash_mm = 1.0
+    api.config.axes[0].backlash_compensation_enabled = True
+    api.config.unverified.backlash = True
+    api.push_config()
+    api.jog_start(0, 1, 120)            # to the limit at 0: the last direction is negative
+    del api._usb.motion_packets[:]
+    return api, clock
+
+
+def test_feed_hold_during_the_backlash_take_up_brakes_it(monkeypatch):
+    api, clock = backlash_jog_api(monkeypatch)
+    sent = api._usb.send_motion
+    packets = []
+
+    def counting(records):
+        sent(records)
+        packets.append(len(records))
+        if len(packets) == 1:
+            api.pause()                 # the physical FEED_HOLD after the first packet of the take-up
+    api._usb.send_motion = counting
+    api.jog_start(0, 0, 120)
+    moved = abs(sum(delta[0] for delta in sent_deltas(api))) / api._axis_scale(0)
+    assert moved < .05                  # the whole take-up is 1 mm
+    assert len(sent_deltas(api)) < 100
+    assert api.state == State.IDLE and not api.jogging
+
+
+def test_nan_feed_writes_no_motion_before_the_refusal(monkeypatch):
+    api, _ = backlash_jog_api(monkeypatch)
+    with pytest.raises((EcutError, ValueError)):
+        api.jog_start(0, 0, float('nan'))
+    assert sent_deltas(api) == []
