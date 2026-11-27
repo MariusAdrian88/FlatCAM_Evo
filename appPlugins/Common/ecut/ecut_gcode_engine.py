@@ -21,7 +21,7 @@ from pathlib import Path
 
 from .ecut_controller import EcutError, MotionLine, State, _strip_comments, compile_program, encode_config
 from .ecut_config import EcutBoardConfig, OutputSignal
-from .ecut_planner import LinearMove, backlash_active, check_soft_limit_move, plan_linear_path
+from .ecut_planner import LinearMove, backlash_active, check_soft_limit_move, feed_path_length, plan_linear_path
 
 
 class GcodeError(EcutError):
@@ -746,7 +746,7 @@ class EcutGcodeEngine:
                 consumed.update('IJKRP')
             else:
                 points = [target]
-                length = math.dist(parser.position, target)
+                length = feed_path_length([t - p for p, t in zip(parser.position, target)])
             # G94 feed is stored in mm/min of the linear part; a pure rotary move uses the modal angular feed
             # (degrees/min as written). A mixed move keeps the inch feed of its linear part.
             # "Moves" means an actual displacement of X, Y or Z, not a word that is present.
@@ -841,7 +841,10 @@ class EcutGcodeEngine:
             length = math.sqrt(sum(v*v for v in distance))
             limits = [self.api.config.axes[i].max_velocity_mm_s * length / distance[i]
                       for i in range(len(distance)) if distance[i] > 0]
-            feed = (min(limits) * 60 * self._rapid_override / 100 if limits else 1)
+            # the planner reads F as the speed along the feed path (XYZ when it moves): ask for the selected
+            # share of the rapid speed along the whole path
+            feed = (min(limits) * 60 * self._rapid_override / 100 * feed_path_length(distance) / length
+                    if limits else 1)
             feed /= max(.1, self.api.feed_override)
             motion = 1
         # A word per axis that changes against the real start of this leg; a disabled A is never a target
@@ -915,7 +918,7 @@ class EcutGcodeEngine:
             point[linear] += (target[linear] - start[linear]) * fraction
             point[3] += (target[3] - start[3]) * fraction
             points.append(target if n == count else point)
-        return points, math.hypot(abs(sweep) * radius, target[linear] - start[linear], target[3] - start[3])
+        return points, feed_path_length((abs(sweep) * radius, target[linear] - start[linear], 0.0, target[3] - start[3]))
 
     def path_deviation_mm(self, parser=None):
         """Corner deviation for `LinearMove.corner_deviation_mm` under the active path control mode.

@@ -70,6 +70,27 @@ def test_hold_brakes_at_the_deceleration_limit_and_resume_completes_the_path():
     assert all(max(abs(c) for c in r) <= 32767 for r in out)
 
 
+@pytest.mark.parametrize('event', [50, 150])
+@pytest.mark.parametrize('how', ['hold', 'override'])
+def test_hold_or_override_during_acceleration_continues_the_speed(event, how):
+    config = EcutBoardConfig()
+    state = {'held': False, 'rate': 1.0}
+    records = _HoldableRecords(make_path(config, target=(100.0, 0.0), feed=3000.0), config,
+                               lambda: state['held'], lambda: state['rate'])
+    out = []
+    while not records.done and not records.stopped and len(out) < 400:
+        if len(out) >= event:
+            state['held' if how == 'hold' else 'rate'] = True if how == 'hold' else 0.5
+        out.extend(records.take(1))
+    v = speeds(out, config)
+
+    def window(k):
+        return sum(v[k - 5:k]) / 5
+    # the speed (mm/s) changes in 5 ms by no more than the deceleration allows, plus the rounding of the counts
+    allowed = config.axes[0].effective_deceleration_mm_s2 * 0.005 + 0.2
+    assert max(abs(window(k + 5) - window(k)) for k in range(event - 5, event + 30)) <= allowed
+
+
 def test_hold_at_a_stopped_point_stops_at_once():
     config = EcutBoardConfig()
     path = make_path(config)

@@ -160,6 +160,84 @@ def test_backlash_offset_survives_an_idle_reset():
     assert api.homed_axes == ()
 
 
+@pytest.mark.parametrize('programs,intervals', [
+    ([['G1 X10 F600', 'G1 X0']], (7, 50)),
+    ([['G1 X5 F1200', 'G1 X0', 'G1 X5', 'G1 X0']], (7, 50)),
+    ([['G1 X10 F600'], ['G1 X0 F600']], (7, 20, 50))])   # the 2nd path starts with a reversal
+def test_reported_position_with_backlash_is_right_for_frames_at_any_interval(programs, intervals):
+    # A frame within the compensation counts of a reversal can show a position that the board has on the way
+    # to the reversal and on the way back: only the intervals above never hit that.
+    import struct
+    from test_ecut_controller import FakeUsb, make_api
+
+    class SampledUsb(FakeUsb):
+        def __init__(self, api, every):
+            super().__init__()
+            self.api, self.every, self.count, self.samples = api, every, 0, []
+
+        def send_motion(self, records):
+            self.motion_packets.append(list(records))
+            for record in records:
+                for i, delta in enumerate(struct.unpack_from('>6h', record, 4)):
+                    self.positions[i] += delta
+                self.count += 1
+                if self.count % self.every == 0:
+                    frame = SimpleNamespace(axis_positions=tuple(self.positions))
+                    scale = self.api.config.axes[0].steps_per_mm * self.api.config.interpolation_factor
+                    self.samples.append((self.count, self.positions[0] / scale, self.api.logical_position_mm(frame)[0]))
+            self.pending = len(self.motion_packets)
+
+    def run(every):
+        api = make_api()
+        api.config.axes[0].backlash_mm = 0.05
+        api.config.axes[0].backlash_compensation_enabled = True
+        api.config.unverified.backlash = True
+        api.reference_axes([0])
+        usb = SampledUsb(api, every)
+        usb.is_open = True
+        api._usb = usb
+        for program in programs:
+            api.run_gcode(program)
+        return api, usb.samples
+
+    api, dense = run(1)
+    # the reported X never moves more than the board does between 2 frames, and ends at the program end
+    assert all(abs(b[2] - a[2]) <= abs(b[1] - a[1]) + 1e-9 for a, b in zip(dense, dense[1:]))
+    assert dense[-1][2] == pytest.approx(api.position_mm[0], abs=1e-4)
+    truth = {count: logical for count, _board, logical in dense}
+    for every in intervals:
+        _api, sparse = run(every)
+        assert sparse and all(logical == pytest.approx(truth[count], abs=1e-6) for count, _b, logical in sparse)
+
+
+def test_reported_x_does_not_move_before_the_board_reaches_the_reversal():
+    from test_ecut_controller import make_api
+    api = make_api()
+    scale = api.config.axes[0].steps_per_mm * api.config.interpolation_factor
+    api.config.axes[0].backlash_mm = 0.05
+    api.config.axes[0].backlash_compensation_enabled = True
+    api.config.unverified.backlash = True
+    api.reference_axes([0])
+    reports = []
+
+    def on_motion(_packet):   # a frame of the board after each packet
+        frame = api._usb.poll()
+        reports.append((frame.axis_positions[0] / scale, api.logical_position_mm(frame)[0]))
+
+    api._usb.on_motion = on_motion
+    api.run_gcode(['G1 X10 F600', 'G1 X0'])
+    assert len(reports) > 2
+    # the reported X is the board X until the board is at the reversal (X 10): the offset is not applied early
+    outward = []
+    for board, reported in reports:   # the frames until the board turns back
+        if outward and board < outward[-1][0]:
+            break
+        outward.append((board, reported))
+    assert len(outward) > 2 and outward[-1][0] > 9
+    assert all(reported == pytest.approx(board, abs=1e-4) for board, reported in outward)
+    assert api.position_mm[0] == pytest.approx(0, abs=1e-4)
+
+
 def test_unchanged_config_push_keeps_the_logical_x_of_an_unhomed_axis():
     engine, api = engine_api()
     ax = api.config.axes[0]

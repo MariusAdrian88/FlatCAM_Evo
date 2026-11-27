@@ -893,9 +893,95 @@ def test_inverse_time_arc_with_a_word_takes_the_requested_time():
     moves = _planned_moves(engine, 'G93 G3 X1 Y1 I0 J1 A90 F60')
     previous, seconds = [0.0, 0.0, 0.0, 0.0], 0.0
     for feed, point in moves:
-        seconds += math.dist(previous, point) / feed * 60
+        seconds += math.dist(previous[:3], point[:3]) / feed * 60   # F is the speed along the XYZ path
         previous = point
     assert seconds == pytest.approx(1.0, rel=.02)
+
+
+def _planned_paths(engine, api, text, limit=100):
+    """The planned paths that the block would send, with the velocity limit (acceleration 1000x) on X Y Z A."""
+    from appPlugins.Common.ecut.ecut_controller import compile_program, _PlannedPathAction
+    for axis in api.config.axes[:4]:
+        axis.max_velocity_mm_s, axis.acceleration_mm_s2, axis.deceleration_mm_s2 = limit, limit * 1000, limit * 1000
+    api.push_config()
+    planned = api._plan_program_actions(compile_program(engine._plan(text)[3]))
+    return [p for _, p in planned if isinstance(p, _PlannedPathAction)]
+
+
+def _planned_seconds(engine, api, text, limit=100):
+    """Planned time of a block: the 1 ms records of the paths that the program would send."""
+    return sum(len(p.segments) for p in _planned_paths(engine, api, text, limit)) / 1000.0
+
+
+@pytest.mark.parametrize('a_word', ['', ' A1'])
+def test_g64_arc_is_one_blended_path_with_or_without_a(a_word):
+    engine, api = a_engine()
+    paths = _planned_paths(engine, api, f'G64 G3 X10 Y10 I0 J10{a_word} F600')
+    assert len(paths) == 1
+    assert max(b.exit_speed_mm_s for b in paths[0].segments.blocks[:-1]) > 0   # no stop at the chord joints
+
+
+def _joint_speed_steps(lines):
+    """Speed step (mm/s, deg/s) per axis X Y Z A at the joint of the 2 blocks of the planned path."""
+    from appPlugins.Common.ecut.ecut_controller import compile_program, _PlannedPathAction
+    engine, api = a_engine()
+    planned = api._plan_program_actions(compile_program(lines))
+    paths = [p for _, p in planned if isinstance(p, _PlannedPathAction)]
+    assert len(paths) == 1
+    first, second = paths[0].segments.blocks
+    scale = [a.steps_per_mm * api.config.interpolation_factor for a in api.config.axes]
+
+    def velocity(block, speed):
+        delta = [(t - s) / k for s, t, k in zip(block.start_steps, block.target_steps, scale)]
+        length = math.hypot(*delta)
+        return [speed * d / length for d in delta[:4]]
+    return [abs(b - a) for a, b in zip(velocity(first, first.exit_speed_mm_s), velocity(second, second.entry_speed_mm_s))]
+
+
+@pytest.mark.parametrize('a_end', [1, 20, 90])
+def test_joined_xyz_a_path_has_the_xyz_junction_speed_of_the_same_corner_without_a(a_end):
+    without = _joint_speed_steps(['G21 G90 G1 X10 F3000 ', 'G21 G90 G1 X10 Y10 F3000 '])
+    with_a = _joint_speed_steps([f'G21 G90 G1 X10 A{a_end} F3000 ', f'G21 G90 G1 X10 Y10 A{2 * a_end} F3000 '])
+    assert max(with_a[:3]) <= max(without[:3]) * 1.01
+    # the speed step of A (the rate of A per mm of XYZ path stays the same here): within the acceleration of A
+    assert with_a[3] <= 200.0 * math.sqrt(2 * 0.01 / 200.0) + 1e-6
+
+
+def test_joined_xyz_a_path_stops_at_an_xyz_reversal_and_bounds_the_a_step():
+    reversal = _joint_speed_steps(['G21 G90 G1 X10 A10 F3000 ', 'G21 G90 G1 X0 A20 F3000 '])
+    assert reversal == [0.0, 0.0, 0.0, 0.0]
+    change = _joint_speed_steps(['G21 G90 G1 X10 A20 F3000 ', 'G21 G90 G1 X20 A400 F3000 '])
+    assert change[3] <= 200.0 * math.sqrt(2 * 0.01 / 200.0) + 1e-6   # the A acceleration times the corner time
+
+
+def test_g61_moves_with_a_stop_at_each_corner():
+    engine, api = a_engine()
+    from appPlugins.Common.ecut.ecut_controller import compile_program, _PlannedPathAction
+    lines = ['G21 G90 G1 X10 A1 F600 ', 'G21 G90 G1 Y10 A2 F600 ']
+    for corner, expected in ((0.0, 0), (None, 1)):   # G61 gives MotionLine corner 0; G64 blends the corner
+        from appPlugins.Common.ecut.ecut_controller import MotionLine
+        program = [lines[0] if corner is None else MotionLine(lines[0], 0.0), lines[1]]
+        planned = api._plan_program_actions(compile_program(program))
+        paths = [p for _, p in planned if isinstance(p, _PlannedPathAction)]
+        assert len(paths) == 1
+        assert (paths[0].segments.blocks[0].exit_speed_mm_s == 0) == (expected == 0)
+
+
+def test_inverse_time_mixed_xyz_and_a_move_takes_the_requested_time():
+    engine, api = a_engine()
+    xyz = _planned_seconds(engine, api, 'G93 G1 X1 F6')
+    mixed = _planned_seconds(engine, api, 'G93 G1 X1 A9 F6')
+    assert xyz == pytest.approx(10, rel=.02)
+    assert mixed == pytest.approx(10, rel=.02)
+
+
+@pytest.mark.parametrize('code,factor', [(0x96, 2), (0x97, 4)])
+@pytest.mark.parametrize('text', ['G0 X10 A90', 'G0 X10'])
+def test_reduced_rapid_takes_the_selected_share_of_the_speed(text, code, factor):
+    engine, api = a_engine()
+    full = _planned_seconds(engine, api, text)
+    engine.realtime(code)
+    assert _planned_seconds(engine, api, text) == pytest.approx(full * factor, rel=.05)
 
 
 def test_unverified_switches_are_writable():

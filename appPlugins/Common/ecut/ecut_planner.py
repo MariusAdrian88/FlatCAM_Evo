@@ -194,6 +194,8 @@ class PlannedBlock:
     segments: Sequence[tuple[int, ...]]
     # Effective corner deviation at this block's end (see LinearMove); None = the path setting.
     corner_deviation_mm: Optional[float] = None
+    # Backlash offset counts (board minus logical) that this block ends with; () when it is not planned with them.
+    offsets: tuple[int, ...] = ()
 
     def iter_segments(self) -> Iterator[tuple[int, ...]]:
         return iter(self.segments)
@@ -255,6 +257,48 @@ def check_soft_limit_move(axis, start, target, tolerance, name='axis'):
     after = soft_limit_violation(axis, target, tolerance)
     if after > 0 and after > soft_limit_violation(axis, start, tolerance) + 1e-9:
         raise EcutError(f'Target exceeds the {name} soft limit')
+
+
+def feed_path_length(distances):
+    """Length (mm) that the G94 feed F measures: the XYZ path when X, Y or Z moves, else the whole path.
+
+    ``distances``: the displacement per axis (X, Y, Z first). The planner, the inverse-time (G93) feed and the
+    reduced rapid share this metric, so a feed is converted once.
+    """
+    linear = math.hypot(*distances[:3])
+    return linear if linear > 0 else math.hypot(*distances)
+
+
+def _xyz_corner_cap(config, previous, following, deviation, junction_deviation_mm) -> float:
+    """Junction speed along the XYZ path (mm/s) of 2 blocks of a path that has rotary moves.
+
+    X, Y and Z take the corner rule of the same XYZ corner without the rotary axes; an XYZ reversal stops.
+    A rotary axis moves ``rate`` (degrees per mm of XYZ path) in each block: the speed step of the axis at the
+    junction, speed * |rate change|, is limited to its acceleration times the time that the XYZ corner takes
+    to cover the deviation (sqrt(2 * deviation / acceleration)).
+    """
+    dot = max(-1.0, min(1.0, sum(a * b for a, b in zip(previous[13], following[13]))))
+    cap = math.inf
+    turn = tuple(b - a for a, b in zip(previous[13], following[13]))
+    if dot <= -0.999999 or (deviation == 0 and dot < 0.999999):
+        return 0.0
+    acceleration = min(min(config.axes[j].acceleration_mm_s2, config.axes[j].effective_deceleration_mm_s2)
+                       for j in range(3) if previous[13][j] or following[13][j])
+    if dot < 0.999999:
+        turn_length = math.hypot(*turn)
+        turn_acceleration = min(min(config.axes[j].acceleration_mm_s2, config.axes[j].effective_deceleration_mm_s2)
+                                * turn_length / abs(turn[j]) for j in range(3) if turn[j])
+        half_angle = math.sqrt(0.5 * (1 + dot))
+        cap = math.sqrt(turn_acceleration * deviation * half_angle / (1 - half_angle))
+    corner_time = math.sqrt(2 * deviation / acceleration) if deviation > 0 else 0.0
+    before = previous[11] or (0.0,) * len(following[11])
+    after = following[11] or (0.0,) * len(previous[11])
+    for axis, (a, b) in enumerate(zip(before, after)):
+        change = abs(b - a)
+        if change:
+            limit = min(config.axes[3 + axis].acceleration_mm_s2, config.axes[3 + axis].effective_deceleration_mm_s2)
+            cap = min(cap, limit * corner_time / change)
+    return cap
 
 
 def plan_linear_path(config: EcutBoardConfig, start_steps, moves, *, feed_override=1.0,
@@ -335,13 +379,19 @@ def plan_linear_path(config: EcutBoardConfig, start_steps, moves, *, feed_overri
         if not move.rapid:
             # G94: F is the speed along the XYZ path when X, Y or Z moves (A is coordinated to end with it);
             # a move of the rotary axes alone takes F as degrees/min along its own path.
-            linear = math.hypot(*distances[:3])
-            feed_length = linear if linear > 0 else length
-            velocity = min(velocity, move.feed_mm_min * (feed_override / 60.0) * length / feed_length)
+            velocity = min(velocity, move.feed_mm_min * (feed_override / 60.0) * length / feed_path_length(distances))
         if not math.isfinite(velocity) or velocity <= 0 or not math.isfinite(acceleration) or not math.isfinite(deceleration):
             raise EcutError('Effective feed or acceleration is outside the finite planning range')
+        # A block that moves X, Y or Z and a rotary axis takes its junction speeds as the speed along the XYZ
+        # path (ratio = path length / XYZ length): mm and degrees mix in `unit`, so its angle is not an XYZ angle.
+        linear = math.hypot(*distances[:3])
+        rotary = any(delta[3:]) and any(delta[:3])
+        ratio = length / linear if rotary else 1.0
+        rate = tuple(distance / linear for distance in distances[3:]) if rotary else ()
         geometry.append((current, target, delta, length, unit, velocity, acceleration, deceleration,
-                         None if corner is None else min(corner, junction_deviation_mm)))
+                         None if corner is None else min(corner, junction_deviation_mm), tuple(offsets),
+                         ratio, rate, bool(any(delta[3:])),
+                         tuple(distance / linear for distance in distances[:3]) if linear else None))
         current = target
     if not geometry:
         return []
@@ -350,9 +400,18 @@ def plan_linear_path(config: EcutBoardConfig, start_steps, moves, *, feed_overri
     speeds = [0.0] * (len(geometry) + 1)
     for i in _with_checkpoint(range(1, len(geometry)), checkpoint):
         previous, following = geometry[i - 1], geometry[i]
-        dot = max(-1.0, min(1.0, sum(a * b for a, b in zip(previous[4], following[4]))))
-        cap = min(previous[5], following[5])
         deviation = junction_deviation_mm if previous[8] is None else previous[8]
+        # `speeds` holds the speed along the path; along the XYZ path at a junction with a rotary move
+        # (ratio 1 elsewhere): the XYZ speed is then the same on both sides of the junction.
+        cap = min(previous[5] / previous[10], following[5] / following[10])
+        if (previous[12] or following[12]) and (previous[13] is not None or following[13] is not None):
+            if junction_deviation_mm == 0 or previous[13] is None or following[13] is None:
+                cap = 0.0   # a move of the rotary axes alone keeps its own path
+            else:
+                cap = min(cap, _xyz_corner_cap(config, previous, following, deviation, junction_deviation_mm))
+            speeds[i] = cap
+            continue
+        dot = max(-1.0, min(1.0, sum(a * b for a, b in zip(previous[4], following[4]))))
         if junction_deviation_mm == 0 or dot <= -0.999999 or (deviation == 0 and dot < 0.999999):
             cap = 0.0
         elif dot < 0.999999:
@@ -366,20 +425,21 @@ def plan_linear_path(config: EcutBoardConfig, start_steps, moves, *, feed_overri
         speeds[i] = cap
     for i, cap in (corner_speed_caps or {}).items():   # {block index: max exit speed mm/s}
         if 0 <= i < len(geometry) - 1:
-            speeds[i + 1] = min(speeds[i + 1], cap)
+            speeds[i + 1] = min(speeds[i + 1], cap / geometry[i][10])
     for i in _with_checkpoint(range(len(geometry) - 1, 0, -1), checkpoint):
-        length, deceleration = geometry[i][3], geometry[i][7]
-        speeds[i] = min(speeds[i], math.hypot(speeds[i + 1], math.sqrt(deceleration) * math.sqrt(2 * length)))
+        length, deceleration, ratio = geometry[i][3], geometry[i][7], geometry[i][10]
+        speeds[i] = min(speeds[i], math.hypot(speeds[i + 1], math.sqrt(deceleration) * math.sqrt(2 * length) / ratio))
     for i, item in _with_checkpoint(enumerate(geometry), checkpoint):
-        speeds[i + 1] = min(speeds[i + 1], math.hypot(speeds[i], math.sqrt(item[6]) * math.sqrt(2 * item[3])))
+        speeds[i + 1] = min(speeds[i + 1], math.hypot(speeds[i], math.sqrt(item[6]) * math.sqrt(2 * item[3]) / item[10]))
 
     blocks = []
-    for i, (start, target, delta, length, unit, nominal, acceleration, deceleration, corner) in _with_checkpoint(enumerate(geometry), checkpoint):
-        profile = _profile(length, speeds[i], speeds[i + 1], nominal, acceleration, deceleration)
+    for i, (start, target, delta, length, unit, nominal, acceleration, deceleration, corner, block_offsets, ratio, *_) in _with_checkpoint(enumerate(geometry), checkpoint):
+        entry, leave = speeds[i] * ratio, speeds[i + 1] * ratio
+        profile = _profile(length, entry, leave, nominal, acceleration, deceleration)
         max_step_rate = (max(abs(value) for value in delta) / length) * profile.peak
         count = _record_count(profile.duration, max_step_rate)
-        blocks.append(PlannedBlock(start, target, speeds[i], speeds[i + 1], nominal, acceleration,
-                                   count * period_s, _Segments(delta, profile, count, scales), corner))
+        blocks.append(PlannedBlock(start, target, entry, leave, nominal, acceleration,
+                                   count * period_s, _Segments(delta, profile, count, scales), corner, block_offsets))
     return blocks
 
 

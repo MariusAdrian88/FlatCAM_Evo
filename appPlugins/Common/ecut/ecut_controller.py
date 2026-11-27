@@ -28,6 +28,7 @@ import struct
 import sys
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
@@ -44,7 +45,7 @@ from .ecut_config import (
 )
 
 from .ecut_planner import (BacklashState, LinearMove, apply_backlash, backlash_active, backlash_axis_active,
-                           backlash_reversal, plan_path_segments, iter_jog_segments)
+                           backlash_reversal, plan_path_segments, iter_jog_segments, _PathSegments, _StoppedPathSegments)
 
 log = logging.getLogger(__name__)
 
@@ -139,6 +140,17 @@ class MotionLine(str):
 
 _WORD_RE = re.compile(r'\s*([A-Z])\s*([-+]?(?:\d+\.?\d*|\.\d+))')
 _AXIS_LETTERS = 'XYZABC'
+
+
+def _reversal_events(segments, start_offsets) -> dict:
+    """Per axis: (board count at the reversal, offset before, offset after) of each backlash reversal of a path."""
+    events, previous = {}, list(start_offsets)
+    for block in segments.blocks if isinstance(segments, (_PathSegments, _StoppedPathSegments)) else ():
+        for axis, offset in enumerate(block.offsets):
+            if offset != previous[axis]:
+                events.setdefault(axis, []).append((block.start_steps[axis], previous[axis], offset))
+                previous[axis] = offset
+    return events
 
 
 def _strip_comments(line: str) -> str:
@@ -412,30 +424,58 @@ class _HoldableRecords:
         self._acceleration = [axis.acceleration_mm_s2 for axis in config.axes]
         self._deceleration = [axis.effective_deceleration_mm_s2 for axis in config.axes]
         self._index = 0  # path record that holds self._s
-        self._origin = [0] * 6  # path counts at the start of that record
-        self._record = self._read()
+        # path counts at the start of record self._cum_base + k; read ahead from the planned records on demand
+        self._cum = deque([(0,) * 6])
+        self._cum_base = 0
         self._s = 0  # position on the path, in records; int until the first hold
         self._emitted = [0] * 6
         self._speed = None  # actual mm/s while the time is scaled
         self.stopped = False
 
-    def _read(self):
-        record = next(self._records, None) if self._index < self._count else None
-        return tuple(record) if record is not None else (0,) * 6
+    def _counts_at(self, index):
+        """Path counts at the start of planned record ``index`` (reads the records up to it)."""
+        index = min(index, self._count)
+        while self._cum_base + len(self._cum) - 1 < index:
+            record = next(self._records, None)
+            last = self._cum[-1]
+            self._cum.append(tuple(a + b for a, b in zip(last, record)) if record is not None else last)
+        return self._cum[index - self._cum_base]
 
     def _seek(self, s):
-        while self._index < self._count and s >= self._index + 1:
-            self._origin = [a + b for a, b in zip(self._origin, self._record)]
-            self._index += 1
-            self._record = self._read()
+        self._index = min(self._count, int(s))
+        self._counts_at(self._index)
+        while self._cum_base < self._index - 512:   # the history that the speed so far looks back on
+            self._cum.popleft()
+            self._cum_base += 1
+
+    def _record(self):
+        return tuple(b - a for a, b in zip(self._counts_at(self._index), self._counts_at(self._index + 1)))
 
     def _nominal(self, limits):
-        """Planned speed (mm/s) of the current record and the limit along its direction (mm/s2)."""
-        distances = [count / scale for count, scale in zip(self._record, self._scales)]
+        """Planned speed (mm/s) at the current record and the limit along its direction (mm/s2).
+
+        The speed is the path length over a window of the planned time line (1 ms per record) around the
+        record, that grows until it holds enough counts: a single record is rounded to whole counts and says
+        nothing at a slow feed. A window that is centered on the record gives the speed of a ramp at that record
+        (a window that lies on one side gives the speed of its middle, which is off by half the window). At the
+        start or end of the path the window shrinks to stay centered.
+        """
+        width = 16
+        while True:
+            half = width // 2
+            edge = self._index - half < self._cum_base or self._index + 1 + half > self._count
+            if edge:
+                half = max(0, min(self._index - self._cum_base, self._count - 1 - self._index))
+            first, last = self._index - half, min(self._count, self._index + 1 + half)
+            counts = tuple(b - a for a, b in zip(self._counts_at(first), self._counts_at(last)))
+            if edge or width >= 512 or max(abs(c) for c in counts) >= 64:
+                break
+            width *= 2
+        distances = [count / scale for count, scale in zip(counts, self._scales)]
         length = math.hypot(*distances)
         if length == 0:
             return 0.0, 0.0
-        return length * 1000, min(limit * length / abs(d) for limit, d in zip(limits, distances) if d)
+        return length * 1000 / (last - first), min(limit * length / abs(d) for limit, d in zip(limits, distances) if d)
 
     @property
     def done(self) -> bool:
@@ -453,15 +493,16 @@ class _HoldableRecords:
             limit_rate = self._rate_limit()
             if not held and limit_rate == 1.0 and self._speed is None and type(self._s) is int:
                 # no hold yet: the planned record, unchanged
-                out.append(self._record)
-                self._emitted = [a + b for a, b in zip(self._emitted, self._record)]
+                record = self._record()
+                out.append(record)
+                self._emitted = [a + b for a, b in zip(self._emitted, record)]
                 self._s += 1
                 self._seek(self._s)
                 continue
             nominal, decel = self._nominal(self._deceleration)
             accel = self._nominal(self._acceleration)[1]
             if self._speed is None:
-                self._speed = nominal
+                self._speed = nominal   # the speed of the records emitted before
             goal = 0.0 if held else nominal * limit_rate
             if self._speed > goal:
                 target = max(goal, self._speed - decel * 0.001)
@@ -477,7 +518,7 @@ class _HoldableRecords:
             s = min(float(self._count), self._s + rate)
             self._seek(s)
             fraction = s - self._index
-            position = [round(o + r * fraction) for o, r in zip(self._origin, self._record)]
+            position = [round(o + r * fraction) for o, r in zip(self._counts_at(self._index), self._record())]
             out.append(tuple(p - e for p, e in zip(position, self._emitted)))
             self._emitted, self._s = position, s
             self._speed = rate * nominal
@@ -636,6 +677,9 @@ class EcutAPI:
         self._takeup_held = None   # continuation check of the backlash take-up of a continuous jog
         self._takeup_cut = False
         self._backlash_pending = set()   # axes whose offset changed in the path that is running
+        self._backlash_events = {}   # axis -> [(board count of the reversal, old offset, new offset)] of that path
+        self._backlash_reached = {}   # axis -> reversals that the board has reached
+        self._backlash_last = {}   # axis -> board count of the last frame that was read
         self._last_probe_result = None
         self._fault_reason = None
         self._fault_alarm = 1
@@ -917,6 +961,9 @@ class EcutAPI:
     def _clear_backlash(self, axes=range(6)) -> None:
         for axis in axes:
             self._backlash_dir[axis] = self._backlash_offset[axis] = 0
+            self._backlash_events.pop(axis, None)
+            self._backlash_reached.pop(axis, None)
+            self._backlash_last.pop(axis, None)
         self._backlash_pending.difference_update(axes)
 
     def _lose_backlash(self, axes) -> None:
@@ -934,9 +981,38 @@ class EcutAPI:
         """Axis positions in mm without the backlash offset; of a board frame, else of the host counts."""
         if frame is None:
             return self._acc.position_mm(self._backlash_offset)
-        return [(frame.axis_positions[i] - self._backlash_offset[i])
+        return [(frame.axis_positions[i] - self._frame_offset(i, frame.axis_positions[i]))
                 / (ax.steps_per_mm * self._config.interpolation_factor * int(ax.direction))
                 for i, ax in enumerate(self._config.axes)]
+
+    def _frame_offset(self, axis: int, board: int) -> int:
+        """Backlash offset of an axis at a board count: the offset of a reversal of the running path applies from
+        the board reaching the reversal on, and grows with the compensation counts that follow it."""
+        events = self._backlash_events.get(axis)
+        if not events:
+            return self._backlash_offset[axis]
+        reached = self._backlash_reached.get(axis, 0)
+        last, first = self._backlash_last.get(axis, events[0][0]), True
+        while reached < len(events):
+            point, old, new = events[reached]
+            direction = 1 if new > old else -1   # the direction of travel after the reversal
+            # The board is at the reversal or beyond it, or it has moved in the new direction since the last
+            # frame: between 2 reversals an axis moves in one direction only, so that move is after the reversal.
+            if (board - point) * direction <= 0 or (first and (board - last) * direction > 0):
+                reached += 1
+                first = False
+                continue
+            break
+        self._backlash_last[axis] = board
+        self._backlash_reached[axis] = reached
+        if not reached:
+            return events[0][1]
+        point, old, new = events[reached - 1]
+        low, high = sorted((0, new - old))
+        offset = old + min(high, max(low, board - point))
+        if reached == len(events) and offset == new and (board - point - (new - old)) * (1 if new > old else -1) >= 0:
+            del self._backlash_events[axis], self._backlash_reached[axis]   # the path is past its last reversal
+        return offset
 
     def reference_axes(self, axes) -> None:
         """Manual homing, without a home switch: the current position becomes each axis home position.
@@ -2361,6 +2437,8 @@ class EcutAPI:
             if s == State.PAUSED:
                 self._pause_started = time.monotonic()
             self._state = s
+            if s == State.IDLE:   # the path is done: the board holds the end offsets
+                self._backlash_events, self._backlash_reached, self._backlash_last = {}, {}, {}
             log.info('State: %s -> %s', old.name, s.name)
             if self._on_state_change:
                 self._on_state_change(s)
@@ -2523,6 +2601,10 @@ class EcutAPI:
             changed = set(action.backlash_changed) | {
                 i for i in range(6) if action.backlash_end[1][i] != action.backlash_start[1][i]}
             self._backlash_dir[:], self._backlash_offset[:] = action.backlash_end
+            self._backlash_events = _reversal_events(action.segments, action.backlash_start[1])
+            self._backlash_reached = {}
+            # the board is at the path start until the first frame of the path: the base of the first move
+            self._backlash_last = {axis: action.segments.blocks[0].start_steps[axis] for axis in self._backlash_events}
             if len(action.segments):
                 was_running = self._running
                 try:
@@ -2602,7 +2684,9 @@ class EcutAPI:
                     # Probe hit and retract counts are only known during execution.
                     planned.append((lineno, action))
                     continue
-                if all(axis < 3 for axis in action.words):
+                # X Y Z moves join one blended path, with A as a fourth axis; a move of the rotary axes alone
+                # keeps its own path
+                if all(axis < 4 for axis in action.words) and any(axis < 3 for axis in action.words):
                     pending.append((lineno, action))
                 else:
                     flush()

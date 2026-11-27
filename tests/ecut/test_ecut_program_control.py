@@ -314,6 +314,25 @@ def test_feed_override_ramps_both_ways():
     assert engine.api.rate_limit == 1.0
 
 
+@pytest.mark.parametrize('rate,factor', [(0.5, 2), (0.1, 10)])
+def test_feed_override_scales_the_time_of_a_slow_feed(rate, factor):
+    # 0.1 mm at 0.6 mm/min: about half of the planned records move no count at all
+    from appPlugins.Common.ecut.ecut_controller import _HoldableRecords
+    from test_ecut_feed_hold import make_path
+    config = EcutBoardConfig()
+
+    def run(share):
+        records = _HoldableRecords(make_path(config, target=(0.1, 0.0), feed=0.6), config, lambda: False, lambda: share)
+        out = []
+        while not records.done:
+            out.extend(records.take(1000))
+        return out
+
+    full, slow = run(1.0), run(rate)
+    assert [sum(r[i] for r in slow) for i in range(6)] == [sum(r[i] for r in full) for i in range(6)]
+    assert len(slow) == pytest.approx(len(full) * factor, rel=.05)
+
+
 def test_last_move_with_slow_fifo_ends_idle(monkeypatch):
     clock = Clock()
     monkeypatch.setattr(ecut_controller, 'time', clock.module)
