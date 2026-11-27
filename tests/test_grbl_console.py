@@ -1892,11 +1892,12 @@ class TestDockedJogPage(unittest.TestCase):
         self.tool._grbl_caps = dict(self.tool._grbl_caps or {}, axes='XYZA')
         button = self.tool.ui.jog_wdg.jog_a_plus_button
         button.setVisible(True)
+        self.tool.CONTINUOUS_JOG_LEASE_S = 60     # a GUI stall under load must not end the held jog in this test
+        self.addCleanup(delattr, self.tool, 'CONTINUOUS_JOG_LEASE_S')
         button.setDown(True)
         button.pressed.emit()
         self.wait_native(lambda: any(d.startswith(b'$J') for d in port.written))
         self.assertEqual(self.tool._grbl_op.name, 'continuous jog')
-        self.tool._native_jog['until'] += 60     # a slow machine must not expire the lease in this test
         self.tool._apply_machine_state()
         self.assertTrue(button.isEnabled())
         self.assertTrue(button.isDown())

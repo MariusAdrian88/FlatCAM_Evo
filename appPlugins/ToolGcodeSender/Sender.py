@@ -195,6 +195,7 @@ class EcutBoardError(Exception):
 
 
 class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
+    CONTINUOUS_JOG_LEASE_S = 0.15   # the native jog ends when the GUI does not renew it within this time
     grbl_port_closed_sig = QtCore.pyqtSignal()
     # the hash of the correction that the height map was probed under (None: no correction)
     _al_map_calibration = None
@@ -2625,7 +2626,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         # One 200 ms segment, then confirmed Idle: no planner/serial backlog.
         fr_entry, step_entry = ((self.ui.jog_a_fr_entry, self.ui.jog_a_step_entry) if direction[0] == 'a'
                                 else (self.ui.jog_fr_entry, self.ui.jog_step_entry))
-        state = {'op': op, 'until': time.monotonic() + 0.15, 'stopped': False,
+        state = {'op': op, 'until': time.monotonic() + self.CONTINUOUS_JOG_LEASE_S, 'stopped': False,
                  'units': self.units, 'feed': fr_entry.get_value(), 'step': step_entry.get_value(),
                  'entries': (fr_entry, step_entry), 'session': self._start_seq}
         self._native_jog = state
@@ -2749,7 +2750,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._stop_continuous_jog()
         elif native is not None:
             with self._grbl_op_lock:
-                native['until'] = time.monotonic() + 0.15
+                native['until'] = time.monotonic() + self.CONTINUOUS_JOG_LEASE_S
 
     def _on_console_dock_visibility(self, visible):
         if not visible:
@@ -5999,7 +6000,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         dialog = GrblStartDialog(line_count, self.app.ui)
         cumulative = self.job_cumulative
         dialog.layout().insertWidget(0, QtWidgets.QLabel('%s ≈ %s' % (
-            _("Estimated time"), SenderEstimate.clock_text(cumulative[-1] if cumulative else None))))
+            _("Estimated time"), SenderEstimate.clock_text(
+                SenderEstimate.remaining(cumulative, 0, self._feed_override_pct) if cumulative else None))))
         if beginning_only:
             dialog.start_radio.setEnabled(False)
             reason = QtWidgets.QLabel(_("A new height map must start at the beginning.\n"

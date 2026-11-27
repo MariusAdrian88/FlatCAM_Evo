@@ -8,8 +8,9 @@
 
 import itertools
 import math
+import re
 
-from appPlugins.Common.gcode_segment import _ModalState, _COMMENT_RE, _words
+from appPlugins.Common.gcode_segment import _ModalState, _COMMENT_RE, _WORD_RE, _words
 from appPlugins.Common.grbl.grbl_client import dwell_seconds
 
 DEFAULT_RAPID_MM_MIN = 3000.0
@@ -75,14 +76,30 @@ def line_seconds(lines, rapid_mm_min, units):
     :param lines: the stream lines
     :param rapid_mm_min: the rapid rate (mm/min)
     :param units: 'MM' or 'IN', the units before the first G20/G21
-    :return: 1 value (s) per line, or None when no estimate is possible (a job with an A word)
+    :return: 1 value (s) per line, or None when no estimate is possible (a job with an A word, a line that is not read)
+    """
+    parts = line_parts(lines, rapid_mm_min, units)
+    return None if parts is None else [feed_s + fixed_s for feed_s, fixed_s in parts]
+
+
+def line_parts(lines, rapid_mm_min, units):
+    """
+    The duration of each stream line in 2 parts: the seconds that the feed override scales (G1/G2/G3, G93 blocks)
+    and the seconds that it does not scale (G0 rapids, G4 dwell).
+
+    :return: 1 (feed seconds, fixed seconds) per line, or None when no estimate is possible
+        (a job with an A word, a line that is not read)
     """
     state = _ModalState(pos=(0.0, 0.0, 0.0))
     state.units = 20 if str(units).upper().startswith('IN') else 21
     feed = 0.0
     out = []
-    for line in lines:
-        masked = _COMMENT_RE.sub(' ', line).split(';')[0]
+    for raw in lines:
+        # the controller reads lower case words: read them as the stream does
+        line = _COMMENT_RE.sub(' ', raw).split(';')[0].upper()
+        if not line.lstrip().startswith(('$', '/')) and re.sub(r'[\s%]', '', _WORD_RE.sub('', line)):
+            return None
+        masked = line
         new_units = None
         for letter, value in _words(masked):
             if letter == 'G' and value in (20.0, 21.0):
@@ -96,7 +113,8 @@ def line_seconds(lines, rapid_mm_min, units):
             feed *= factor              # the modal feed is in the units of the block that gave the F word
             state.units = new_units
         info = state.advance(line)
-        seconds = dwell_seconds(line)
+        fixed_s = dwell_seconds(line)
+        feed_s = 0.0
         if info is not None:
             if 'A' in info['letters']:
                 return None
@@ -110,7 +128,7 @@ def line_seconds(lines, rapid_mm_min, units):
                 # G93: the block takes 60 / F seconds, with the F word of that block
                 block_feed = [value for letter, value in info['words'] if letter == 'F']
                 if block_feed and block_feed[-1] > 0.0:
-                    seconds += 60.0 / block_feed[-1]
+                    feed_s += 60.0 / block_feed[-1]
             elif (info['axes'] or full_circle) and not info['blocked'] and state.motion in (0, 1, 2, 3):
                 start, end = info['start'], state.pos
                 delta = [end[a] - start[a] for a in 'XYZ' if end[a] is not None and start[a] is not None]
@@ -124,29 +142,37 @@ def line_seconds(lines, rapid_mm_min, units):
                 if state.motion == 0:
                     rate = rapid_mm_min / 25.4 if state.units == 20 else rapid_mm_min
                 if length > 0.0 and rate > 0.0:
-                    seconds += length / rate * 60.0
-        out.append(seconds)
+                    if state.motion == 0:
+                        fixed_s += length / rate * 60.0     # the feed override does not change a rapid
+                    else:
+                        feed_s += length / rate * 60.0
+        out.append((feed_s, fixed_s))
     return out
 
 
-def cumulative(seconds):
-    """:return: the running total of `seconds` (None stays None)."""
-    return None if seconds is None else list(itertools.accumulate(seconds))
+def cumulative(parts):
+    """:return: the running totals (feed seconds, fixed seconds) of the `line_parts` (None stays None)."""
+    if parts is None:
+        return None
+    return list(zip(itertools.accumulate(feed_s for feed_s, _fixed in parts),
+                    itertools.accumulate(fixed_s for _feed, fixed_s in parts)))
 
 
 def remaining(cumulative_list, done, feed_override_pct):
     """
-    :param cumulative_list: the running total of the line durations
+    :param cumulative_list: the running totals (feed seconds, fixed seconds) of the lines
     :param done: the number of lines that are done
     :param feed_override_pct: the feed override (percent)
-    :return: the seconds that are left, scaled by the feed override
+    :return: the seconds that are left: the feed seconds are scaled by the feed override, dwell and rapid are not
     """
     if not cumulative_list:
         return 0.0
-    total = cumulative_list[-1]
-    spent = cumulative_list[min(max(done, 0), len(cumulative_list)) - 1] if done > 0 else 0.0
+    index = min(max(done, 0), len(cumulative_list))
+    spent_feed, spent_fixed = cumulative_list[index - 1] if index > 0 else (0.0, 0.0)
     pct = feed_override_pct if feed_override_pct and feed_override_pct > 0 else 100
-    return max(total - spent, 0.0) * 100.0 / pct
+    feed_left = max(cumulative_list[-1][0] - spent_feed, 0.0)
+    fixed_left = max(cumulative_list[-1][1] - spent_fixed, 0.0)
+    return feed_left * 100.0 / pct + fixed_left
 
 
 def clock_text(seconds):

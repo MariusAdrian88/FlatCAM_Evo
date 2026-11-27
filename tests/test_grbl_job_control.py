@@ -455,7 +455,7 @@ class TestProgressCoalescing(unittest.TestCase):
         self.console_of(tool)
         now = [1000]
         tool._stream_clock = MagicMock(elapsed=lambda: now[0])
-        tool.job_cumulative = [10.0, 100.0]
+        tool.job_cumulative = [(10.0, 0.0), (100.0, 0.0)]
         tool._feed_override_pct = 100
         tool._progress_latest = (1, 2)
         tool._progress_shown = None
@@ -1666,10 +1666,60 @@ class TestJobEstimate(unittest.TestCase):
 
     def test_remaining_and_clock(self):
         from appPlugins.ToolGcodeSender.SenderEstimate import remaining, clock_text
-        self.assertAlmostEqual(remaining([1.0, 3.0, 6.0], 1, 100), 5.0)
-        self.assertAlmostEqual(remaining([1.0, 3.0, 6.0], 1, 200), 2.5)
+        feed_only = [(1.0, 0.0), (3.0, 0.0), (6.0, 0.0)]
+        self.assertAlmostEqual(remaining(feed_only, 1, 100), 5.0)
+        self.assertAlmostEqual(remaining(feed_only, 1, 200), 2.5)
         self.assertEqual(clock_text(3723), '01:02:03')
         self.assertEqual(clock_text(None), '--:--:--')
+
+    def test_lower_case_program_has_the_upper_case_estimate(self):
+        from appPlugins.ToolGcodeSender.SenderEstimate import line_seconds
+        upper = line_seconds(['G21 G90', 'G1 X10 F60'], 3000, 'MM')
+        lower = line_seconds(['g21 g90', 'g1 x10 f60'], 3000, 'MM')
+        self.assertAlmostEqual(sum(lower), 10.0)
+        self.assertEqual(lower, upper)
+        commented = line_seconds(['g21 (Tool CHANGE g1 x99)', 'g1 x10 f60 ; Move x500'], 3000, 'MM')
+        self.assertAlmostEqual(sum(commented), 10.0)
+        # a line that is not read gives no estimate, not a silent 0
+        self.assertIsNone(line_seconds(['G21', 'G1 X[#1+5] F60'], 3000, 'MM'))
+
+    def test_start_path_estimate_reads_lower_case(self):
+        from appPlugins.ToolGcodeSender import SenderGen, SenderEstimate
+        for arc_mode in ('off', 'split'):
+            inputs = SenderGen._StartInputs(
+                op=None, target=None, source='g21 g90\ng1 x10 f60\n', check_mode=False, autolevel=False,
+                arc_mode=arc_mode, arc_segment=0.5, units='MM', decimals=4, profile=None, poll_ms=20, seq=0,
+                generation=0)
+            prepared = SenderGen.prepare_job(inputs, None)
+            self.assertAlmostEqual(SenderEstimate.remaining(prepared.cumulative, 0, 100), 10.0, msg=arc_mode)
+
+    def test_bom_is_not_part_of_the_program(self):
+        from appPlugins.ToolGcodeSender import SenderGen, SenderEstimate
+        self.assertEqual(SenderGen.clean_lines('\ufeffG21 G90\nG1 X10 F600\n')[0], 'G21 G90')
+        self.assertEqual(SenderGen.clean_lines('G21\nG1\ufeff X10\n'), ['G21', 'G1 X10'])
+        for arc_mode in ('off', 'split'):
+            inputs = SenderGen._StartInputs(
+                op=None, target=None, source='\ufeffG21 G90\nG1 X10 F600\n', check_mode=False, autolevel=False,
+                arc_mode=arc_mode, arc_segment=0.5, units='MM', decimals=4, profile=None, poll_ms=20, seq=0,
+                generation=0)
+            prepared = SenderGen.prepare_job(inputs, None)
+            self.assertFalse(any('\ufeff' in line for line in prepared.lines), arc_mode)
+            self.assertAlmostEqual(SenderEstimate.remaining(prepared.cumulative, 0, 100), 1.0, msg=arc_mode)
+
+    def test_feed_override_scales_only_the_feed_time(self):
+        from appPlugins.ToolGcodeSender.SenderEstimate import cumulative, line_parts, remaining
+
+        def left(lines, pct, done=0):
+            return remaining(cumulative(line_parts(lines, 3000, 'MM')), done, pct)
+
+        self.assertAlmostEqual(left(['G4 P60'], 200), 60.0)
+        self.assertAlmostEqual(left(['G21', 'G0 X100'], 200), 2.0)
+        job = ['G21', 'G1 X60 F60', 'G4 P60', 'G0 X0']       # 60 s feed + 60 s dwell + 1.2 s rapid
+        self.assertAlmostEqual(left(job, 100), 121.2)
+        self.assertAlmostEqual(left(job, 200), 91.2)
+        self.assertAlmostEqual(left(job, 200, done=2), 61.2)
+        # G93 blocks are feed controlled
+        self.assertAlmostEqual(left(['G21', 'G93 G1 X10 F2'], 200), 15.0)
 
 
 if __name__ == '__main__':

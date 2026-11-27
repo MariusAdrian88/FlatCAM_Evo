@@ -38,7 +38,8 @@ def clean_lines_numbered(text, keep_markers=False, optional_stop=False, block_de
     :return: list of (source line number, str). The source line number is 1-based.
     """
     result = []
-    for number, raw in enumerate((text or '').splitlines(), start=1):
+    # U+FEFF (a BOM of the file, or a stray one) is not G-code: the port must not get its bytes
+    for number, raw in enumerate((text or '').replace('﻿', '').splitlines(), start=1):
         if keep_markers and MARKER_RE.match(raw):
             result.append((number, raw.strip()))
             continue
@@ -457,7 +458,7 @@ class _PreparedRestart:
 
 
 def _cumulative(lines, inputs):
-    return SenderEstimate.cumulative(SenderEstimate.line_seconds(lines, inputs.rapid_mm_min, inputs.units))
+    return SenderEstimate.cumulative(SenderEstimate.line_parts(lines, inputs.rapid_mm_min, inputs.units))
 
 
 def prepare_job(inputs, profile_compute, limits=(GRBL_RX_BUFFER, GRBL_MAX_LINE)):
