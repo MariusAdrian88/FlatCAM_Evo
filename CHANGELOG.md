@@ -22,15 +22,21 @@ G-code Sender:
 - fixed: the pendant server has a 10 s client read timeout and at most 16 open connections
 - fixed: the Import and Export buttons of the user buttons open their file dialog
 - fixed: a file error in Save or Load of the Configuration page shows a message and keeps the table
+- fixed: the job time estimate reads lower case G-code; a line that is not read gives no estimate (--:--:--) instead of 0 s
+- fixed: the feed override scales only the feed time of the estimate; dwell (G4) and rapid (G0) time stay; G93 blocks are feed time; the Start dialog total follows the current feed override
+- fixed: a G-code file saved as UTF-8 with BOM: the stream cleaner removes U+FEFF, so the estimate is made and the port never gets the bytes EF BB BF
 
 E-Cut controller:
 
 - fixed: a decelerated Stop checks its 5 s deadline while the braking records are made and while the stream waits for FIFO space; at the deadline the stop is abrupt (STOP, reference cleared); before, a slow deceleration could stream braking records for 14 s
-- fixed: the G94 feed with the A axis follows the LinuxCNC rule: if X, Y or Z moves, F is the speed along the XYZ path and A ends with it; only a move of A alone takes F in degrees/min; "moves" means a real displacement, so G20 G1 X0 Y0 Z0 A10 F60 is a pure A move; the A limits still cap the move
+- fixed: the G94 feed with the A axis follows the LinuxCNC rule: if X, Y or Z moves, F is the speed along the XYZ path and A ends with it; only a move of A alone takes F in degrees/min; "moves" means a real displacement, so G20 G1 X0 Y0 Z0 A10 F60 is a pure A move; the A limits still cap the move; G93 and a reduced rapid use the same feed length, so a mixed XYZ+A block takes its requested time and a 50 % / 25 % rapid takes 2x / 4x the time
 - fixed: G90 G0 A0 after a continuous jog moves A back: the engine decides which axes to write from the measured position
 - fixed: an identical configuration push keeps the backlash offset of each axis whose counts stay (homed or not), so the logical position of an unhomed axis does not shift
 - fixed: a probe with backlash targets the requested logical position, and the soft limit check of a native move and its board bounds use logical coordinates
 - fixed: an enabled MPG refuses a method, reverse, x1/x10/x100 or lock pin setting that is not the default; only the port select has a known place in the board configuration
+- fixed: the feed override and Hold take the planned speed from the time line of the path, so a slow feed slows as selected (0.6 mm/min at 10 % takes 10x the time), and a Hold or override that starts during the acceleration continues from the real speed
+- fixed: with backlash compensation, the reported position applies the offset of a reversal only when the board has reached it, also with status frames at any interval and for a path that starts with a reversal; near a reversal the error is at most the backlash
+- changed: moves with X, Y or Z and A join one blended path, so a G64 arc with A no longer stops at each chord; at a joint X, Y and Z keep the corner speed of the same XYZ corner without A, an XYZ reversal stops, and the A speed step is limited by the A acceleration; a move of A alone keeps its own path
 
 26.11.2026
 
