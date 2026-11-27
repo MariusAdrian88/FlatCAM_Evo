@@ -43,6 +43,10 @@ Welcome screen and recent files:
 - fixed: a good project save puts the project at the top of the recent projects (the Welcome screen and the menu), with or without the preference "Open" behavior; before, a save with that preference checked did not update the history
 - fixed: the Welcome screen does not show recent files that are no longer on the disk; it checks the history again each time it opens
 
+Machine Profiles:
+
+- fixed: a G-code write that the machine profile refuses (Tcl write_gcode, a script) could crash the application: the check result changed the status dot and opened the violations dialog on a worker thread; it now goes to the GUI thread; a headless run shows no dot and no dialog, the refusal text is the feedback
+
 Preferences:
 
 - fixed: the Excellon, Excellon advanced, Geometry, Geometry advanced, Gerber advanced and 2-Sided preference pages keep their fields at the top of the page; the free space is below them

@@ -1191,6 +1191,61 @@ def test_start_profile_outcomes(outcome):
         assert report.call_count == 1 and 'Correction refused at line 3, G91: relative moves' in messages
 
 
+def _gate_app(headless):
+    """An app with a recording dot (a real QLabel) and a recording violations dialog."""
+    import threading
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    from PyQt6 import QtCore, QtWidgets
+    from appGUI import machine_profile_ui
+
+    qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    touched = []
+
+    class Dot(QtWidgets.QLabel):
+        def setStyleSheet(self, text):
+            touched.append(QtCore.QThread.currentThread())
+            super().setStyleSheet(text)
+
+    dot = Dot()
+    app = SimpleNamespace(ui=SimpleNamespace(machine_profile_dot=dot), headless=headless,
+                          options={'global_machine_profile': 'P'})
+    dialogs = []
+    dialog = patch.object(machine_profile_ui, 'show_violations',
+                          lambda app, result: dialogs.append(QtCore.QThread.currentThread()))
+    return qapp, app, dot, touched, dialogs, dialog, QtCore.QThread.currentThread(), threading
+
+
+def test_report_gate_from_a_worker_thread_touches_the_widgets_on_the_main_thread():
+    from appCommon.machine_profile.writer import FileGate
+    from appGUI import machine_profile_ui
+
+    qapp, app, dot, touched, dialogs, dialog, main, threading = _gate_app(headless=False)
+    gate = FileGate(False, 'refused', result=object())
+    with dialog:
+        worker = threading.Thread(target=machine_profile_ui.report_gate, args=(app, gate))
+        worker.start()
+        worker.join()
+        qapp.processEvents()
+    assert machine_profile_ui._LAST['result'] is gate.result
+    assert touched and all(thread is main for thread in touched)
+    assert dialogs and all(thread is main for thread in dialogs)
+    assert machine_profile_ui.DOT_COLORS['rejected'] in dot.styleSheet()
+
+
+def test_report_gate_of_a_headless_app_keeps_the_dot_and_the_dialog_untouched():
+    from appCommon.machine_profile.writer import FileGate
+    from appGUI import machine_profile_ui
+
+    qapp, app, dot, touched, dialogs, dialog, main, threading = _gate_app(headless=True)
+    gate = FileGate(False, 'refused', result=object())
+    with dialog:
+        machine_profile_ui.report_gate(app, gate)
+        qapp.processEvents()
+    assert machine_profile_ui._LAST['result'] is gate.result
+    assert touched == [] and dialogs == []
+
+
 _GC_G90 = 'G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0'
 
 

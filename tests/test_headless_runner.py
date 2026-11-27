@@ -347,7 +347,9 @@ EXAMPLE_GERBER = os.path.join(REPO, 'assets', 'examples', 'files', 'test.gbr')
 def test_headless_write_gcode_of_a_board_larger_than_the_bed_fails_and_writes_no_file(tmp_path):
     from appCommon.machine_profile.profile import MachineProfile, save_profile
     save_profile(MachineProfile(name='tiny', bed_x=5.0, bed_y=5.0, z_travel=5.0), str(tmp_path / 'profiles'))
-    shutil.copy(EXAMPLE_GERBER, tmp_path / 'test.gbr')
+    # two 1 mm pads, 10 mm apart: larger than the 5 x 5 mm bed
+    (tmp_path / 'test.gbr').write_text('%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,1.0*%\nD10*\n'
+                                       'X0Y0D03*\nX100000Y100000D03*\nM02*\n')
     job = ('open_gerber test.gbr -outname board\n'
            'isolate board -dia 0.2 -outname iso\n'
            'cncjob iso -dia 0.2 -z_cut -0.1 -z_move 2 -feedrate 100 -outname cnc\n')

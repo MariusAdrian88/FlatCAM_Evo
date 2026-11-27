@@ -269,7 +269,34 @@ def report_gate(app, gate):
     """Show the result of a file check (a FileGate) in the dot: green checked, yellow warnings, red rejected."""
     _LAST['result'] = gate.result
     if getattr(getattr(app, 'ui', None), 'machine_profile_dot', None) is None:
-        return      # headless runs and stub apps have no status bar
+        return      # stub apps have no status bar
+    if app.headless is True:
+        return      # a headless run has no dot and no dialog: the refusal text on stderr is the feedback
+    if QtCore.QThread.currentThread() is not _GATE_BRIDGE.thread():
+        # a Tcl command or a job runs on a worker thread: the dot and the dialog belong to the GUI thread
+        _GATE_BRIDGE.reported.emit(app, gate)
+        return
+    _show_gate(app, gate)
+
+
+class _GateBridge(QtCore.QObject):
+    """Carries a file check result from a worker thread to the GUI thread (this object lives in the GUI thread)."""
+    reported = QtCore.pyqtSignal(object, object)
+
+    def __init__(self):
+        super().__init__()
+        self.reported.connect(self.on_reported)
+
+    @QtCore.pyqtSlot(object, object)
+    def on_reported(self, app, gate):
+        _show_gate(app, gate)
+
+
+_GATE_BRIDGE = _GateBridge()
+
+
+def _show_gate(app, gate):
+    """The GUI part of report_gate(): only on the GUI thread."""
     name = app.options.get('global_machine_profile')
     if not name or name == RESERVED_NAME:
         set_status_dot(app, 'none')
