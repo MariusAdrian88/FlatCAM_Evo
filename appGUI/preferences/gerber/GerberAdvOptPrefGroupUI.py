@@ -101,7 +101,7 @@ class GerberAdvOptPrefGroupUI(OptionsGroupUI):
             ],
             logic=True)
 
-        # self.layout.addStretch()
+        self.layout.addStretch()
 
         # signals
         self.buffering_radio.activated_custom.connect(self.on_buffering_change)

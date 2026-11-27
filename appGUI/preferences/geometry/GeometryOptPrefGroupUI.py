@@ -51,4 +51,4 @@ class GeometryOptPrefGroupUI(OptionsGroupUI):
         param_grid.addWidget(cutzlabel, 0, 0)
         param_grid.addWidget(self.cutz_entry, 0, 1)
 
-        # self.layout.addStretch()
+        self.layout.addStretch()

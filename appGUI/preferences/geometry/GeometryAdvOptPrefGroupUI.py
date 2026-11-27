@@ -71,4 +71,4 @@ class GeometryAdvOptPrefGroupUI(OptionsGroupUI):
         adv_grid.addWidget(seg_y_label, 2, 0)
         adv_grid.addWidget(self.seg_y_entry, 2, 1)
 
-        # self.layout.addStretch()
+        self.layout.addStretch()

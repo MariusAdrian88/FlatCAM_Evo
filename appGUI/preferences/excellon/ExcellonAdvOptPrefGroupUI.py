@@ -55,4 +55,4 @@ class ExcellonAdvOptPrefGroupUI(OptionsGroupUI):
         )
         param_grid.addWidget(self.autoload_db_cb, 2, 0, 1, 2)
 
-        # self.layout.addStretch()
+        self.layout.addStretch()

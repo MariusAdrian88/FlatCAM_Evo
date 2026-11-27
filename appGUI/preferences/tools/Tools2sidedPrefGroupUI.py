@@ -125,4 +125,4 @@ class Tools2sidedPrefGroupUI(OptionsGroupUI):
 
         GLay.set_common_column_size([param_grid, mirror_grid], 0)
 
-        # self.layout.addStretch(1)
+        self.layout.addStretch(1)

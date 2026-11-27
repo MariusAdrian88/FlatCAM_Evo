@@ -70,4 +70,4 @@ class ExcellonOptPrefGroupUI(OptionsGroupUI):
         param_grid.addWidget(stdlabel, 4, 0)
         param_grid.addWidget(self.slot_tooldia_entry, 4, 1)
 
-        # self.layout.addStretch()
+        self.layout.addStretch()
