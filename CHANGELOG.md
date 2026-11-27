@@ -38,6 +38,15 @@ E-Cut controller:
 - fixed: with backlash compensation, the reported position applies the offset of a reversal only when the board has reached it, also with status frames at any interval and for a path that starts with a reversal; near a reversal the error is at most the backlash
 - changed: moves with X, Y or Z and A join one blended path, so a G64 arc with A no longer stops at each chord; at a joint X, Y and Z keep the corner speed of the same XYZ corner without A, an XYZ reversal stops, and the A speed step is limited by the A acceleration; a move of A alone keeps its own path
 
+Welcome screen and recent files:
+
+- fixed: a good project save puts the project at the top of the recent projects (the Welcome screen and the menu), with or without the preference "Open" behavior; before, a save with that preference checked did not update the history
+- fixed: the Welcome screen does not show recent files that are no longer on the disk; it checks the history again each time it opens
+
+Preferences:
+
+- fixed: the Excellon, Excellon advanced, Geometry, Geometry advanced, Gerber advanced and 2-Sided preference pages keep their fields at the top of the page; the free space is below them
+
 26.11.2026
 
 G-code Sender IO and camera:
